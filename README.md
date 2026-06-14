@@ -7,13 +7,13 @@ structs.
 
 ## Install
 
-jade-sql isn't on RubyGems yet — install it from git. Its dependency, the
-`jade-lang` gem (the Jade compiler/runtime), resolves from RubyGems:
-
 ```ruby
 # Gemfile
-gem 'jade-sql', git: 'https://github.com/agustinrhcp/jade-sql'
+gem 'jade-sql'
 ```
+
+Its dependency, the `jade-lang` gem (the Jade compiler/runtime), resolves
+from RubyGems automatically.
 
 To execute queries at runtime, opt into the AR-backed task port:
 

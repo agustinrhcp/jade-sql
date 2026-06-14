@@ -1,5 +1,7 @@
 require 'jade'
 
+require_relative 'jade-sql/version'
+
 Jade.extension(__FILE__)
 
 require_relative 'jade-sql/uuid_runtime'

@@ -1,0 +1,67 @@
+#!/usr/bin/env ruby
+
+$LOAD_PATH.unshift File.expand_path('../lib', __dir__)
+
+require 'optparse'
+require 'jade-sql/version'
+
+def run_schema(args)
+  require 'fileutils'
+  require 'jade-sql'
+  require 'jade-sql/bin/generate_schema'
+
+  opts = {
+    input: 'db/structure.sql',
+    output: 'app/jade/schema.jd',
+    module_name: 'Schema',
+    tables: nil,
+  }
+
+  OptionParser.new do |o|
+    o.banner = 'Usage: jade-sql schema [options]'
+    o.on('-i', '--input PATH', 'source DDL (default: db/structure.sql)') { opts[:input] = it }
+    o.on('-o', '--output PATH', 'destination .jd (default: app/jade/schema.jd)') { opts[:output] = it }
+    o.on('-t', '--tables a,b,c', 'comma-separated table whitelist') {
+      opts[:tables] = it.split(',').map(&:strip).reject(&:empty?)
+    }
+    o.on('-m', '--module NAME', 'module name (default: Schema)') { opts[:module_name] = it }
+  end.parse!(args)
+
+  generated = JadeSql::SchemaGenerator.generate(
+    File.read(opts[:input]),
+    tables: opts[:tables],
+    module_name: opts[:module_name],
+  )
+
+  FileUtils.mkdir_p(File.dirname(opts[:output]))
+  File.write(opts[:output], generated)
+  puts "wrote #{opts[:output]}"
+end
+
+HELP = <<~USAGE
+  jade-sql #{JadeSql::VERSION} — type-safe SQL for Jade
+
+  Usage: jade-sql <command> [options]
+
+  Commands:
+    schema     Generate schema.jd from a SQL structure dump
+    version    Print the version
+    help       Show this message
+
+  Run `jade-sql schema --help` for schema options.
+USAGE
+
+case (command = ARGV.shift)
+in 'schema'
+  run_schema(ARGV)
+
+in 'version' | '-v' | '--version'
+  puts JadeSql::VERSION
+
+in nil | 'help' | '-h' | '--help'
+  puts HELP
+
+else
+  warn "jade-sql: unknown command '#{command}' (try `jade-sql help`)"
+  exit 1
+end

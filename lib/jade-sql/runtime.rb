@@ -142,13 +142,20 @@ module JadeSql
     # Sql renders `?` placeholders uniformly. AR's exec_query/exec_update
     # path on the PG adapter expects `$1, $2, …` — there is no `?`-to-`$n`
     # rewrite at that layer. SQLite and MySQL accept `?` directly, so this
-    # is a no-op there. Naive substitution; doesn't dodge `?` inside string
-    # literals — fix when someone hits it.
+    # is a no-op there.
+    #
+    # The alternation matches a whole quoted span first (single-quoted
+    # string with `''` escapes, or double-quoted identifier with `""`
+    # escapes), so a literal `?` inside one is left alone — only bare `?`
+    # outside quotes becomes a placeholder. Dollar-quoted bodies aren't
+    # handled (uncommon in app SQL).
+    QUOTED_OR_PLACEHOLDER = /'(?:[^']|'')*'|"(?:[^"]|"")*"|\?/
+
     def self.adapt_sql(sql, conn)
       return sql unless conn.adapter_name =~ /postgres/i
 
-      i = 0
-      sql.gsub("?") { i += 1; "$#{i}" }
+      n = 0
+      sql.gsub(QUOTED_OR_PLACEHOLDER) { |m| m == "?" ? "$#{n += 1}" : m }
     end
 
     # AR's exec_query raw path can't bind a Ruby Array — pg's OID type

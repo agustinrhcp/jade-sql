@@ -73,6 +73,30 @@ describe JadeSql::Runtime do
       sql = "SELECT COUNT(*) FROM patients"
       expect(described_class.adapt_sql(sql, pg_conn)).to eql sql
     end
+
+    it 'leaves a literal ? inside a single-quoted string alone' do
+      sql = "SELECT * FROM patients WHERE name = 'who?' AND balance > ?"
+      expect(described_class.adapt_sql(sql, pg_conn))
+        .to eql "SELECT * FROM patients WHERE name = 'who?' AND balance > $1"
+    end
+
+    it 'keeps placeholder numbering correct across a quoted ?' do
+      sql = "SELECT ? WHERE tag = 'a?b' AND name = ? AND note = '?'"
+      expect(described_class.adapt_sql(sql, pg_conn))
+        .to eql "SELECT $1 WHERE tag = 'a?b' AND name = $2 AND note = '?'"
+    end
+
+    it 'does not break on an escaped quote inside a string' do
+      sql = "SELECT * FROM t WHERE label = 'it''s a ?' AND id = ?"
+      expect(described_class.adapt_sql(sql, pg_conn))
+        .to eql "SELECT * FROM t WHERE label = 'it''s a ?' AND id = $1"
+    end
+
+    it 'leaves a literal ? inside a double-quoted identifier alone' do
+      sql = 'SELECT "weird?col" FROM t WHERE id = ?'
+      expect(described_class.adapt_sql(sql, pg_conn))
+        .to eql 'SELECT "weird?col" FROM t WHERE id = $1'
+    end
   end
 
   describe '.coerce_row' do

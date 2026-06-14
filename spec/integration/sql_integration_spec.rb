@@ -12,7 +12,13 @@ module Jade
 
     let(:source) do
       <<~JADE
-        module App exposing (find_by_name, insert_patient, list_names, load_tags)
+        module App exposing (
+          find_by_name,
+          insert_patient,
+          list_names,
+          literal_q,
+          load_tags,
+        )
 
         import Sql exposing (
           Assignment,
@@ -105,6 +111,16 @@ module Jade
         def insert_patient(n: String, b: Int) -> Task(Int, SqlError)
           insert(NewPatient(n, b), patients) |> execute
         end
+
+
+        def literal_q(n: String) -> Task(Patient, SqlError)
+          fetch_one_raw(
+            (
+              "SELECT id, name, balance FROM patients WHERE name <> 'n/a?' AND name = ?",
+              [Encode.encode(n)],
+            ),
+          )
+        end
       JADE
     end
 
@@ -144,6 +160,15 @@ module Jade
 
       expect(result).to be_ok
       expect(result._1.tags).to eql %w[vip beta]
+    end
+
+    it 'binds params correctly when a string literal contains a ?' do
+      conn.execute("INSERT INTO patients (name, balance) VALUES ('Paul', 100)")
+
+      result = App::Internal.literal_q('Paul').run
+
+      expect(result).to be_ok
+      expect(result._1.name).to eql 'Paul'
     end
 
     it 'fetches many rows in order' do

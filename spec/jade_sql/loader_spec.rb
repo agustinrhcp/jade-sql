@@ -6,14 +6,6 @@ require 'jade/tasks'
 require 'jade/tasks/rspec'
 require 'jade-sql'
 
-module JadeSql
-  module Runtime
-    extend Jade::Port unless respond_to?(:task)
-
-    task(:port_execute_many) { |t| t.err(JadeSql::SqlErrors.db_error("unstubbed")) }
-  end
-end
-
 module Jade
   describe 'Sql.in_' do
     include_context 'with test compiler'

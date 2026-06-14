@@ -556,6 +556,32 @@ at the boundary.
 - `NotFound` — `fetch_one` with zero rows
 - `NotUnique` — `fetch_one` with more than one row
 
+### Transactions
+
+`Sql.transaction` runs a `Task` inside a single DB transaction on the
+shared AR connection. Every `fetch_*` / `execute` the task performs
+participates in it; the transaction commits on `Ok` and rolls back —
+re-raising the error — on `Err`:
+
+```jade
+import Sql exposing (SqlError, execute, transaction)
+
+def transfer(from_: Patient, to: Patient) -> Task(Int, SqlError)
+  transaction(
+    debit(from_)
+      |> Task.and_then((_) -> { credit(to) }),
+  )
+end
+```
+
+Because the wrapped task keeps its own decoding, `transaction` is fully
+polymorphic in the result — `transaction(t) : Task(a, SqlError)` for any
+`t : Task(a, SqlError)`.
+
+Transactions don't nest yet (no savepoints): wrapping a `transaction`
+inside another issues a second `BEGIN` on the same connection. Needs
+opt-in via `require 'jade-sql/runtime'`.
+
 A decode mismatch (column type doesn't match the field type) raises on
 the Ruby side rather than becoming a recoverable error — schema drift is
 a programmer bug.
@@ -566,9 +592,9 @@ a programmer bug.
   `bytea` (binary).
 - **RETURNING is column-name-list only.** Expression returning
   (e.g. `RETURNING id + 1`) needs raw SQL.
-- **No transactions.** Each `fetch_*` / `execute` runs in its own AR
-  connection invocation. `ActiveRecord::Base.transaction` works at the
-  Ruby layer but isn't exposed in Jade yet.
+- **Transactions don't nest.** `Sql.transaction` (see above) wraps a
+  task in one transaction, but uses raw `BEGIN`/`COMMIT`/`ROLLBACK` with
+  no savepoints, so a `transaction` inside a `transaction` is unsupported.
 - **No preloads (eager-loading).** Building a `Patient` together with
   its `orders` requires two queries and manual zipping. A DataLoader
   layer is planned — see `~/vault/claude/jade/notes/preloads-in-jade.md`.

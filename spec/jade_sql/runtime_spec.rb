@@ -155,17 +155,17 @@ describe JadeSql::Runtime do
       expect(out.first).to be_a(::ActiveRecord::Relation::QueryAttribute)
       expect(out.first.value).to eql ["food", "fun"]
       expect(out.first.type).to be_a(::ActiveRecord::ConnectionAdapters::PostgreSQL::OID::Array)
-      expect(out.first.type.element_type).to be_a(::ActiveRecord::Type::String)
+      expect(out.first.type.subtype).to be_a(::ActiveRecord::Type::String)
     end
 
     it 'sniffs the element type from the first non-nil entry' do
       out = described_class.typed_params([[1, 2, 3]], pg_conn)
-      expect(out.first.type.element_type).to be_a(::ActiveRecord::Type::Integer)
+      expect(out.first.type.subtype).to be_a(::ActiveRecord::Type::Integer)
     end
 
     it 'falls back to text for an empty array' do
       out = described_class.typed_params([[]], pg_conn)
-      expect(out.first.type.element_type).to be_a(::ActiveRecord::Type::String)
+      expect(out.first.type.subtype).to be_a(::ActiveRecord::Type::String)
     end
 
     it 'leaves params untouched on non-Postgres adapters' do

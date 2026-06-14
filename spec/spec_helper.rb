@@ -9,6 +9,13 @@ require 'jade/result'
 require 'jade/tasks/rspec'
 require 'jade/frontend/type_checking/var_gen'
 
+# AR is a real dev dependency here, so load it (and the PG adapter, for its
+# OID/Type constants) up front: the integration specs need the real classes,
+# and runtime_spec's AR stubs are guarded by `unless defined?(...)`, which
+# then no-op against the real lib instead of colliding with it.
+require 'active_record'
+require 'active_record/connection_adapters/postgresql_adapter'
+
 Dir[File.join(__dir__, 'support/**/*.rb')].sort.each { |f| require f }
 
 RSpec.configure do |config|

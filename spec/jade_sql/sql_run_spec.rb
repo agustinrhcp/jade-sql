@@ -5,21 +5,12 @@ require 'jade/module_loader'
 require 'jade/tasks'
 require 'jade/tasks/rspec'
 
-# Load the extension (registers the source root) but NOT the runtime
-# (which would require ActiveRecord). We stub the task dispatcher
-# instead — the runtime body is never invoked.
+# Load the extension and the real runtime so the JadeSql::Runtime port
+# TaskDefs are registered once, authoritatively. These examples run in
+# strict mode (see `include Jade::Tasks::RSpec`) and stub every call, so
+# the AR-backed port bodies are never actually invoked.
 require 'jade-sql'
-
-# Stub TaskDefs to stand in for the real JadeSql::Runtime ports.
-module JadeSql
-  module Runtime
-    extend Jade::Port unless respond_to?(:task)
-
-    task(:port_execute_count) { |t| t.err("unstubbed") }
-    task(:port_execute_one)   { |t| t.err("unstubbed") }
-    task(:port_execute_many)  { |t| t.err("unstubbed") }
-  end
-end
+require 'jade-sql/runtime'
 
 module Jade
   describe "Sql.fetch / execute" do

@@ -47,6 +47,7 @@ module Sql exposing (
   table,
   to_assigns,
   to_expr,
+  transaction,
 )
 
 import Encode exposing (Encodable, encode)
@@ -360,7 +361,10 @@ end
 uses JadeSql::Runtime with
   port_execute_count : (String, List(Value)) -> Task(Int, SqlError),
   port_execute_one : (String, List(Value)) -> Task(a, SqlError),
-  port_execute_many : (String, List(Value)) -> Task(List(a), SqlError)
+  port_execute_many : (String, List(Value)) -> Task(List(a), SqlError),
+  port_begin : Task(Bool, SqlError),
+  port_commit : Task(Bool, SqlError),
+  port_rollback : Task(Bool, SqlError)
 end
 
 
@@ -391,4 +395,27 @@ end
 
 def fetch_many(r: r) -> Task(List(a), SqlError)
   render(r) |> fetch_many_raw
+end
+
+
+# Runs `task` inside a single DB transaction on the shared connection:
+# every execute/fetch the task performs participates in it. Commits on
+# Ok, rolls back and re-raises the error on Err. Does not nest — wrapping
+# a transaction in a transaction is unsupported for now (no savepoints).
+def transaction(task: Task(a, SqlError)) -> Task(a, SqlError)
+  port_begin()
+    |> Task.and_then((_) -> { commit_on_ok(task) })
+end
+
+
+def commit_on_ok(task: Task(a, SqlError)) -> Task(a, SqlError)
+  task
+    |> Task.and_then((value) -> { Task.map(port_commit(), (_) -> { value }) })
+    |> Task.on_error(rollback_then_fail)
+end
+
+
+def rollback_then_fail(err: SqlError) -> Task(a, SqlError)
+  port_rollback()
+    |> Task.and_then((_) -> { Task.fail(err) })
 end

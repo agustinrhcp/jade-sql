@@ -264,13 +264,13 @@ describe JadeSql::SchemaGenerator do
     let(:sql) do
       <<~SQL
         CREATE TABLE public.payments (
-            amount numeric(10,2) NOT NULL
+            amount money NOT NULL
         );
       SQL
     end
 
     it 'fails loudly with table and column name' do
-      expect { generated }.to raise_error(/payments\.amount.*numeric/)
+      expect { generated }.to raise_error(/payments\.amount.*money/)
     end
   end
 
@@ -298,6 +298,90 @@ describe JadeSql::SchemaGenerator do
     it 'still parses the persons table cleanly' do
       expect(generated).to include('def persons -> Table')
       expect(generated).to include('["id"]')
+    end
+  end
+
+  context 'numeric / decimal / floating-point columns' do
+    let(:sql) do
+      <<~SQL
+        CREATE TABLE public.tax_lines (
+            id bigint NOT NULL,
+            rate numeric(5,4) NOT NULL,
+            amount decimal NOT NULL,
+            weight double precision,
+            ratio real
+        );
+      SQL
+    end
+
+    it 'maps numeric/decimal to Decimal and double precision/real to Float' do
+      generated = described_class.generate(sql)
+
+      expect(generated).to include(<<~STRUCT.strip)
+        struct TaxLinesRow = {
+          id: Int,
+          rate: Decimal,
+          amount: Decimal,
+          weight: Maybe(Float),
+          ratio: Maybe(Float)
+        }
+      STRUCT
+      expect(generated).to include('import Sql.Decimal exposing (Decimal)')
+    end
+  end
+
+  context 'a column whose name is a Jade reserved word' do
+    include_context 'with test compiler'
+
+    let(:sql) do
+      <<~SQL
+        CREATE TABLE public.journal_entries (
+            id bigint NOT NULL,
+            type text NOT NULL
+        );
+      SQL
+    end
+
+    it 'renames the field to type_ but keeps the SQL column name' do
+      expect(generated).to include('type_: Expr(')
+      expect(generated).to include('column(a, "type")')
+    end
+
+    it 'emits a row projector that aliases each column to its field name' do
+      expect(generated).to include('def journal_entries_row(c: JournalEntriesCols)')
+      expect(generated).to include('field_as(c.type_, "type_")')
+      expect(generated).to include('import Sql.Query exposing (Q, field_as, select)')
+    end
+
+    it 'produces a schema that compiles' do
+      expect { test_compiler.require('schema', generated) }.not_to raise_error
+    end
+  end
+
+  context 'an unsupported type in a table outside the whitelist' do
+    let(:sql) do
+      <<~SQL
+        CREATE TABLE public.wanted (
+            id bigint NOT NULL,
+            name text NOT NULL
+        );
+
+        CREATE TABLE public.unwanted (
+            id bigint NOT NULL,
+            blob bytea NOT NULL
+        );
+      SQL
+    end
+
+    it 'does not abort when the unsupported type is filtered out' do
+      result = described_class.generate(sql, tables: ['wanted'])
+      expect(result).to include('def wanted -> Table')
+      expect(result).not_to include('unwanted')
+    end
+
+    it 'still raises when the unsupported type is in a whitelisted table' do
+      expect { described_class.generate(sql, tables: ['unwanted']) }
+        .to raise_error(/Unknown SQL type for unwanted.blob/)
     end
   end
 end

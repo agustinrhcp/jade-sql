@@ -12,12 +12,14 @@ module JadeSql
     TABLES = %w[patients].freeze
 
     SCHEMA_SQL = <<~SQL.freeze
-      CREATE TABLE IF NOT EXISTS patients (
+      CREATE TABLE patients (
         id      serial PRIMARY KEY,
-        name    text    NOT NULL,
-        balance integer NOT NULL DEFAULT 0,
-        tags    text[]  NOT NULL DEFAULT '{}',
-        rules   jsonb   NOT NULL DEFAULT '{}'
+        name    text             NOT NULL,
+        balance integer          NOT NULL DEFAULT 0,
+        rate    numeric(6,4)     NOT NULL DEFAULT 0,
+        weight  double precision NOT NULL DEFAULT 0,
+        tags    text[]           NOT NULL DEFAULT '{}',
+        rules   jsonb            NOT NULL DEFAULT '{}'
       );
     SQL
 
@@ -30,6 +32,7 @@ module JadeSql
         database: ENV.fetch('JADE_SQL_TEST_DB', 'jade_sql_test'),
         host: ENV.fetch('PGHOST', '/tmp'),
       )
+      connection.execute("DROP TABLE IF EXISTS patients")
       connection.execute(SCHEMA_SQL)
       @setup = true
     end

@@ -27,13 +27,23 @@ bundle exec rake jade:schema \
   OUTPUT=app/jade/schema/billing.jd
 ```
 
-Type map: `bigint`/`integer`/`smallint` → `Int`, `varchar`/`text`/`char` →
-`String`, `boolean` → `Bool`, `jsonb`/`json` → `Decode.Value`, `date` →
-`Calendar.Date`, `timestamp` → `Clock.Instant`, `uuid` → `Uuid` (from
-`Sql.Uuid`). Unknown types fail loudly with the table+column name.
-`bytea` and `decimal`/`numeric` aren't wired into the type map yet —
-`bytea` has a natural target in jade's `Bytes`, and a decimal can be
-modeled as a struct of `Int`s.
+Type map: `bigint`/`integer`/`smallint` → `Int`, `numeric`/`decimal` →
+`Decimal` (from `Sql.Decimal`), `double precision`/`real` → `Float`,
+`varchar`/`text`/`char` → `String`, `boolean` → `Bool`, `jsonb`/`json` →
+`Decode.Value`, `date` → `Calendar.Date`, `timestamp` → `Clock.Instant`,
+`uuid` → `Uuid` (from `Sql.Uuid`). Unknown types fail loudly with the
+table+column name.
+
+`numeric`/`decimal` map to `Sql.Decimal` — an exact base-10 value
+(`mantissa * 10^exponent`), never `Float`, so no precision is lost. Genuine
+floating-point columns (`double precision`/`real`) map to `Float`. `bytea`
+isn't mapped yet, though jade's `Bytes` is the natural target.
+
+`Sql.Decimal` implements `Numeric`, so `+`/`-`/`*` work and stay exact.
+Mirroring `BigDecimal`, `/` can't represent a repeating quotient, so it
+rounds half-up to a default scale (use `div(a, b, scale)` for explicit
+control, `round(d, scale)` to round); division by zero raises. `to_i`
+truncates toward zero and `to_float` converts (lossily, on purpose).
 
 For each table, the generator emits:
 
@@ -50,6 +60,24 @@ end
 Strict cols mirror NOT NULL constraints; the maybe version wraps every
 field in `Maybe` for left-join projections. The default alias is the
 table name; override per-call with `aliased` (see joins below).
+
+A column whose name is a Jade keyword (e.g. `type`) gets a trailing
+underscore in the struct field (`type_`) while the SQL column reference
+keeps the real name. For a table with such a column the generator also
+emits a `<table>_row` projector that aliases every column to its field name
+(`SELECT … AS type_`), so reads round-trip without hand-written SQL:
+
+```jade
+def entries -> Q(Selector(JournalEntriesRow))
+  c <- from(journal_entries)
+  journal_entries_row(c)
+end
+```
+
+In hand-written selects, `field_as(e, "name")` sets a column's output name
+when it differs from the SQL — needed for renamed columns and computed
+projections (decode keys by field name, so `field_as(count_all, "visits")`
+makes a `COUNT(*)` land in a `visits` field).
 
 ## Build queries
 

@@ -1,6 +1,7 @@
 module Sql.Query exposing (
   Q,
   field,
+  field_as,
   from,
   group,
   join,
@@ -231,6 +232,23 @@ def field(qs: Q(Selector(a -> b)), e: Expr(a)) -> Q(Selector(b))
     qs.limit_,
     qs.offset_,
     Selector(qs.result.columns_sql ++ [e.sql], qs.result.params ++ e.params),
+  )
+end
+
+
+def field_as(qs: Q(Selector(a -> b)), e: Expr(a), name: String) -> Q(Selector(b))
+  Q(
+    qs.tables,
+    qs.joins,
+    qs.wheres,
+    qs.groups,
+    qs.orders,
+    qs.limit_,
+    qs.offset_,
+    Selector(
+      qs.result.columns_sql ++ [e.sql ++ " AS " ++ name],
+      qs.result.params ++ e.params,
+    ),
   )
 end
 

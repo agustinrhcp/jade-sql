@@ -17,7 +17,11 @@ module Jade
           insert_patient,
           list_names,
           literal_q,
+          load_numbers,
           load_tags,
+          rate_exponent,
+          rate_mantissa,
+          weight_of,
         )
 
         import Sql exposing (
@@ -34,6 +38,7 @@ module Jade
           table,
         )
         import Sql.Mutation exposing (insert)
+        import Sql.Decimal exposing (Decimal, exponent, mantissa)
         import Encode
 
 
@@ -47,6 +52,13 @@ module Jade
         struct Tagged = {
           name: String,
           tags: List(String)
+        }
+
+
+        struct Numbers = {
+          name: String,
+          rate: Decimal,
+          weight: Float
         }
 
 
@@ -108,6 +120,28 @@ module Jade
         end
 
 
+        def load_numbers(n: String) -> Task(Numbers, SqlError)
+          fetch_one_raw(
+            ("SELECT name, rate, weight FROM patients WHERE name = ?", [Encode.encode(n)]),
+          )
+        end
+
+
+        def rate_mantissa(n: String) -> Task(Int, SqlError)
+          load_numbers(n) |> Task.map((x) -> { mantissa(x.rate) })
+        end
+
+
+        def rate_exponent(n: String) -> Task(Int, SqlError)
+          load_numbers(n) |> Task.map((x) -> { exponent(x.rate) })
+        end
+
+
+        def weight_of(n: String) -> Task(Float, SqlError)
+          load_numbers(n) |> Task.map((x) -> { x.weight })
+        end
+
+
         def insert_patient(n: String, b: Int) -> Task(Int, SqlError)
           insert(NewPatient(n, b), patients) |> execute
         end
@@ -136,6 +170,18 @@ module Jade
       expect(result).to be_ok
       expect(result._1.name).to eql 'Paul'
       expect(result._1.balance).to eql 100
+    end
+
+    it 'decodes numeric exactly as Decimal and double precision as Float' do
+      conn.execute(
+        "INSERT INTO patients (name, rate, weight) VALUES ('Ada', 0.1750, 62.5)",
+      )
+
+      # numeric 0.1750 -> exact Decimal(175, -3); no Float rounding
+      expect(App::Internal.rate_mantissa('Ada').run).to be_ok(175)
+      expect(App::Internal.rate_exponent('Ada').run).to be_ok(-3)
+      # double precision stays a Float
+      expect(App::Internal.weight_of('Ada').run).to be_ok(62.5)
     end
 
     it 'returns NotFound when no row matches' do

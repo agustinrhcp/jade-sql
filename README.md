@@ -1,5 +1,7 @@
 # jade-sql
 
+[![CI](https://github.com/agustinrhcp/jade-sql/actions/workflows/ci.yml/badge.svg)](https://github.com/agustinrhcp/jade-sql/actions/workflows/ci.yml)
+
 Type-safe SQL for Jade. Builds queries and mutations from a generated
 schema, renders them to `(String, List(Value))`, and runs them against
 ActiveRecord via a Task port that auto-decodes rows into typed Jade

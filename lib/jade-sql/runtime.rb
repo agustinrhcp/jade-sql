@@ -1,4 +1,5 @@
 require 'date'
+require 'bigdecimal'
 require 'jade/tasks'
 
 # Opt-in runtime: requires ActiveRecord. The Jade-side Sql.Run module
@@ -73,6 +74,10 @@ module JadeSql
     # when AR's exec_query path doesn't run the OID typecast. Parse them
     # back to Ruby Arrays so `Decode.list(...)` works the same as for any
     # other List(a) column.
+    #
+    # numeric/decimal columns come back as ::BigDecimal; the schema generator
+    # maps them to Sql.Decimal, whose decoder reads the exact
+    # "<mantissa>e<exponent>" wire form. Float would lose precision, so don't.
     def self.coerce_row(row)
       row.transform_values { |v| coerce_value(v) }
     end
@@ -81,10 +86,26 @@ module JadeSql
       case v
       when ::Date             then v.iso8601
       when ::Time, ::DateTime then v.iso8601
+      when ::BigDecimal       then decimal_wire(v)
       when ::String
         pg_array_literal?(v) ? parse_pg_array(v) : v
       else v
       end
+    end
+
+    # ::BigDecimal -> "<mantissa>e<exponent>" with value = mantissa * 10^exp,
+    # exactly (BigDecimal#split gives sign, significant digits, and a base-10
+    # exponent). Matches the wire form Sql.Decimal's decoder parses.
+    #
+    # 'NaN'/'Infinity'::numeric are legal Postgres values that Sql.Decimal
+    # can't represent; fail loudly rather than silently decode them as 0.
+    def self.decimal_wire(v)
+      raise ArgumentError, "non-finite numeric: #{v}" unless v.finite?
+
+      sign, digits, _base, exp = v.split
+      mantissa = sign * digits.to_i
+      exponent = exp - digits.length
+      "#{mantissa}e#{exponent}"
     end
 
     # PG arrays render as `{}`, `{a,b,c}`, `{"a,b","c"}`, with NULL as

@@ -934,6 +934,67 @@ module Jade
       end
     end
 
+    describe 'field_as renders an AS alias in the projection' do
+      let(:source) do
+        <<~JADE
+          module App exposing (rendered)
+
+          import Sql exposing (Expr, Selector, Table, column, table)
+          import Sql.Query exposing (Q, field_as, from, select, to_sql)
+          import Decode exposing (Value)
+
+
+          struct EntriesCols = {
+            id: Expr(Int),
+            type_: Expr(String)
+          }
+
+
+          struct MaybeEntriesCols = {
+            id: Expr(Maybe(Int)),
+            type_: Expr(Maybe(String))
+          }
+
+
+          struct Row = {
+            id: Int,
+            type_: String
+          }
+
+
+          def entries -> Table(EntriesCols, MaybeEntriesCols)
+            table(
+              "entries",
+              "e",
+              (a) -> { EntriesCols(column(a, "id"), column(a, "type")) },
+              (a) -> { MaybeEntriesCols(column(a, "id"), column(a, "type")) },
+              ["id"],
+            )
+          end
+
+
+          def query -> Q(Selector(Row))
+            c <- from(entries)
+            select(Row(_, _))
+              |> field_as(c.id, "id")
+              |> field_as(c.type_, "type_")
+          end
+
+
+          def rendered -> (String, List(Value))
+            query |> to_sql
+          end
+        JADE
+      end
+
+      it 'aliases the projected column to the given name' do
+        test_compiler.require('app', source)
+
+        expect(App::Internal.rendered._1)
+          .to eql('SELECT e.id AS id, e.type AS type_ FROM entries e')
+      end
+    end
+
     describe 'order and group for sorting and grouping' do
       let(:source) do
         <<~JADE

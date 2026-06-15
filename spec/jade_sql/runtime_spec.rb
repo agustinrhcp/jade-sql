@@ -122,6 +122,19 @@ describe JadeSql::Runtime do
       })
     end
 
+    it 'converts ::BigDecimal to the exact decimal wire form (mantissa e exponent)' do
+      # 0.1750 normalizes to mantissa 175, exponent -3 — no Float rounding
+      expect(described_class.coerce_row({ "rate" => BigDecimal("0.1750") }))
+        .to eql({ "rate" => "175e-3" })
+    end
+
+    it 'raises on a non-finite ::BigDecimal rather than decoding it as 0' do
+      expect { described_class.coerce_row({ "x" => BigDecimal("NaN") }) }
+        .to raise_error(ArgumentError, /non-finite/)
+      expect { described_class.coerce_row({ "x" => BigDecimal("Infinity") }) }
+        .to raise_error(ArgumentError, /non-finite/)
+    end
+
     it 'leaves other values untouched' do
       row = { "id" => 1, "name" => "Paul", "balance" => 100, "active" => true, "extra" => nil }
       expect(described_class.coerce_row(row)).to eql(row)

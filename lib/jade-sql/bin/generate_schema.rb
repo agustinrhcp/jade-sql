@@ -23,10 +23,18 @@ module JadeSql
       /\Adate\[\]/ => "List(Calendar.Date)",
       /\Atimestamp\[\]/ => "List(Clock.Instant)",
       /\Auuid\[\]/ => "List(Uuid)",
+      /\Anumeric\[\]/ => "List(Decimal)",
+      /\Adecimal\[\]/ => "List(Decimal)",
+      /\Adouble precision\[\]/ => "List(Float)",
+      /\Areal\[\]/ => "List(Float)",
 
       /\Abigint\b/ => "Int",
       /\Ainteger\b/ => "Int",
       /\Asmallint\b/ => "Int",
+      /\Anumeric\b/ => "Decimal",
+      /\Adecimal\b/ => "Decimal",
+      /\Adouble precision\b/ => "Float",
+      /\Areal\b/ => "Float",
       /\Acharacter varying\b/ => "String",
       /\Avarchar\b/ => "String",
       /\Acharacter\b/ => "String",
@@ -45,16 +53,24 @@ module JadeSql
       "Clock.Instant" => "import Clock",
       "Decode.Value"  => "import Decode",
       "Uuid"          => "import Sql.Uuid exposing(Uuid)",
+      "Decimal"       => "import Sql.Decimal exposing(Decimal)",
     }.freeze
+
+    # Column names that collide with Jade keywords get a trailing underscore
+    # in the struct field; the SQL column reference keeps the real name.
+    RESERVED = %w[
+      type def module import exposing struct interface implements uses
+      case in if then else end with
+    ].freeze
 
     Table = Data.define(:name, :columns, :pk_columns)
     Column = Data.define(:name, :jade_type, :nullable)
 
     def generate(sql, tables: nil, module_name: 'Schema')
-      parsed = parse_tables(sql)
+      bodies = scan_table_bodies(sql)
+      bodies = select_tables(bodies, tables) if tables
       pks = parse_pks(sql)
-      parsed = parsed.map { |t| t.with(pk_columns: pks[t.name] || []) }
-      parsed = filter_tables(parsed, tables) if tables
+      parsed = bodies.map { |name, body| Table[name, parse_columns(body, name), pks[name] || []] }
       format(emit(parsed, module_name))
     end
 
@@ -77,17 +93,18 @@ module JadeSql
 
     private
 
-    def filter_tables(parsed, whitelist)
-      missing = whitelist - parsed.map(&:name)
-      raise "Unknown table(s): #{missing.join(', ')}" if missing.any?
-
-      parsed.select { |t| whitelist.include?(t.name) }
+    # Returns [[name, body], ...] without parsing columns, so the whitelist
+    # can be applied before type-mapping — an unsupported type in a table the
+    # caller didn't ask for shouldn't abort the whole run.
+    def scan_table_bodies(sql)
+      sql.scan(/CREATE TABLE (?:\w+\.)?(\w+)\s*\((.*?)\);/m)
     end
 
-    def parse_tables(sql)
-      sql
-        .scan(/CREATE TABLE (?:\w+\.)?(\w+)\s*\((.*?)\);/m)
-        .map { |name, body| Table[name, parse_columns(body, name), []] }
+    def select_tables(bodies, whitelist)
+      missing = whitelist - bodies.map(&:first)
+      raise "Unknown table(s): #{missing.join(', ')}" if missing.any?
+
+      bodies.select { |name, _| whitelist.include?(name) }
     end
 
     def parse_columns(body, table_name)
@@ -127,17 +144,30 @@ module JadeSql
     def emit(tables, module_name)
       [
         emit_header(tables, module_name),
-        *tables.flat_map { |t| [emit_strict_cols(t), emit_maybe_cols(t), emit_row(t), emit_table_fn(t)] },
+        *tables.flat_map { |t|
+          parts = [emit_strict_cols(t), emit_maybe_cols(t), emit_row(t), emit_table_fn(t)]
+          reserved_cols?(t) ? parts + [emit_row_projector(t)] : parts
+        },
       ].join("\n\n") + "\n"
     end
 
-    def emit_header(tables, module_name)
-      exposed = tables
-        .flat_map { |t| ["#{camel(t.name)}Cols", "Maybe#{camel(t.name)}Cols", "#{camel(t.name)}Row(..)", t.name] }
-        .sort
-        .join(", ")
+    def reserved_cols?(t)
+      t.columns.any? { |c| RESERVED.include?(c.name) }
+    end
 
-      imports = ["import Sql exposing(Expr, Table, column, table)", *extra_imports_for(tables)]
+    def emit_header(tables, module_name)
+      projectored = tables.select { |t| reserved_cols?(t) }
+
+      names = tables
+        .flat_map { |t| ["#{camel(t.name)}Cols", "Maybe#{camel(t.name)}Cols", "#{camel(t.name)}Row(..)", t.name] }
+      names += projectored.map { |t| "#{t.name}_row" }
+      exposed = names.sort.join(", ")
+
+      sql_import = projectored.any? ?
+        "import Sql exposing(Expr, Selector, Table, column, table)" :
+        "import Sql exposing(Expr, Table, column, table)"
+      query_import = projectored.any? ? ["import Sql.Query exposing(Q, field_as, select)"] : []
+      imports = [sql_import, *query_import, *extra_imports_for(tables)]
 
       <<~JADE.strip
         module #{module_name} exposing(#{exposed})
@@ -158,7 +188,7 @@ module JadeSql
 
     def emit_strict_cols(t)
       fields = t.columns
-        .map { |c| "  #{c.name}: Expr(#{c.nullable ? "Maybe(#{c.jade_type})" : c.jade_type})" }
+        .map { |c| "  #{field_name(c.name)}: Expr(#{c.nullable ? "Maybe(#{c.jade_type})" : c.jade_type})" }
         .join(",\n")
 
       "struct #{camel(t.name)}Cols = {\n#{fields}\n}"
@@ -166,7 +196,7 @@ module JadeSql
 
     def emit_maybe_cols(t)
       fields = t.columns
-        .map { |c| "  #{c.name}: Expr(Maybe(#{c.jade_type}))" }
+        .map { |c| "  #{field_name(c.name)}: Expr(Maybe(#{c.jade_type}))" }
         .join(",\n")
 
       "struct Maybe#{camel(t.name)}Cols = {\n#{fields}\n}"
@@ -174,10 +204,14 @@ module JadeSql
 
     def emit_row(t)
       fields = t.columns
-        .map { |c| "  #{c.name}: #{c.nullable ? "Maybe(#{c.jade_type})" : c.jade_type}" }
+        .map { |c| "  #{field_name(c.name)}: #{c.nullable ? "Maybe(#{c.jade_type})" : c.jade_type}" }
         .join(",\n")
 
       "struct #{camel(t.name)}Row = {\n#{fields}\n}"
+    end
+
+    def field_name(name)
+      RESERVED.include?(name) ? "#{name}_" : name
     end
 
     def emit_table_fn(t)
@@ -194,6 +228,27 @@ module JadeSql
             (a) -> { Maybe#{camel(t.name)}Cols(#{maybe_fields}) },
             #{pk_list},
           )
+        end
+      JADE
+    end
+
+    # A row projector that aliases every column to its (possibly renamed)
+    # field name, so a reserved-word column like `type` round-trips through
+    # decode: `SELECT alias.type AS type_`. Emitted only for tables that have
+    # a renamed column. Composes in a bind-chain:
+    #   c <- from(t)
+    #   t_row(c) |> where(...)
+    def emit_row_projector(t)
+      klass = camel(t.name)
+      holes = t.columns.map { "_" }.join(", ")
+      projections = t.columns
+        .map { |c| "    |> field_as(c.#{field_name(c.name)}, #{field_name(c.name).inspect})" }
+        .join("\n")
+
+      <<~JADE.strip
+        def #{t.name}_row(c: #{klass}Cols) -> Q(Selector(#{klass}Row))
+          select(#{klass}Row(#{holes}))
+        #{projections}
         end
       JADE
     end

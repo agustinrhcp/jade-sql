@@ -32,13 +32,18 @@ module Sql exposing (
   fetch_many_raw,
   fetch_one,
   fetch_one_raw,
+  gt,
+  gte,
   in_,
   is_not_null,
   is_null,
   jsonb_contains,
   jsonb_path_exists,
+  lt,
+  lte,
   maybe_columns,
   neg,
+  now,
   nullable,
   pk_values,
   render,
@@ -52,6 +57,7 @@ module Sql exposing (
 
 import Encode exposing (Encodable, encode)
 import Decode exposing (Decodable, Decoder, Value)
+import Clock exposing (Instant)
 
 
 struct Expr(a) = {
@@ -139,8 +145,35 @@ def to_expr(value: a) -> Expr(a)
 end
 
 
+# The DB clock (Postgres `now()`), for `where(col |> gt(now))`-style
+# comparisons. This is the transaction timestamp, not the app clock.
+def now -> Expr(Instant)
+  Expr("now()", [])
+end
+
+
 def eq(left: Expr(a), right: Expr(a)) -> Expr(Bool)
   Expr(left.sql ++ " = " ++ right.sql, left.params ++ right.params)
+end
+
+
+def gt(left: Expr(a), right: Expr(a)) -> Expr(Bool)
+  Expr(left.sql ++ " > " ++ right.sql, left.params ++ right.params)
+end
+
+
+def gte(left: Expr(a), right: Expr(a)) -> Expr(Bool)
+  Expr(left.sql ++ " >= " ++ right.sql, left.params ++ right.params)
+end
+
+
+def lt(left: Expr(a), right: Expr(a)) -> Expr(Bool)
+  Expr(left.sql ++ " < " ++ right.sql, left.params ++ right.params)
+end
+
+
+def lte(left: Expr(a), right: Expr(a)) -> Expr(Bool)
+  Expr(left.sql ++ " <= " ++ right.sql, left.params ++ right.params)
 end
 
 
@@ -320,10 +353,14 @@ def aliased(t: Table(c, m), alias_: String) -> Table(c, m)
 end
 
 
+# `NotUnique` is a read-side failure (fetch_one saw more than one row).
+# `Conflict` is a write-side unique-index violation, carrying the violated
+# constraint name so callers route it to a field error without string-matching.
 type SqlError
   = DbError(String)
   | NotFound
   | NotUnique
+  | Conflict(String)
 
 
 implements Encodable(SqlError) with
@@ -336,6 +373,7 @@ def encode_sql_error(e: SqlError) -> Value
   in DbError(msg) then Encode.variant("DbError", [Encode.string(msg)])
   in NotFound then Encode.variant("NotFound", [])
   in NotUnique then Encode.variant("NotUnique", [])
+  in Conflict(name) then Encode.variant("Conflict", [Encode.string(name)])
   end
 end
 
@@ -350,11 +388,17 @@ def sql_error_decoder -> Decoder(SqlError)
     |> Decode.variant("DbError", db_error_decoder)
     |> Decode.variant("NotFound", Decode.succeed(NotFound))
     |> Decode.variant("NotUnique", Decode.succeed(NotUnique))
+    |> Decode.variant("Conflict", conflict_decoder)
 end
 
 
 def db_error_decoder -> Decoder(SqlError)
   Decode.index(1, Decode.string) |> Decode.map(DbError)
+end
+
+
+def conflict_decoder -> Decoder(SqlError)
+  Decode.index(1, Decode.string) |> Decode.map(Conflict)
 end
 
 

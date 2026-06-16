@@ -1,0 +1,90 @@
+require 'spec_helper'
+
+require 'jade'
+require 'jade/module_loader'
+require 'jade-sql'
+require 'jade-sql/runtime'
+
+module Jade
+  describe 'INSERT unique-violation -> Sql.Conflict against Postgres', :integration do
+    include_context 'with test compiler'
+    include_context 'with database'
+
+    def conn = JadeSql::TestDb.connection
+
+    before do
+      conn.execute("DROP TABLE IF EXISTS accounts")
+      conn.execute(<<~SQL)
+        CREATE TABLE accounts (
+          id    serial PRIMARY KEY,
+          email text,
+          CONSTRAINT accounts_email_key UNIQUE (email)
+        )
+      SQL
+      conn.execute("INSERT INTO accounts (email) VALUES ('dup@x.com')")
+
+      test_compiler.require('app', <<~JADE)
+        module App exposing (add)
+
+        import Sql exposing (
+          Assignment,
+          Expr,
+          SqlError,
+          SqlMapper,
+          Table,
+          assign,
+          column,
+          execute,
+          table,
+        )
+        import Sql.Mutation exposing (insert)
+
+
+        struct Account = { email: String }
+
+
+        struct AccountsCols = { email: Expr(String) }
+
+
+        struct MaybeAccountsCols = { email: Expr(Maybe(String)) }
+
+
+        implements SqlMapper(Account) with
+          to_assigns: account_assigns
+        end
+
+
+        def account_assigns(a: Account) -> List(Assignment)
+          [assign("email", a.email)]
+        end
+
+
+        def accounts -> Table(AccountsCols, MaybeAccountsCols)
+          table(
+            "accounts",
+            "accounts",
+            (a) -> { AccountsCols(column(a, "email")) },
+            (a) -> { MaybeAccountsCols(column(a, "email")) },
+            ["id"],
+          )
+        end
+
+
+        def add(email: String) -> Task(Int, SqlError)
+          insert(Account(email), accounts) |> execute
+        end
+      JADE
+    end
+
+    after { conn.execute("DROP TABLE IF EXISTS accounts") }
+
+    it 'returns Conflict carrying the violated constraint name' do
+      expect(App::Internal.add('dup@x.com').run)
+        .to be_err(look_like("Sql::Conflict", "accounts_email_key"))
+    end
+
+    it 'leaves a non-conflicting insert as Ok' do
+      expect(App::Internal.add('fresh@x.com').run).to be_ok(1)
+    end
+  end
+end

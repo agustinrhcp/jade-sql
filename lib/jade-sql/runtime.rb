@@ -12,7 +12,9 @@ module JadeSql
     task :port_execute_count do |t, pair|
       sql, params = pair._1, pair._2
       conn = ::ActiveRecord::Base.connection
-      t.ok(conn.exec_update(adapt_sql(sql, conn), "Jade", typed_params(params, conn)))
+      t.ok(conn.exec_update(adapt_sql(fill_now(sql), conn), "Jade", typed_params(params, conn)))
+    rescue ::ActiveRecord::RecordNotUnique => e
+      t.err(JadeSql::SqlErrors.conflict(constraint_name(e)))
     rescue ::ActiveRecord::StatementInvalid => e
       t.err(JadeSql::SqlErrors.db_error(e.message))
     end
@@ -20,12 +22,14 @@ module JadeSql
     task :port_execute_one do |t, pair|
       sql, params = pair._1, pair._2
       conn = ::ActiveRecord::Base.connection
-      rows = conn.exec_query(adapt_sql(sql, conn), "Jade", typed_params(params, conn)).to_a
+      rows = conn.exec_query(adapt_sql(fill_now(sql), conn), "Jade", typed_params(params, conn)).to_a
       case rows.length
       when 0 then t.err(JadeSql::SqlErrors.not_found)
       when 1 then t.ok(coerce_row(rows.first))
       else        t.err(JadeSql::SqlErrors.not_unique)
       end
+    rescue ::ActiveRecord::RecordNotUnique => e
+      t.err(JadeSql::SqlErrors.conflict(constraint_name(e)))
     rescue ::ActiveRecord::StatementInvalid => e
       t.err(JadeSql::SqlErrors.db_error(e.message))
     end
@@ -33,8 +37,10 @@ module JadeSql
     task :port_execute_many do |t, pair|
       sql, params = pair._1, pair._2
       conn = ::ActiveRecord::Base.connection
-      rows = conn.exec_query(adapt_sql(sql, conn), "Jade", typed_params(params, conn)).to_a
+      rows = conn.exec_query(adapt_sql(fill_now(sql), conn), "Jade", typed_params(params, conn)).to_a
       t.ok(rows.map { |row| coerce_row(row) })
+    rescue ::ActiveRecord::RecordNotUnique => e
+      t.err(JadeSql::SqlErrors.conflict(constraint_name(e)))
     rescue ::ActiveRecord::StatementInvalid => e
       t.err(JadeSql::SqlErrors.db_error(e.message))
     end
@@ -158,6 +164,32 @@ module JadeSql
 
     def self.decode_element(raw)
       raw == "NULL" ? nil : raw
+    end
+
+    # The constraint/index name behind a RecordNotUnique, so callers can route
+    # by which unique index was violated. PG reports it in the error's
+    # diagnostics; other adapters (or a missing name) fall back to "".
+    def self.constraint_name(error)
+      cause = error.cause
+      return "" unless defined?(::PG::Result) && cause.respond_to?(:result) && cause.result
+
+      cause.result.error_field(::PG::Result::PG_DIAG_CONSTRAINT_NAME) || ""
+    rescue StandardError
+      ""
+    end
+
+    # Sql.Mutation.timestamped emits "$JADE_SQL_NOW$" where created_at /
+    # updated_at go. Swap it for one UTC timestamp literal per statement,
+    # computed here — the app clock, so it moves with travel_to/Timecop
+    # (unlike DB now()). The token lives in SQL we generate, never in a
+    # bound value, so it can't collide with user data.
+    NOW_TOKEN = "$JADE_SQL_NOW$"
+
+    def self.fill_now(sql)
+      return sql unless sql.include?(NOW_TOKEN)
+
+      stamp = "'#{::Time.now.utc.strftime('%Y-%m-%d %H:%M:%S.%6N+00')}'"
+      sql.gsub(NOW_TOKEN) { stamp }
     end
 
     # Sql renders `?` placeholders uniformly. AR's exec_query/exec_update

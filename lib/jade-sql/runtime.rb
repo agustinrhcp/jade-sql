@@ -82,8 +82,8 @@ module JadeSql
     # other List(a) column.
     #
     # numeric/decimal columns come back as ::BigDecimal; the schema generator
-    # maps them to Sql.Decimal, whose decoder reads the exact
-    # "<mantissa>e<exponent>" wire form. Float would lose precision, so don't.
+    # maps them to jade's stdlib Decimal, whose decoder reads the exact
+    # "<coefficient>e<exponent>" wire form. Float would lose precision, so don't.
     def self.coerce_row(row)
       row.transform_values { |v| coerce_value(v) }
     end
@@ -99,19 +99,19 @@ module JadeSql
       end
     end
 
-    # ::BigDecimal -> "<mantissa>e<exponent>" with value = mantissa * 10^exp,
+    # ::BigDecimal -> "<coefficient>e<exponent>" with value = coeff * 10^exp,
     # exactly (BigDecimal#split gives sign, significant digits, and a base-10
-    # exponent). Matches the wire form Sql.Decimal's decoder parses.
+    # exponent). Matches the wire form jade's stdlib Decimal decoder parses.
     #
-    # 'NaN'/'Infinity'::numeric are legal Postgres values that Sql.Decimal
-    # can't represent; fail loudly rather than silently decode them as 0.
+    # 'NaN'/'Infinity'::numeric are legal Postgres values that Decimal can't
+    # represent; fail loudly rather than silently decode them as 0.
     def self.decimal_wire(v)
       raise ArgumentError, "non-finite numeric: #{v}" unless v.finite?
 
       sign, digits, _base, exp = v.split
-      mantissa = sign * digits.to_i
+      coefficient = sign * digits.to_i
       exponent = exp - digits.length
-      "#{mantissa}e#{exponent}"
+      "#{coefficient}e#{exponent}"
     end
 
     # PG arrays render as `{}`, `{a,b,c}`, `{"a,b","c"}`, with NULL as

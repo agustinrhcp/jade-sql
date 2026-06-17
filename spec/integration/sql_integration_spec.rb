@@ -19,8 +19,8 @@ module Jade
           literal_q,
           load_numbers,
           load_tags,
+          rate_coefficient,
           rate_exponent,
-          rate_mantissa,
           weight_of,
         )
 
@@ -38,7 +38,7 @@ module Jade
           table,
         )
         import Sql.Mutation exposing (insert)
-        import Sql.Decimal exposing (Decimal, exponent, mantissa)
+        import Decimal exposing (Decimal, coefficient, exponent)
         import Encode
 
 
@@ -127,8 +127,8 @@ module Jade
         end
 
 
-        def rate_mantissa(n: String) -> Task(Int, SqlError)
-          load_numbers(n) |> Task.map((x) -> { mantissa(x.rate) })
+        def rate_coefficient(n: String) -> Task(Int, SqlError)
+          load_numbers(n) |> Task.map((x) -> { coefficient(x.rate) })
         end
 
 
@@ -178,7 +178,7 @@ module Jade
       )
 
       # numeric 0.1750 -> exact Decimal(175, -3); no Float rounding
-      expect(App::Internal.rate_mantissa('Ada').run).to be_ok(175)
+      expect(App::Internal.rate_coefficient('Ada').run).to be_ok(175)
       expect(App::Internal.rate_exponent('Ada').run).to be_ok(-3)
       # double precision stays a Float
       expect(App::Internal.weight_of('Ada').run).to be_ok(62.5)

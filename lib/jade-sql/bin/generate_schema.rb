@@ -53,7 +53,7 @@ module JadeSql
       "Clock.Instant" => "import Clock",
       "Decode.Value"  => "import Decode",
       "Uuid"          => "import Sql.Uuid exposing(Uuid)",
-      "Decimal"       => "import Sql.Decimal exposing(Decimal)",
+      "Decimal"       => "import Decimal exposing(Decimal)",
     }.freeze
 
     # Column names that collide with Jade keywords get a trailing underscore

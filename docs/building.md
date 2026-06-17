@@ -28,22 +28,18 @@ bundle exec rake jade:schema \
 ```
 
 Type map: `bigint`/`integer`/`smallint` → `Int`, `numeric`/`decimal` →
-`Decimal` (from `Sql.Decimal`), `double precision`/`real` → `Float`,
-`varchar`/`text`/`char` → `String`, `boolean` → `Bool`, `jsonb`/`json` →
-`Decode.Value`, `date` → `Calendar.Date`, `timestamp` → `Clock.Instant`,
-`uuid` → `Uuid` (from `Sql.Uuid`). Unknown types fail loudly with the
-table+column name.
+`Decimal` (jade's stdlib exact decimal), `double precision`/`real` →
+`Float`, `varchar`/`text`/`char` → `String`, `boolean` → `Bool`,
+`jsonb`/`json` → `Decode.Value`, `date` → `Calendar.Date`, `timestamp` →
+`Clock.Instant`, `uuid` → `Uuid` (from `Sql.Uuid`). Unknown types fail
+loudly with the table+column name.
 
-`numeric`/`decimal` map to `Sql.Decimal` — an exact base-10 value
-(`mantissa * 10^exponent`), never `Float`, so no precision is lost. Genuine
-floating-point columns (`double precision`/`real`) map to `Float`. `bytea`
-isn't mapped yet, though jade's `Bytes` is the natural target.
-
-`Sql.Decimal` implements `Numeric`, so `+`/`-`/`*` work and stay exact.
-Mirroring `BigDecimal`, `/` can't represent a repeating quotient, so it
-rounds half-up to a default scale (use `div(a, b, scale)` for explicit
-control, `round(d, scale)` to round); division by zero raises. `to_i`
-truncates toward zero and `to_float` converts (lossily, on purpose).
+`numeric`/`decimal` map to the stdlib `Decimal` — an exact base-10 value
+(`coefficient * 10^exponent`), never `Float`, so no precision is lost.
+Genuine floating-point columns (`double precision`/`real`) map to `Float`.
+`bytea` isn't mapped yet, though jade's `Bytes` is the natural target. See
+jade-lang's `Decimal` for the full API (`of`/`scaled`/`parse`, arithmetic,
+`round`, `to_i`/`to_float`).
 
 For each table, the generator emits:
 

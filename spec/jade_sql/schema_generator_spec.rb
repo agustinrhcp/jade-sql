@@ -326,7 +326,7 @@ describe JadeSql::SchemaGenerator do
           ratio: Maybe(Float)
         }
       STRUCT
-      expect(generated).to include('import Sql.Decimal exposing (Decimal)')
+      expect(generated).to include('import Decimal exposing (Decimal)')
     end
   end
 

@@ -119,6 +119,47 @@ module Jade
       end
     end
 
+    describe 'comparison operators' do
+      it 'render >, >=, <, <= against the DB clock and params' do
+        test_compiler.require('app', <<~JADE)
+          module App exposing (after_now, at_least, at_most, cheap)
+
+          import Sql exposing (Expr, column, gt, gte, lt, lte, now, to_expr)
+
+
+          def after_now -> Expr(Bool)
+            column("s", "expires_at") |> gt(now)
+          end
+
+
+          def at_least -> Expr(Bool)
+            column("t", "amount") |> gte(to_expr(100))
+          end
+
+
+          def cheap -> Expr(Bool)
+            column("t", "amount") |> lt(to_expr(5))
+          end
+
+
+          def at_most -> Expr(Bool)
+            column("t", "amount") |> lte(to_expr(5))
+          end
+        JADE
+
+        App::Internal.after_now.then do |expr|
+          expect(expr.sql).to eql 's.expires_at > now()'
+          expect(expr.params).to eql []
+        end
+        App::Internal.at_least.then do |expr|
+          expect(expr.sql).to eql 't.amount >= ?'
+          expect(expr.params).to eql [100]
+        end
+        expect(App::Internal.cheap.sql).to eql 't.amount < ?'
+        expect(App::Internal.at_most.sql).to eql 't.amount <= ?'
+      end
+    end
+
     describe 'is_null' do
       it 'appends IS NULL' do
         test_compiler.require('app', <<~JADE)

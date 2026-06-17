@@ -13,13 +13,15 @@ module JadeSql
 
     SCHEMA_SQL = <<~SQL.freeze
       CREATE TABLE patients (
-        id      serial PRIMARY KEY,
-        name    text             NOT NULL,
-        balance integer          NOT NULL DEFAULT 0,
-        rate    numeric(6,4)     NOT NULL DEFAULT 0,
-        weight  double precision NOT NULL DEFAULT 0,
-        tags    text[]           NOT NULL DEFAULT '{}',
-        rules   jsonb            NOT NULL DEFAULT '{}'
+        id         serial PRIMARY KEY,
+        name       text             NOT NULL,
+        balance    integer          NOT NULL DEFAULT 0,
+        rate       numeric(6,4)     NOT NULL DEFAULT 0,
+        weight     double precision NOT NULL DEFAULT 0,
+        tags       text[]           NOT NULL DEFAULT '{}',
+        rules      jsonb            NOT NULL DEFAULT '{}',
+        created_at timestamp,
+        updated_at timestamp
       );
     SQL
 

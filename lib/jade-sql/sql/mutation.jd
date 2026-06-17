@@ -5,13 +5,14 @@ module Sql.Mutation exposing (
   insert,
   insert_all,
   returning,
+  timestamped,
   to_sql,
   update,
   update_all,
 )
 
 import Sql exposing (
-  Assignment,
+  Assignment(..),
   Expr(..),
   Renderable,
   Selector(..),
@@ -129,6 +130,40 @@ end
 
 def returning(m: Mutation(a, c), build: c -> Q(Selector(b))) -> Mutation(b, c)
   Mutation(m.kind, m.table, m.cols, m.rows, m.wheres, build(m.cols).result)
+end
+
+
+# Opt-in ActiveRecord-style timestamps: fills created_at + updated_at on
+# insert and updated_at on update, with the app clock at execute time.
+# The "$JADE_SQL_NOW$" token carries no param; the runtime swaps it for a
+# single UTC timestamp literal per statement (so created_at == updated_at).
+# A plain `insert`/`update` without this stays timestamp-free.
+def timestamped(m: Mutation(ret, c)) -> Mutation(ret, c)
+  case m.kind
+  in InsertK then with_rows(m, List.map(m.rows, append_insert_stamps))
+  in UpdateK then with_rows(m, List.map(m.rows, append_update_stamps))
+  in DeleteK then m
+  end
+end
+
+
+def append_insert_stamps(row: List(Assignment)) -> List(Assignment)
+  row ++ [now_assignment("created_at"), now_assignment("updated_at")]
+end
+
+
+def append_update_stamps(row: List(Assignment)) -> List(Assignment)
+  row ++ [now_assignment("updated_at")]
+end
+
+
+def now_assignment(col: String) -> Assignment
+  Assignment(col, "$JADE_SQL_NOW$", [])
+end
+
+
+def with_rows(m: Mutation(ret, c), rows: List(List(Assignment))) -> Mutation(ret, c)
+  Mutation(m.kind, m.table, m.cols, rows, m.wheres, m.returning_selector)
 end
 
 

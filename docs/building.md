@@ -109,6 +109,23 @@ Notes:
   fills one slot in declared order.
 - `to_sql(q)` returns `(String, List(Value))`.
 
+### Predicates
+
+`eq`, `gt`, `gte`, `lt`, `lte` compare two `Expr(a)` and yield `Expr(Bool)`;
+`is_null` / `is_not_null` take one; `and` joins two; `in_` matches a list.
+`now` is the DB clock (`now()`), for time comparisons:
+
+```jade
+import Sql exposing (column, gt, now, to_expr)
+
+a.starts_at |> gte(to_expr(cutoff))          # a.starts_at >= ?
+column("s", "expires_at") |> gt(now)         # s.expires_at > now()
+```
+
+`now` is `Expr(Instant)` — the *DB* transaction clock, not the app clock.
+It's the right tool for `WHERE` filters; for `created_at`/`updated_at` use
+`Sql.Mutation.timestamped` (below), which uses the app clock like Rails.
+
 ### Sorting and grouping
 
 `order(q, e)` appends an ASC term, `order_desc(q, e)` a DESC term, and
@@ -443,37 +460,24 @@ sparse_changes
 
 ### Timestamps
 
-`Mutation.insert`/`update` emit only the columns you explicitly set —
-they don't auto-fill `created_at` / `updated_at`. Two ways to handle
-NOT NULL timestamp columns:
-
-**1. DB-side defaults (recommended).** Let the schema own timestamp
-policy:
-
-```sql
-ALTER TABLE patients ALTER COLUMN created_at SET DEFAULT now();
-ALTER TABLE patients ALTER COLUMN updated_at SET DEFAULT now();
-```
-
-The mutation builder stays a thin SQL emitter; the DB fills in
-defaults for any column the INSERT didn't list.
-
-**2. Explicit injection in app code.** When you want Jade to carry the
-timestamp values (Rails-style), tack assignments onto the list before
-the call:
+`insert`/`update` emit only the columns you set — they don't auto-fill
+`created_at` / `updated_at`. Opt in per-write with `timestamped`, which
+works like ActiveRecord: `created_at` + `updated_at` on insert, `updated_at`
+only on update.
 
 ```jade
-def with_timestamps(assigns: List(Assignment), now: Instant)
-    -> List(Assignment)
-  assigns ++ [assign("created_at", now), assign("updated_at", now)]
-end
+import Sql.Mutation exposing (insert, timestamped, update)
 
-def create(p: Patient, now: Instant) -> Mutation(Int, PatientsCols)
-  encode_patient(p)
-    |> with_timestamps(now)
-    |> insert(_, patients)
-end
+new_patient |> insert(patients) |> timestamped |> execute   -- both set
+patient     |> update(patients) |> timestamped |> execute   -- updated_at only
+new_import  |> insert(patients) |> execute                  -- no timestamps
 ```
+
+It's opt-in on purpose — backfills, imports, and `touch: false`-style writes
+just omit it (and can set the columns explicitly). The value is the **app
+clock** at execute time (set in Ruby, the same clock Rails uses, so
+`travel_to`/Timecop freeze it), and `created_at` == `updated_at` on an
+insert. No schema changes and no DB-side `DEFAULT` needed.
 
 ### UUIDs
 

@@ -14,9 +14,10 @@ module JadeSql
     NOT_FOUND  = ["NotFound"].freeze
     NOT_UNIQUE = ["NotUnique"].freeze
 
-    def self.db_error(msg) = ["DbError", msg]
-    def self.not_found     = NOT_FOUND
-    def self.not_unique    = NOT_UNIQUE
+    def self.db_error(msg)  = ["DbError", msg]
+    def self.not_found      = NOT_FOUND
+    def self.not_unique     = NOT_UNIQUE
+    def self.conflict(name) = ["Conflict", name]
   end
 end
 
@@ -26,11 +27,13 @@ module Sql
     class DbError   < Error; end
     class NotFound  < Error; end
     class NotUnique < Error; end
+    class Conflict  < Error; end
 
     BY_TAG = {
       "DbError"   => DbError,
       "NotFound"  => NotFound,
       "NotUnique" => NotUnique,
+      "Conflict"  => Conflict,
     }.freeze
   end
 

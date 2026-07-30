@@ -66,11 +66,12 @@ module JadeSql
     Table = Data.define(:name, :columns, :pk_columns)
     Column = Data.define(:name, :jade_type, :nullable)
 
-    def generate(sql, tables: nil, module_name: 'Schema')
+    def generate(sql, tables: nil, columns: nil, module_name: 'Schema')
       bodies = scan_table_bodies(sql)
       bodies = select_tables(bodies, tables) if tables
       pks = parse_pks(sql)
       parsed = bodies.map { |name, body| Table[name, parse_columns(body, name), pks[name] || []] }
+      parsed = select_columns(parsed, columns) if columns
       format(emit(parsed, module_name))
     end
 
@@ -105,6 +106,29 @@ module JadeSql
       raise "Unknown table(s): #{missing.join(', ')}" if missing.any?
 
       bodies.select { |name, _| whitelist.include?(name) }
+    end
+
+    # A schema generated for one domain carries only the columns that domain
+    # was granted, so a column it wasn't granted is absent from `Cols` and
+    # naming it is a type error rather than a review comment.
+    def select_columns(tables, whitelist)
+      tables.map do |t|
+        allowed = whitelist[t.name]
+        next t unless allowed
+
+        validate_columns!(t, allowed)
+
+        t.with(columns: t.columns.select { allowed.include?(it.name) })
+      end
+    end
+
+    def validate_columns!(table, allowed)
+      unknown = allowed - table.columns.map(&:name)
+      raise "Unknown column(s) on #{table.name}: #{unknown.join(', ')}" if unknown.any?
+
+      (table.pk_columns - allowed).then do
+        raise "#{table.name}: primary key #{it.join(', ')} must be selected" if it.any?
+      end
     end
 
     def parse_columns(body, table_name)

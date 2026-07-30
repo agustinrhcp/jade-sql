@@ -384,4 +384,63 @@ describe JadeSql::SchemaGenerator do
         .to raise_error(/Unknown SQL type for unwanted.blob/)
     end
   end
+
+  describe 'column selection' do
+    subject(:generated) { described_class.generate(sql, columns: columns) }
+
+    let(:sql) do
+      <<~SQL
+        CREATE TABLE public.patients (
+            id bigint NOT NULL,
+            name character varying NOT NULL,
+            ssn character varying NOT NULL,
+            age integer
+        );
+
+        ALTER TABLE ONLY public.patients
+            ADD CONSTRAINT patients_pkey PRIMARY KEY (id);
+      SQL
+    end
+
+    context 'a domain granted a subset' do
+      let(:columns) { { 'patients' => %w[id age] } }
+
+      it 'keeps the granted columns' do
+        expect(generated).to include('age: Expr(Maybe(Int))')
+      end
+
+      it 'omits the columns it was not granted' do
+        expect(generated).to_not include('ssn')
+      end
+
+      it 'omits them from the row struct too' do
+        expect(generated).to_not match(/struct PatientsRow.*ssn/m)
+      end
+    end
+
+    context 'a table left out of the map' do
+      let(:columns) { { 'other' => %w[id] } }
+
+      it 'keeps every column' do
+        expect(generated).to include('ssn')
+      end
+    end
+
+    context 'a column that does not exist' do
+      let(:columns) { { 'patients' => %w[id nope] } }
+
+      it 'says so rather than silently dropping it' do
+        expect { generated }.to raise_error(/Unknown column\(s\) on patients: nope/)
+      end
+    end
+
+    context 'a selection that drops the primary key' do
+      let(:columns) { { 'patients' => %w[age] } }
+
+      it 'refuses, since the emitted table would name a column it lacks' do
+        expect { generated }.to raise_error(/primary key id must be selected/)
+      end
+    end
+  end
+
 end

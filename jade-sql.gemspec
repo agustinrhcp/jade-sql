@@ -18,7 +18,7 @@ Gem::Specification.new do |s|
   s.bindir        = 'exe'
   s.executables   = ['jade-sql']
   s.require_paths = ['lib']
-  s.required_ruby_version = '~> 3.4'
+  s.required_ruby_version = '>= 3.4'
 
   s.metadata = {
     'source_code_uri' => 'https://github.com/agustinrhcp/jade-sql',

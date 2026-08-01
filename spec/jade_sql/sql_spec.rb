@@ -1332,6 +1332,8 @@ module Jade
             insert_many,
             insert_paul,
             insert_paul_returning,
+            update_all_nothing,
+            update_all_nothing_returning,
             update_all_to_zero,
             update_paul,
             update_paul_returning,
@@ -1471,6 +1473,32 @@ module Jade
           end
 
 
+          def update_all_nothing -> (String, List(Value))
+            patients
+              |> update_all(
+            (p) -> { p.balance |> eq(to_expr(0)) },
+            (p) -> { [] },
+          )
+              |> to_sql
+          end
+
+
+          def update_all_nothing_returning -> (String, List(Value))
+            patients
+              |> update_all(
+            (p) -> { p.balance |> eq(to_expr(0)) },
+            (p) -> { [] },
+          )
+              |> returning(
+            (p) -> { select(Patient(_, _, _))
+              |> field(p.id)
+              |> field(p.name)
+              |> field(p.balance) },
+          )
+              |> to_sql
+          end
+
+
           def update_all_to_zero -> (String, List(Value))
             patients
               |> update_all(
@@ -1567,6 +1595,18 @@ module Jade
         sql, params = App::Internal.update_all_to_zero.then { [it._1, it._2] }
         expect(sql).to eql 'UPDATE patients SET archived = ? WHERE balance = ?'
         expect(params).to eql [true, 0]
+      end
+
+      it 'update_all with no assignments reads instead of writing' do
+        sql, params = App::Internal.update_all_nothing.then { [it._1, it._2] }
+        expect(sql).to eql 'SELECT 1 FROM patients WHERE balance = ?'
+        expect(params).to eql [0]
+      end
+
+      it 'update_all with no assignments selects what RETURNING would have' do
+        sql, params = App::Internal.update_all_nothing_returning.then { [it._1, it._2] }
+        expect(sql).to eql 'SELECT id, name, balance FROM patients WHERE balance = ?'
+        expect(params).to eql [0]
       end
 
       it 'delete_all renders bulk DELETE with predicate' do

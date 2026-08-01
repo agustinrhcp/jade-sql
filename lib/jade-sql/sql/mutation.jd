@@ -260,7 +260,31 @@ end
 
 
 def render_update(m: Mutation(ret, c)) -> (String, List(Value))
-  set_clause = "SET " ++ String.join(set_sqls_for(m.rows), ", ")
+  sets = set_sqls_for(m.rows)
+
+  List.empty?(sets) ? render_no_op_update(m) : render_update_set(m, sets)
+end
+
+
+def render_no_op_update(m: Mutation(ret, c)) -> (String, List(Value))
+  where = strip_table_alias(where_sql(m.wheres), m.table.alias_)
+  cols = List.empty?(m.returning_selector.columns_sql)
+    ? "1"
+    : strip_table_alias(
+        String.join(m.returning_selector.columns_sql, ", "),
+        m.table.alias_,
+      )
+  sql = "SELECT " ++ cols ++ " FROM " ++ m.table.name ++ where
+
+  Tuple.Tuple2(sql, m.returning_selector.params ++ where_params(m.wheres))
+end
+
+
+def render_update_set(
+  m: Mutation(ret, c),
+  sets: List(String),
+) -> (String, List(Value))
+  set_clause = "SET " ++ String.join(sets, ", ")
   where = strip_table_alias(where_sql(m.wheres), m.table.alias_)
   returning_ = strip_table_alias(returning_clause(m.returning_selector), m.table.alias_)
   sql = "UPDATE "
@@ -275,6 +299,8 @@ def render_update(m: Mutation(ret, c)) -> (String, List(Value))
     set_params_for(m.rows) ++ where_params(m.wheres) ++ m.returning_selector.params,
   )
 end
+
+
 
 
 def render_delete(m: Mutation(ret, c)) -> (String, List(Value))

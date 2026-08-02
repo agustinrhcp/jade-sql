@@ -89,7 +89,7 @@ describe MyApp do
   include Jade::Tasks::RSpec
 
   it 'queries patients' do
-    all_calls_to(JadeSql::Runtime.port_execute_many) do |t, _pair|
+    all_calls_to(JadeSql::Runtime.port_execute_many) do |t, _sql, _params|
       t.ok([
         { "id" => 1, "name" => "Paul", "mrn" => "MRN-001" }
       ])
@@ -103,4 +103,4 @@ end
 The three ports are `port_execute_count`, `port_execute_one`,
 `port_execute_many` — `Sql.execute*` / `Sql.fetch_*` and their `*_raw`
 siblings ultimately dispatch through these. Stub them with
-`all_calls_to(JadeSql::Runtime.port_execute_*) { |t, pair| ... }`.
+`all_calls_to(JadeSql::Runtime.port_execute_*) { |t, sql, params| ... }`.

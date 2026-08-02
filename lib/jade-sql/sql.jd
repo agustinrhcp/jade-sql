@@ -403,9 +403,9 @@ end
 
 
 uses JadeSql::Runtime with
-  port_execute_count : (String, List(Value)) -> Task(Int, SqlError),
-  port_execute_one : (String, List(Value)) -> Task(a, SqlError),
-  port_execute_many : (String, List(Value)) -> Task(List(a), SqlError),
+  port_execute_count : String, List(Value) -> Task(Int, SqlError),
+  port_execute_one : String, List(Value) -> Task(a, SqlError),
+  port_execute_many : String, List(Value) -> Task(List(a), SqlError),
   port_begin : Task(Bool, SqlError),
   port_commit : Task(Bool, SqlError),
   port_rollback : Task(Bool, SqlError)
@@ -413,17 +413,20 @@ end
 
 
 def execute_raw(p: (String, List(Value))) -> Task(Int, SqlError)
-  port_execute_count(p)
+  (sql, params) = p
+  port_execute_count(sql, params)
 end
 
 
 def fetch_one_raw(p: (String, List(Value))) -> Task(a, SqlError)
-  port_execute_one(p)
+  (sql, params) = p
+  port_execute_one(sql, params)
 end
 
 
 def fetch_many_raw(p: (String, List(Value))) -> Task(List(a), SqlError)
-  port_execute_many(p)
+  (sql, params) = p
+  port_execute_many(sql, params)
 end
 
 

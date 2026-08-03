@@ -9,8 +9,7 @@ module JadeSql
   module Runtime
     extend Jade::Port
 
-    task :port_execute_count do |t, pair|
-      sql, params = pair._1, pair._2
+    task :port_execute_count do |t, sql, params|
       conn = ::ActiveRecord::Base.connection
       t.ok(conn.exec_update(adapt_sql(fill_now(sql), conn), "Jade", typed_params(params, conn)))
     rescue ::ActiveRecord::RecordNotUnique => e
@@ -19,8 +18,7 @@ module JadeSql
       t.err(JadeSql::SqlErrors.db_error(e.message))
     end
 
-    task :port_execute_one do |t, pair|
-      sql, params = pair._1, pair._2
+    task :port_execute_one do |t, sql, params|
       conn = ::ActiveRecord::Base.connection
       rows = conn.exec_query(adapt_sql(fill_now(sql), conn), "Jade", typed_params(params, conn)).to_a
       case rows.length
@@ -34,8 +32,7 @@ module JadeSql
       t.err(JadeSql::SqlErrors.db_error(e.message))
     end
 
-    task :port_execute_many do |t, pair|
-      sql, params = pair._1, pair._2
+    task :port_execute_many do |t, sql, params|
       conn = ::ActiveRecord::Base.connection
       rows = conn.exec_query(adapt_sql(fill_now(sql), conn), "Jade", typed_params(params, conn)).to_a
       t.ok(rows.map { |row| coerce_row(row) })

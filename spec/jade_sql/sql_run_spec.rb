@@ -117,14 +117,14 @@ module Jade
 
     describe "execute (alias for run_count over Renderable)" do
       it 'returns the affected count from the port' do
-        all_calls_to(JadeSql::Runtime.port_execute_count) { |t, _pair| t.ok(7) }
+        all_calls_to(JadeSql::Runtime.port_execute_count) { |t, _sql, _params| t.ok(7) }
 
         expect(App::Internal.count_via_execute.run).to be_ok(7)
         expect(JadeSql::Runtime.port_execute_count).to have_been_called
       end
 
       it 'surfaces a DbError from the port' do
-        all_calls_to(JadeSql::Runtime.port_execute_count) do |t, _pair|
+        all_calls_to(JadeSql::Runtime.port_execute_count) do |t, _sql, _params|
           t.err(JadeSql::SqlErrors.db_error("syntax error"))
         end
 
@@ -132,7 +132,7 @@ module Jade
       end
 
       it 'surfaces a NotFound from port_execute_one' do
-        all_calls_to(JadeSql::Runtime.port_execute_one) do |t, _pair|
+        all_calls_to(JadeSql::Runtime.port_execute_one) do |t, _sql, _params|
           t.err(JadeSql::SqlErrors.not_found)
         end
 
@@ -140,7 +140,7 @@ module Jade
       end
 
       it 'surfaces a NotUnique from port_execute_one' do
-        all_calls_to(JadeSql::Runtime.port_execute_one) do |t, _pair|
+        all_calls_to(JadeSql::Runtime.port_execute_one) do |t, _sql, _params|
           t.err(JadeSql::SqlErrors.not_unique)
         end
 
@@ -150,7 +150,7 @@ module Jade
 
     describe 'execute_one' do
       it 'decodes a single row into the caller-side struct' do
-        all_calls_to(JadeSql::Runtime.port_execute_one) do |t, _pair|
+        all_calls_to(JadeSql::Runtime.port_execute_one) do |t, _sql, _params|
           t.ok({ "id" => 1, "name" => "Paul", "balance" => 100 })
         end
 
@@ -161,7 +161,7 @@ module Jade
 
     describe 'execute_many' do
       it 'decodes each row into the caller-side struct' do
-        all_calls_to(JadeSql::Runtime.port_execute_many) do |t, _pair|
+        all_calls_to(JadeSql::Runtime.port_execute_many) do |t, _sql, _params|
           t.ok([
             { "id" => 1, "name" => "Paul",  "balance" => 100 },
             { "id" => 2, "name" => "Frank", "balance" => 200 }
@@ -174,7 +174,7 @@ module Jade
       end
 
       it 'returns an empty list when the DB returns no rows' do
-        all_calls_to(JadeSql::Runtime.port_execute_many) { |t, _pair| t.ok([]) }
+        all_calls_to(JadeSql::Runtime.port_execute_many) { |t, _sql, _params| t.ok([]) }
 
         result = App::Internal.list_via_execute.run
         expect(result).to be_ok
@@ -184,9 +184,8 @@ module Jade
 
     describe 'fetch_one via Renderable (Q)' do
       it 'renders the Q via to_sql and decodes the row' do
-        all_calls_to(JadeSql::Runtime.port_execute_one) do |t, pair|
+        all_calls_to(JadeSql::Runtime.port_execute_one) do |t, sql, _params|
           # Verify Q.to_sql rendered the query the way we expect.
-          sql, _params = pair._1, pair._2
           expect(sql).to include('SELECT patients.id, patients.name, patients.balance')
           expect(sql).to include('FROM patients patients')
           expect(sql).to include('WHERE patients.name = ?')
@@ -201,13 +200,13 @@ module Jade
 
     describe 'public boundary wrappers for Task(_, SqlError)' do
       it 'exposes App.fn returning ["ok", v] on success' do
-        all_calls_to(JadeSql::Runtime.port_execute_count) { |t, _pair| t.ok(7) }
+        all_calls_to(JadeSql::Runtime.port_execute_count) { |t, _sql, _params| t.ok(7) }
 
         expect(App.count_via_execute).to eql ["ok", 7]
       end
 
       it 'exposes App.fn returning ["err", ["DbError", msg]] on failure' do
-        all_calls_to(JadeSql::Runtime.port_execute_count) do |t, _pair|
+        all_calls_to(JadeSql::Runtime.port_execute_count) do |t, _sql, _params|
           t.err(JadeSql::SqlErrors.db_error("syntax error"))
         end
 
@@ -215,7 +214,7 @@ module Jade
       end
 
       it 'exposes ["err", ["NotFound"]] for a NotFound from port_execute_one' do
-        all_calls_to(JadeSql::Runtime.port_execute_one) do |t, _pair|
+        all_calls_to(JadeSql::Runtime.port_execute_one) do |t, _sql, _params|
           t.err(JadeSql::SqlErrors.not_found)
         end
 
@@ -223,7 +222,7 @@ module Jade
       end
 
       it 'exposes ["err", ["NotUnique"]] for a NotUnique from port_execute_one' do
-        all_calls_to(JadeSql::Runtime.port_execute_one) do |t, _pair|
+        all_calls_to(JadeSql::Runtime.port_execute_one) do |t, _sql, _params|
           t.err(JadeSql::SqlErrors.not_unique)
         end
 
@@ -231,13 +230,13 @@ module Jade
       end
 
       it 'App.fn! returns the value on success' do
-        all_calls_to(JadeSql::Runtime.port_execute_count) { |t, _pair| t.ok(7) }
+        all_calls_to(JadeSql::Runtime.port_execute_count) { |t, _sql, _params| t.ok(7) }
 
         expect(App.count_via_execute!).to eql 7
       end
 
       it 'App.fn! raises Jade::Interop::TaskError on failure' do
-        all_calls_to(JadeSql::Runtime.port_execute_count) do |t, _pair|
+        all_calls_to(JadeSql::Runtime.port_execute_count) do |t, _sql, _params|
           t.err(JadeSql::SqlErrors.db_error("syntax error"))
         end
 

@@ -202,6 +202,51 @@ module Jade
       end
     end
 
+    describe 'or' do
+      it 'joins predicates with OR, parenthesised' do
+        test_compiler.require('app', <<~JADE)
+          module App exposing (predicate)
+
+          import Sql exposing (Expr, column, eq, or, to_expr)
+
+
+          def predicate -> Expr(Bool)
+            a = column("p", "a") |> eq(to_expr(1))
+            b = column("p", "b") |> eq(to_expr(2))
+            a |> or(b)
+          end
+        JADE
+
+        App::Internal.predicate.then do |expr|
+          expect(expr.sql).to eql '(p.a = ? OR p.b = ?)'
+          expect(expr.params).to eql [1, 2]
+        end
+      end
+
+      # `where` joins its predicates with AND, so an unparenthesised OR would
+      # bind as `(x = ? AND a) OR b` and quietly widen the result set.
+      it 'survives being ANDed by where' do
+        test_compiler.require('app', <<~JADE)
+          module App exposing (predicate)
+
+          import Sql exposing (Expr, and, column, eq, or, to_expr)
+
+
+          def predicate -> Expr(Bool)
+            x = column("p", "x") |> eq(to_expr(0))
+            a = column("p", "a") |> eq(to_expr(1))
+            b = column("p", "b") |> eq(to_expr(2))
+            x |> and(or(a, b))
+          end
+        JADE
+
+        App::Internal.predicate.then do |expr|
+          expect(expr.sql).to eql 'p.x = ? AND (p.a = ? OR p.b = ?)'
+          expect(expr.params).to eql [0, 1, 2]
+        end
+      end
+    end
+
     describe 'cast' do
       it 'rewraps the phantom type without touching sql or params' do
         test_compiler.require('app', <<~JADE)

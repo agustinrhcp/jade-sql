@@ -81,8 +81,18 @@ module JadeSql
     # numeric/decimal columns come back as ::BigDecimal; the schema generator
     # maps them to jade's stdlib Decimal, whose decoder reads the exact
     # "<coefficient>e<exponent>" wire form. Float would lose precision, so don't.
+    # Most rows have nothing to convert — Integers, plain Strings and nils
+    # all come back as themselves — so the copy only happens once a value
+    # actually changes, and each value is still only looked at once.
     def self.coerce_row(row)
-      row.transform_values { |v| coerce_value(v) }
+      out = nil
+
+      row.each_pair do |k, v|
+        coerced = coerce_value(v)
+        (out ||= row.dup)[k] = coerced unless coerced.equal?(v)
+      end
+
+      out || row
     end
 
     def self.coerce_value(v)

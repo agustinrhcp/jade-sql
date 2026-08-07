@@ -87,7 +87,7 @@ module Jade
           end
 
 
-          def agg_expr -> Expr(Maybe(Json(List(Row))))
+          def agg_expr -> Expr(Maybe(List(Row)))
             Json.agg(one, column("l", "id"))
           end
         JADE
@@ -117,7 +117,7 @@ module Jade
           end
 
 
-          def lines_expr -> Expr(Json(List(Row)))
+          def lines_expr -> Expr(List(Row))
             coalesce(Json.agg(one, column("l", "id")), Json.empty_list)
           end
         JADE
@@ -140,7 +140,7 @@ module Jade
           import Sql.Json as Json exposing (Json)
 
 
-          def tags -> Expr(Json(List(String)))
+          def tags -> Expr(List(String))
             Json.of_array(column("l", "tags"))
           end
         JADE

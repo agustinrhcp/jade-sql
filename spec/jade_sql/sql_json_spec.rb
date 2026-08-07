@@ -151,6 +151,78 @@ module Jade
       end
     end
 
+
+    describe 'select' do
+      it 'aliases the projection to Doc\'s field so the row decodes' do
+        test_compiler.require('app', <<~JADE)
+          module App exposing (q)
+
+          import Sql exposing (Selector, column)
+          import Sql.Query as Query exposing (Q)
+          import Sql.Json as Json exposing (Doc, Json)
+
+
+          struct Row = { id: String }
+
+
+          def one -> Sql.Expr(Json(Row))
+            Json.object(Row(_))
+              |> Json.prop("id", column("t", "id"))
+              |> Json.build
+          end
+
+
+          def q -> Q(Selector(Doc(Row)))
+            Json.select(one)
+          end
+        JADE
+
+        rendered = App::Internal.q.then { Sql::Query::Internal.to_sql(it) }
+        sql = rendered._1
+        params = rendered._2
+        expect(sql).to eql(
+          "SELECT json_build_object('id', t.id) AS text",
+        )
+        expect(params).to eql []
+      end
+
+      it 'composes with the filters a domain scope adds afterwards' do
+        test_compiler.require('app', <<~JADE)
+          module App exposing (q)
+
+          import Sql exposing (Selector, column, eq, to_expr)
+          import Sql.Query as Query exposing (Q)
+          import Sql.Json as Json exposing (Doc, Json)
+
+
+          struct Row = { id: String }
+
+
+          def one -> Sql.Expr(Json(Row))
+            Json.object(Row(_))
+              |> Json.prop("id", column("t", "id"))
+              |> Json.build
+          end
+
+
+          def q -> Q(Selector(Doc(Row)))
+            Json.select(one)
+              |> Query.where(eq(column("t", "book_id"), to_expr("b1")))
+              |> Query.limit(100)
+          end
+        JADE
+
+        rendered = App::Internal.q.then { Sql::Query::Internal.to_sql(it) }
+        sql = rendered._1
+        params = rendered._2
+        expect(sql).to eql(
+          "SELECT json_build_object('id', t.id) AS text " \
+          'WHERE t.book_id = ? LIMIT 100',
+        )
+        expect(params).to eql ['b1']
+      end
+    end
+
     describe 'correlated' do
       it 'renders a scalar subquery correlated to the outer columns' do
         test_compiler.require('app', <<~JADE)

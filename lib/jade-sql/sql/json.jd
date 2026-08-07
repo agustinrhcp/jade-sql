@@ -8,6 +8,7 @@ module Sql.Json exposing (
   empty_list,
   fetch_many,
   fetch_one,
+  nested,
   object,
   of_array,
   prop,
@@ -62,7 +63,7 @@ end
 # `Sql.sum` models. Returning Maybe forces the caller through `coalesce`,
 # which makes the empty-collection bug unrepresentable rather than merely
 # documented.
-def agg(e: Expr(Json(a)), by: Expr(b)) -> Expr(Maybe(Json(List(a))))
+def agg(e: Expr(Json(a)), by: Expr(b)) -> Expr(Maybe(List(a)))
   Expr(
     "json_agg(" ++ e.sql ++ " ORDER BY " ++ by.sql ++ ")",
     e.params ++ by.params,
@@ -70,14 +71,23 @@ def agg(e: Expr(Json(a)), by: Expr(b)) -> Expr(Maybe(Json(List(a))))
 end
 
 
-def empty_list -> Expr(Json(List(a)))
+def empty_list -> Expr(List(a))
   Expr("'[]'::json", [])
 end
 
 
-# Postgres arrays (`text[]`) are not JSON arrays. Without this a `List(a)`
-# column serializes as `{a,b}`.
-def of_array(e: Expr(List(a))) -> Expr(Json(List(a)))
+# Embeds one object as an object-valued field. `agg` is the same placement
+# for a list-valued one: both take a rendered object and hand back the type
+# the target field actually has, because `prop` peels the field's type.
+def nested(e: Expr(Json(a))) -> Expr(a)
+  Expr(e.sql, e.params)
+end
+
+
+# Postgres arrays (`text[]`) are not JSON arrays: without this a `List(a)`
+# column serializes as `{a,b}`. The type is unchanged — this is a rendering
+# concern, not a different value.
+def of_array(e: Expr(List(a))) -> Expr(List(a))
   Expr("to_jsonb(" ++ e.sql ++ ")", e.params)
 end
 

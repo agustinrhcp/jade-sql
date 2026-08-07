@@ -1,0 +1,88 @@
+module Sql.Json exposing (
+  Json,
+  Object,
+  agg,
+  build,
+  correlated,
+  empty_list,
+  object,
+  of_array,
+  prop,
+)
+
+# Builds JSON in the database instead of in Ruby.
+#
+# `Expr(Json(a))` is a SQL expression whose value is JSON text encoding an
+# `a`. `Json(a)` has no exported constructors, so the only way to get one is
+# through this module — which means a projection can't drift from the type it
+# claims to encode without the type checker noticing.
+#
+# The builder mirrors `Sql.Query.select`/`field` deliberately: `object` takes
+# the target constructor as a type witness and `prop` peels one argument per
+# field, so a projection that doesn't match the struct's fields in arity and
+# type fails to compile. The witness is never called — Postgres does the
+# constructing.
+
+import Sql exposing (Expr(..), Selector)
+import Sql.Query as Query exposing (Q)
+import Decode exposing (Value)
+
+
+type Json(a)
+  = Json
+
+
+struct Object(a) = {
+  pairs: List(String),
+  params: List(Value)
+}
+
+
+def object(make: a -> b) -> Object(a -> b)
+  Object([], [])
+end
+
+
+def prop(o: Object(a -> b), name: String, e: Expr(a)) -> Object(b)
+  Object(o.pairs ++ ["'" ++ name ++ "', " ++ e.sql], o.params ++ e.params)
+end
+
+
+def build(o: Object(a)) -> Expr(Json(a))
+  Expr("json_build_object(" ++ String.join(o.pairs, ", ") ++ ")", o.params)
+end
+
+
+# `json_agg` over an empty group is NULL, not `[]` — the same hazard
+# `Sql.sum` models. Returning Maybe forces the caller through `coalesce`,
+# which makes the empty-collection bug unrepresentable rather than merely
+# documented.
+def agg(e: Expr(Json(a)), by: Expr(b)) -> Expr(Maybe(Json(List(a))))
+  Expr(
+    "json_agg(" ++ e.sql ++ " ORDER BY " ++ by.sql ++ ")",
+    e.params ++ by.params,
+  )
+end
+
+
+def empty_list -> Expr(Json(List(a)))
+  Expr("'[]'::json", [])
+end
+
+
+# Postgres arrays (`text[]`) are not JSON arrays. Without this a `List(a)`
+# column serializes as `{a,b}`.
+def of_array(e: Expr(List(a))) -> Expr(Json(List(a)))
+  Expr("to_jsonb(" ++ e.sql ++ ")", e.params)
+end
+
+
+# A scalar subquery, which is what a preload becomes once the child rows are
+# aggregated. The outer columns are passed in rather than closed over so the
+# correlated scope is a named argument: reusing a builder under a different
+# outer table is then a type error instead of a silently wrong correlation.
+def correlated(outer: c, q: c -> Q(Selector(a))) -> Expr(a)
+  (sql, params) = outer |> q |> Query.to_sql
+
+  Expr("(" ++ sql ++ ")", params)
+end

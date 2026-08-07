@@ -1,13 +1,18 @@
 module Sql.Json exposing (
+  Doc,
   Json,
   Object,
   agg,
   build,
   correlated,
   empty_list,
+  fetch_many,
+  fetch_one,
   object,
   of_array,
   prop,
+  select,
+  text,
 )
 
 # Builds JSON in the database instead of in Ruby.
@@ -23,7 +28,7 @@ module Sql.Json exposing (
 # type fails to compile. The witness is never called — Postgres does the
 # constructing.
 
-import Sql exposing (Expr(..), Selector)
+import Sql exposing (Expr(..), Selector, SqlError, cast)
 import Sql.Query as Query exposing (Q)
 import Decode exposing (Value)
 
@@ -85,4 +90,43 @@ def correlated(outer: c, q: c -> Q(Selector(a))) -> Expr(a)
   (sql, params) = outer |> q |> Query.to_sql
 
   Expr("(" ++ sql ++ ")", params)
+end
+
+
+# JSON text that decodes as an `a`. The tag survives the round trip, so a
+# signature can still say what a response contains after the value has
+# stopped being a structure.
+struct Doc(a) = {
+  text: String
+}
+
+
+def text(d: Doc(a)) -> String
+  d.text
+end
+
+
+# The row comes back as a hash keyed by column name, so the projection needs
+# an alias matching Doc's field. `cast` is the escape hatch that erases
+# Json(a) to the String the column actually holds — it stays inside this
+# module, and the signature ties the result's tag back to the projection's.
+def select(e: Expr(Json(a))) -> Q(Selector(Doc(a)))
+  Query.select(Doc(_)) |> Query.field_as(cast(e), "text")
+end
+
+
+# The parent list is joined here rather than aggregated in SQL: LIMIT applies
+# to an aggregate's single output row, not to the rows feeding it, so a paged
+# json_agg silently returns the wrong page.
+def fetch_many(q: Q(Selector(Doc(a)))) -> Task(Doc(List(a)), SqlError)
+  docs <- Sql.fetch_many(q)
+
+  Task.succeed(Doc("[" ++ String.join(List.map(docs, text), ",") ++ "]"))
+end
+
+
+def fetch_one(q: Q(Selector(Doc(a)))) -> Task(Doc(a), SqlError)
+  doc <- Sql.fetch_one(q)
+
+  Task.succeed(doc)
 end

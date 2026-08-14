@@ -1657,12 +1657,15 @@ module Jade
         sql, params = App::Internal.update_many_balances.then { [it._1, it._2] }
 
         expect(sql).to eql(
-          'UPDATE patients SET name = CASE WHEN id = ? THEN ? ' \
-          'WHEN id = ? THEN ? ELSE name END, ' \
-          'balance = CASE WHEN id = ? THEN ? WHEN id = ? THEN ? ELSE balance END ' \
-          'WHERE id IN (?, ?)',
+          'UPDATE patients AS jade_tgt ' \
+          'SET name = jade_src.name, balance = jade_src.balance ' \
+          'FROM json_populate_recordset(null::patients, ?::json) AS jade_src ' \
+          'WHERE jade_tgt.id = jade_src.id',
         )
-        expect(params).to eql [1, 'Ada', 2, 'Grace', 1, 10, 2, 20, 1, 2]
+        expect(params).to eql [
+          '[{"id":1,"name":"Ada","balance":10},' \
+          '{"id":2,"name":"Grace","balance":20}]',
+        ]
       end
 
       it 'update_all with no assignments reads instead of writing' do

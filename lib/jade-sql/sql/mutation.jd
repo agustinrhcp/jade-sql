@@ -25,6 +25,7 @@ import Sql exposing (
 )
 import Sql.Query exposing (Q)
 import Decode exposing (Value)
+import Encode
 
 
 type MutationKind
@@ -39,7 +40,8 @@ struct Mutation(ret, c) = {
   cols: c,
   rows: List(List(Assignment)),
   wheres: List(Expr(Bool)),
-  returning_selector: Selector(ret)
+  returning_selector: Selector(ret),
+  from_: Maybe(Expr(Bool))
 }
 
 
@@ -51,6 +53,7 @@ def insert(value: a, t: Table(c, m)) -> Mutation(Int, c)
     [to_assigns(value)],
     [],
     Selector([], []),
+     Nothing,
   )
 end
 
@@ -63,6 +66,7 @@ def insert_all(values: List(a), t: Table(c, m)) -> Mutation(Int, c)
     List.map(values, (v) -> { to_assigns(v) }),
     [],
     Selector([], []),
+     Nothing,
   )
 end
 
@@ -77,6 +81,7 @@ def update(value: a, t: Table(c, m)) -> Mutation(Int, c)
     [to_assigns(value)],
     [pk_pred],
     Selector([], []),
+     Nothing,
   )
 end
 
@@ -91,6 +96,7 @@ def delete(value: a, t: Table(c, m)) -> Mutation(Int, c)
     [],
     [pk_pred],
     Selector([], []),
+     Nothing,
   )
 end
 
@@ -110,13 +116,14 @@ def update_all(
     [cols_ |> build],
     [pred],
     Selector([], []),
+     Nothing,
   )
 end
 
 
 def update_many(values: List(a), t: Table(c, m)) -> Mutation(Int, c)
   rows = List.zip(
-    values |> List.map((v) -> { pk_predicate(t.pk_columns, pk_values(v)) }),
+    values |> List.map((v) -> { pk_values(v) }),
     values |> List.map((v) -> { to_assigns(v) }),
   )
     |> List.map((p) -> { RowUpdate(Tuple.first(p), Tuple.second(p)) })
@@ -125,54 +132,58 @@ def update_many(values: List(a), t: Table(c, m)) -> Mutation(Int, c)
     UpdateK,
     TableRef(t.name, t.alias_),
     t.alias_ |> t.cols,
-    [case_assigns(rows)],
-    [any_key(t.pk_columns, rows)],
+    [source_assigns(rows)],
+    [pk_join(t.pk_columns)],
     Selector([], []),
+    Just(source_of(t.name, t.pk_columns, rows)),
   )
 end
 
 
 struct RowUpdate = {
-  key: Expr(Bool),
+  keys: List(Value),
   assigns: List(Assignment)
 }
 
 
-def any_key(pk_columns: List(String), rows: List(RowUpdate)) -> Expr(Bool)
-  case pk_columns
-  in [col] then key_in(col, rows)
-  else any_of(rows)
-  end
-end
-
-
-def key_in(col: String, rows: List(RowUpdate)) -> Expr(Bool)
-  keys = rows |> List.map(.key)
-
+# One JSON parameter carries every row, so the statement is the same size
+# for two rows or two hundred. json_populate_recordset gives the record
+# the table's own column types, which is what makes a bare `?` legal in a
+# position Postgres cannot otherwise infer.
+def source_of(
+  name: String,
+  pk_columns: List(String),
+  rows: List(RowUpdate),
+) -> Expr(Bool)
   Expr(
-    col
-      ++ " IN ("
-      ++ (keys |> List.map((_) -> { "?" }) |> String.join(", "))
-      ++ ")",
-    keys |> List.and_then(.params),
+    "json_populate_recordset(null::" ++ name ++ ", ?::json) AS jade_src",
+    [Encode.string(Encode.encode_to_string(json_rows(pk_columns, rows)))],
   )
 end
 
 
-def any_of(rows: List(RowUpdate)) -> Expr(Bool)
-  keys = rows |> List.map(.key)
+def json_rows(pk_columns: List(String), rows: List(RowUpdate)) -> Value
+  Encode.list(json_row(pk_columns, _), rows)
+end
 
-  Expr(
-    "(" ++ (keys |> List.map(.sql) |> String.join(" OR ")) ++ ")",
-    keys |> List.and_then(.params),
+
+def json_row(pk_columns: List(String), r: RowUpdate) -> Value
+  Encode.object(
+    List.zip(pk_columns, r.keys)
+      ++ (r.assigns |> List.map((a) -> { Tuple.Tuple2(a.col, first_param(a)) })),
   )
 end
 
 
-def case_assigns(rows: List(RowUpdate)) -> List(Assignment)
+def first_param(a: Assignment) -> Value
+  a.params |> List.head |> Maybe.with_default(Encode.null)
+end
+
+
+def source_assigns(rows: List(RowUpdate)) -> List(Assignment)
   rows
     |> touched_cols
-    |> List.map((col) -> { case_assign(col, rows) })
+    |> List.map((col) -> { Assignment(col, "jade_src." ++ col, []) })
 end
 
 
@@ -184,27 +195,13 @@ def touched_cols(rows: List(RowUpdate)) -> List(String)
 end
 
 
-def case_assign(col: String, rows: List(RowUpdate)) -> Assignment
-  branches = rows |> List.and_then((r) -> { branch(col, r) })
-
-  Assignment(
-    col,
-    "CASE "
-      ++ (branches |> List.map(.sql) |> String.join(" "))
-      ++ " ELSE "
-      ++ col
-      ++ " END",
-    branches |> List.and_then(.params),
+def pk_join(pk_columns: List(String)) -> Expr(Bool)
+  Expr(
+    pk_columns
+      |> List.map((col) -> { "jade_tgt." ++ col ++ " = jade_src." ++ col })
+      |> String.join(" AND "),
+    [],
   )
-end
-
-
-def branch(col: String, r: RowUpdate) -> List(Expr(Bool))
-  case r.assigns |> List.find((a) -> { a.col == col })
-  in Nothing then []
-  in Just(a) then
-    [Expr("WHEN " ++ r.key.sql ++ " THEN " ++ a.value_sql, r.key.params ++ a.params)]
-  end
 end
 
 
@@ -219,12 +216,21 @@ def delete_all(t: Table(c, m), pred_fn: c -> Expr(Bool)) -> Mutation(Int, c)
     [],
     [pred],
     Selector([], []),
+     Nothing,
   )
 end
 
 
 def returning(m: Mutation(a, c), build: c -> Q(Selector(b))) -> Mutation(b, c)
-  Mutation(m.kind, m.table, m.cols, m.rows, m.wheres, build(m.cols).result)
+  Mutation(
+    m.kind,
+    m.table,
+    m.cols,
+    m.rows,
+    m.wheres,
+    build(m.cols).result,
+    m.from_,
+  )
 end
 
 
@@ -258,7 +264,7 @@ end
 
 
 def with_rows(m: Mutation(ret, c), rows: List(List(Assignment))) -> Mutation(ret, c)
-  Mutation(m.kind, m.table, m.cols, rows, m.wheres, m.returning_selector)
+  { m | rows: rows }
 end
 
 
@@ -315,6 +321,33 @@ def set_params_for(rows: List(List(Assignment))) -> List(Value)
   case rows
   in [first | _] then List.fold(first, [], (acc, a) -> { acc ++ a.params })
   in [] then []
+  end
+end
+
+
+# A FROM'd UPDATE needs the target aliased: json_populate_recordset gives
+# the source every column the table has, so a bare `id = jade_src.id` is
+# ambiguous.
+def target_ref(m: Mutation(ret, c)) -> String
+  case m.from_
+  in Nothing then m.table.name
+  in Just(_) then m.table.name ++ " AS jade_tgt"
+  end
+end
+
+
+def from_clause(from_: Maybe(Expr(Bool))) -> String
+  case from_
+  in Nothing then ""
+  in Just(e) then " FROM " ++ e.sql
+  end
+end
+
+
+def from_params(from_: Maybe(Expr(Bool))) -> List(Value)
+  case from_
+  in Nothing then []
+  in Just(e) then e.params
   end
 end
 
@@ -386,15 +419,19 @@ def render_update_set(
   where = strip_table_alias(where_sql(m.wheres), m.table.alias_)
   returning_ = strip_table_alias(returning_clause(m.returning_selector), m.table.alias_)
   sql = "UPDATE "
-    ++ m.table.name
+    ++ target_ref(m)
     ++ " "
     ++ set_clause
+    ++ from_clause(m.from_)
     ++ where
     ++ returning_
 
   Tuple.Tuple2(
     sql,
-    set_params_for(m.rows) ++ where_params(m.wheres) ++ m.returning_selector.params,
+    set_params_for(m.rows)
+      ++ from_params(m.from_)
+      ++ where_params(m.wheres)
+      ++ m.returning_selector.params,
   )
 end
 

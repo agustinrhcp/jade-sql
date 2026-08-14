@@ -1380,6 +1380,7 @@ module Jade
             update_all_nothing,
             update_all_nothing_returning,
             update_all_to_zero,
+            update_many_balances,
             update_paul,
             update_paul_returning,
           )
@@ -1554,6 +1555,16 @@ module Jade
           end
 
 
+          def update_many_balances -> (String, List(Value))
+            [
+              Patient(1, "Ada", 10),
+              Patient(2, "Grace", 20),
+            ]
+              |> Sql.Mutation.update_many(patients)
+              |> to_sql
+          end
+
+
           def delete_archived -> (String, List(Value))
             patients
               |> delete_all((p) -> { p.archived |> eq(to_expr(True)) })
@@ -1640,6 +1651,18 @@ module Jade
         sql, params = App::Internal.update_all_to_zero.then { [it._1, it._2] }
         expect(sql).to eql 'UPDATE patients SET archived = ? WHERE balance = ?'
         expect(params).to eql [true, 0]
+      end
+
+      it 'update_many writes every row in one statement' do
+        sql, params = App::Internal.update_many_balances.then { [it._1, it._2] }
+
+        expect(sql).to eql(
+          'UPDATE patients SET name = CASE WHEN id = ? THEN ? ' \
+          'WHEN id = ? THEN ? ELSE name END, ' \
+          'balance = CASE WHEN id = ? THEN ? WHEN id = ? THEN ? ELSE balance END ' \
+          'WHERE id IN (?, ?)',
+        )
+        expect(params).to eql [1, 'Ada', 2, 'Grace', 1, 10, 2, 20, 1, 2]
       end
 
       it 'update_all with no assignments reads instead of writing' do

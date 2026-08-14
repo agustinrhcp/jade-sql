@@ -44,6 +44,7 @@ module Sql exposing (
   maybe_columns,
   neg,
   now,
+  or,
   nullable,
   pk_values,
   render,
@@ -199,6 +200,17 @@ end
 
 def and(left: Expr(Bool), right: Expr(Bool)) -> Expr(Bool)
   Expr(left.sql ++ " AND " ++ right.sql, left.params ++ right.params)
+end
+
+
+# Parenthesised where `and` is not, because `where` joins its predicates with
+# AND: without them `x = 1 AND a OR b` binds as `(x = 1 AND a) OR b`, which is
+# not what anyone writing `or` meant.
+def or(left: Expr(Bool), right: Expr(Bool)) -> Expr(Bool)
+  Expr(
+    "(" ++ left.sql ++ " OR " ++ right.sql ++ ")",
+    left.params ++ right.params,
+  )
 end
 
 

@@ -17,11 +17,10 @@ module Jade
         module App exposing (add_plain, add_stamped, touch)
 
         import Sql exposing (
+          Assignable,
           Assignment,
           Expr,
-          Identified,
           SqlError,
-          SqlMapper,
           Table,
           assign,
           column,
@@ -48,7 +47,7 @@ module Jade
         struct MaybePatientsCols = { name: Expr(Maybe(String)) }
 
 
-        implements SqlMapper(NewPatient) with
+        implements Assignable(NewPatient) with
           to_assigns: new_assigns
         end
 
@@ -58,23 +57,13 @@ module Jade
         end
 
 
-        implements SqlMapper(Patient) with
+        implements Assignable(Patient) with
           to_assigns: patient_assigns
         end
 
 
         def patient_assigns(p: Patient) -> List(Assignment)
-          [assign("name", p.name)]
-        end
-
-
-        implements Identified(Patient) with
-          pk_values: patient_pk
-        end
-
-
-        def patient_pk(p: Patient) -> List(Value)
-          [encode(p.id)]
+          [assign("id", p.id), assign("name", p.name)]
         end
 
 

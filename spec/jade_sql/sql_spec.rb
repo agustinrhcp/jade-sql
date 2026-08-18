@@ -1386,16 +1386,14 @@ module Jade
           )
 
           import Sql exposing (
+            Assignable,
             Assignment(..),
             Expr,
-            Identified,
             Selector,
-            SqlMapper,
             Table,
             assign,
             column,
             eq,
-            pk_values,
             set_,
             table,
             to_assigns,
@@ -1440,6 +1438,22 @@ module Jade
           }
 
 
+          struct NewPatient = {
+            name: String,
+            balance: Int
+          }
+
+
+          implements Assignable(NewPatient) with
+            to_assigns: encode_new_patient
+          end
+
+
+          def encode_new_patient(p: NewPatient) -> List(Assignment)
+            [assign("name", p.name), assign("balance", p.balance)]
+          end
+
+
           def patients -> Table(PatientsCols, MaybePatientsCols)
             table(
               "patients",
@@ -1461,31 +1475,22 @@ module Jade
           end
 
 
-          implements SqlMapper(Patient) with
+          implements Assignable(Patient) with
             to_assigns: encode_patient
-          end
-
-
-          implements Identified(Patient) with
-            pk_values: encode_patient_pk
           end
 
 
           def encode_patient(p: Patient) -> List(Assignment)
             [
+              assign("id", p.id),
               assign("name", p.name),
               assign("balance", p.balance),
             ]
           end
 
 
-          def encode_patient_pk(p: Patient) -> List(Value)
-            [encode(p.id)]
-          end
-
-
           def insert_paul -> (String, List(Value))
-            Patient(0, "Paul", 100)
+            NewPatient("Paul", 100)
               |> insert(patients)
               |> to_sql
           end
@@ -1513,7 +1518,7 @@ module Jade
 
 
           def insert_many -> (String, List(Value))
-            [Patient(0, "Paul", 100), Patient(0, "Frank", 200)]
+            [NewPatient("Paul", 100), NewPatient("Frank", 200)]
               |> insert_all(patients)
               |> to_sql
           end
@@ -1573,7 +1578,7 @@ module Jade
 
 
           def insert_paul_returning -> (String, List(Value))
-            Patient(0, "Paul", 100)
+            NewPatient("Paul", 100)
               |> insert(patients)
               |> returning(
             (p) -> { select(Patient(_, _, _))
@@ -1620,7 +1625,7 @@ module Jade
         expect(params).to eql ['Paul', 100]
       end
 
-      it 'insert accepts a raw List(Assignment) via SqlMapper(List(Assignment))' do
+      it 'insert accepts a raw List(Assignment) via Assignable(List(Assignment))' do
         sql, params = App::Internal.insert_from_assigns.then { [it._1, it._2] }
         expect(sql).to eql 'INSERT INTO patients (name, balance) VALUES (?, ?)'
         expect(params).to eql ['Paul', 100]
@@ -1699,6 +1704,98 @@ module Jade
       it 'delete + returning appends RETURNING with the projected columns' do
         sql, _ = App::Internal.delete_paul_returning.then { [it._1, it._2] }
         expect(sql).to eql 'DELETE FROM patients WHERE id = ? RETURNING id, name, balance'
+      end
+    end
+
+    describe 'a composite key' do
+      let(:source) do
+        <<~JADE
+          module Comp exposing (touch)
+
+          import Sql exposing (
+            Assignable,
+            Assignment,
+            Expr,
+            Table,
+            assign,
+            column,
+            table,
+          )
+          import Sql.Mutation exposing (to_sql, update)
+          import Decode exposing (Value)
+
+
+          struct MembershipsCols = {
+            user_id: Expr(Int),
+            group_id: Expr(Int),
+            role: Expr(String)
+          }
+
+
+          struct MaybeMembershipsCols = {
+            user_id: Expr(Maybe(Int)),
+            group_id: Expr(Maybe(Int)),
+            role: Expr(Maybe(String))
+          }
+
+
+          struct Membership = {
+            group_id: Int,
+            role: String,
+            user_id: Int
+          }
+
+
+          implements Assignable(Membership) with
+            to_assigns: encode_membership
+          end
+
+
+          def encode_membership(m: Membership) -> List(Assignment)
+            [
+              assign("group_id", m.group_id),
+              assign("role", m.role),
+              assign("user_id", m.user_id),
+            ]
+          end
+
+
+          def memberships -> Table(MembershipsCols, MaybeMembershipsCols)
+            table(
+              "memberships",
+              "memberships",
+              (a) -> { MembershipsCols(
+                column(a, "user_id"),
+                column(a, "group_id"),
+                column(a, "role"),
+              ) },
+              (a) -> { MaybeMembershipsCols(
+                column(a, "user_id"),
+                column(a, "group_id"),
+                column(a, "role"),
+              ) },
+              ["user_id", "group_id"],
+            )
+          end
+
+
+          def touch -> (String, List(Value))
+            Membership(20, "admin", 10)
+              |> update(memberships)
+              |> to_sql
+          end
+        JADE
+      end
+
+      before { test_compiler.require('comp', source) }
+
+      # The struct declares group_id before user_id; the schema declares the
+      # key the other way round. The schema wins, and nothing pairs a column
+      # with a value by position.
+      it 'orders the key terms by the schema, not by the struct' do
+        sql, params = Comp::Internal.touch.then { [it._1, it._2] }
+        expect(sql).to eql 'UPDATE memberships SET role = ? WHERE user_id = ? AND group_id = ?'
+        expect(params).to eql ['admin', 10, 20]
       end
     end
 

@@ -51,11 +51,19 @@ struct PatientsRow       = { id: Int, name: String, ... }
 def patients -> Table(PatientsCols, MaybePatientsCols)
   table("patients", "patients", ..., ["id"])
 end
+
+def patients_pk -> Pk(PatientsCols)
+  pk_of(patients)
+end
 ```
 
 Strict cols mirror NOT NULL constraints; the maybe version wraps every
 field in `Maybe` for left-join projections. The default alias is the
 table name; override per-call with `aliased` (see joins below).
+
+`patients_pk` names the table's primary key. `Pk(c)` is phantom in the
+column struct, so a key can only be used with the table it came from.
+Tables with no `PRIMARY KEY` in `structure.sql` get no `_pk`.
 
 A column whose name is a Jade keyword (e.g. `type`) gets a trailing
 underscore in the struct field (`type_`) while the SQL column reference

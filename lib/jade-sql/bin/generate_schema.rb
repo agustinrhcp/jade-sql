@@ -168,11 +168,18 @@ module JadeSql
     def emit(tables, module_name)
       [
         emit_header(tables, module_name),
-        *tables.flat_map { |t|
-          parts = [emit_strict_cols(t), emit_maybe_cols(t), emit_row(t), emit_table_fn(t)]
-          reserved_cols?(t) ? parts + [emit_row_projector(t)] : parts
-        },
+        *tables.flat_map { |t| emit_table(t) },
       ].join("\n\n") + "\n"
+    end
+
+    def emit_table(t)
+      [emit_strict_cols(t), emit_maybe_cols(t), emit_row(t), emit_table_fn(t)]
+        .then { keyed?(t) ? it + [emit_pk_fn(t)] : it }
+        .then { reserved_cols?(t) ? it + [emit_row_projector(t)] : it }
+    end
+
+    def keyed?(t)
+      t.pk_columns.any?
     end
 
     def reserved_cols?(t)
@@ -181,15 +188,17 @@ module JadeSql
 
     def emit_header(tables, module_name)
       projectored = tables.select { |t| reserved_cols?(t) }
+      keyed = tables.select { |t| keyed?(t) }
 
       names = tables
         .flat_map { |t| ["#{camel(t.name)}Cols", "Maybe#{camel(t.name)}Cols", "#{camel(t.name)}Row(..)", t.name] }
       names += projectored.map { |t| "#{t.name}_row" }
+      names += keyed.map { |t| "#{t.name}_pk" }
       exposed = names.sort.join(", ")
 
-      sql_import = projectored.any? ?
-        "import Sql exposing(Expr, Selector, Table, column, table)" :
-        "import Sql exposing(Expr, Table, column, table)"
+      types = ["Expr", "Table", *("Selector" if projectored.any?), *("Pk" if keyed.any?)].sort
+      fns = ["column", "table", *("pk_of" if keyed.any?)].sort
+      sql_import = "import Sql exposing(#{(types + fns).join(', ')})"
       query_import = projectored.any? ? ["import Sql.Query exposing(Q, field_as, select)"] : []
       imports = [sql_import, *query_import, *extra_imports_for(tables)]
 
@@ -252,6 +261,14 @@ module JadeSql
             (a) -> { Maybe#{camel(t.name)}Cols(#{maybe_fields}) },
             #{pk_list},
           )
+        end
+      JADE
+    end
+
+    def emit_pk_fn(t)
+      <<~JADE.strip
+        def #{t.name}_pk -> Pk(#{camel(t.name)}Cols)
+          pk_of(#{t.name})
         end
       JADE
     end

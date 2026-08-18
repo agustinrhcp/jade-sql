@@ -20,9 +20,15 @@ describe JadeSql::SchemaGenerator do
     end
 
     it 'emits the module header' do
-      expect(generated).to include(
-        'module Schema exposing (MaybePatientsCols, PatientsCols, PatientsRow(..), patients)'
-      )
+      expect(generated).to include(<<~JADE.strip)
+        module Schema exposing (
+          MaybePatientsCols,
+          PatientsCols,
+          PatientsRow(..),
+          patients,
+          patients_pk,
+        )
+      JADE
     end
 
     it 'emits a row struct: value types, nullable wrapped in Maybe' do
@@ -36,7 +42,7 @@ describe JadeSql::SchemaGenerator do
     end
 
     it 'imports Sql' do
-      expect(generated).to include('import Sql exposing (Expr, Table, column, table)')
+      expect(generated).to include('import Sql exposing (Expr, Pk, Table, column, pk_of, table)')
     end
 
     it 'does not emit Calendar/Clock/Decode imports when the schema does not use them' do
@@ -75,6 +81,14 @@ describe JadeSql::SchemaGenerator do
             (a) -> { MaybePatientsCols(column(a, "id"), column(a, "name"), column(a, "balance")) },
             ["id"],
           )
+      FN
+    end
+
+    it 'emits the key as a value typed to the table it came from' do
+      expect(generated).to include(<<~FN.strip)
+        def patients_pk -> Pk(PatientsCols)
+          pk_of(patients)
+        end
       FN
     end
   end
@@ -181,6 +195,11 @@ describe JadeSql::SchemaGenerator do
     it 'emits pk_columns as an empty list' do
       expect(generated).to include('[]')
     end
+
+    it 'emits no key value, since there is no key to name' do
+      expect(generated).not_to include('Pk(')
+      expect(generated).not_to include('pk_of')
+    end
   end
 
   context 'AR-emitted schema_migrations table' do
@@ -233,7 +252,7 @@ describe JadeSql::SchemaGenerator do
       entries = m[1].split(',').map { |e| e.strip.sub(/,\z/, '') }.reject(&:empty?)
       expect(entries).to eql %w[
         MaybeOrdersCols MaybePersonsCols OrdersCols OrdersRow(..)
-        PersonsCols PersonsRow(..) orders persons
+        PersonsCols PersonsRow(..) orders orders_pk persons persons_pk
       ]
     end
 

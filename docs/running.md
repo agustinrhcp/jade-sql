@@ -74,9 +74,15 @@ Because the wrapped task keeps its own decoding, `transaction` is fully
 polymorphic in the result — `transaction(t) : Task(a, SqlError)` for any
 `t : Task(a, SqlError)`.
 
-Transactions don't nest yet (no savepoints): wrapping a `transaction`
-inside another issues a second `BEGIN` on the same connection. Needs
-opt-in via `require 'jade-sql/runtime'`.
+Transactions nest. A `transaction` inside another becomes a savepoint of
+it, so an inner `Err` that the caller recovers from rolls back only the
+inner work, while an outer `Err` still rolls back everything — including
+what a nested transaction committed. The same holds in the other
+direction: a jade transaction inside an `ActiveRecord::Base.transaction`
+block is a savepoint of that block, and rolling the block back discards
+the jade work with it.
+
+Needs opt-in via `require 'jade-sql/runtime'`.
 
 ## Testing without a DB
 

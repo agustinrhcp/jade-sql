@@ -459,8 +459,8 @@ end
 
 # Runs `task` inside a single DB transaction on the shared connection:
 # every execute/fetch the task performs participates in it. Commits on
-# Ok, rolls back and re-raises the error on Err. Does not nest — wrapping
-# a transaction in a transaction is unsupported for now (no savepoints).
+# Ok, rolls back and re-raises the error on Err. Nests as a savepoint of
+# whichever transaction is already open, jade's or ActiveRecord's.
 def transaction(task: Task(a, SqlError)) -> Task(a, SqlError)
   port_begin()
     |> Task.and_then((_) -> { commit_on_ok(task) })

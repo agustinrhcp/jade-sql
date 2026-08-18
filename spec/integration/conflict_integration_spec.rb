@@ -27,10 +27,10 @@ module Jade
         module App exposing (add)
 
         import Sql exposing (
+          Assignable,
           Assignment,
           Expr,
           SqlError,
-          SqlMapper,
           Table,
           assign,
           column,
@@ -49,7 +49,7 @@ module Jade
         struct MaybeAccountsCols = { email: Expr(Maybe(String)) }
 
 
-        implements SqlMapper(Account) with
+        implements Assignable(Account) with
           to_assigns: account_assigns
         end
 

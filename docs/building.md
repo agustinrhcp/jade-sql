@@ -346,34 +346,46 @@ text and gets cast at the SQL level.
 
 ## Build mutations
 
-Define codec interfaces for your domain type:
+One interface says which columns a value writes:
 
 ```jade
-import Sql exposing(Assignment, SqlMapper, Identified, assign)
-import Encode exposing(encode)
-import Decode exposing(Value)
+import Sql exposing(Assignment, Assignable, assign)
 
 struct Patient = { id: Int, name: String, mrn: String }
 
-implements SqlMapper(Patient) with
+implements Assignable(Patient) with
   to_assigns: encode_patient
-end
-
-implements Identified(Patient) with
-  pk_values: encode_patient_pk
 end
 
 def encode_patient(p: Patient) -> List(Assignment)
   [
+    assign("id",   p.id),
     assign("name", p.name),
     assign("mrn",  p.mrn)
   ]
 end
-
-def encode_patient_pk(p: Patient) -> List(Value)
-  [encode(p.id)]
-end
 ```
+
+`Assignable` derives for any struct, so the `implements` block above is
+only needed when you want something other than one column per field.
+
+**The struct you pass is the columns you write.** `insert` writes every
+assignment; `update` and `delete` split them by the table's primary key —
+the key columns become the `WHERE`, in the order `structure.sql` declares
+them, and the rest become the `SET`. So a row whose key the database
+generates is inserted from a struct without that field:
+
+```jade
+struct NewPatient = { name: String, mrn: String }
+
+NewPatient("Ada", "MRN-1") |> insert(patients)   # INSERT (name, mrn)
+Patient(7, "Ada", "MRN-2") |> update(patients)   # SET name, mrn WHERE id = 7
+```
+
+Nothing pairs a column with a value by position, so a composite key
+cannot be listed in the wrong order. A key column the struct has no field
+for renders a `WHERE` that matches nothing, and the statement reports zero
+rows affected rather than writing against a partial key.
 
 `assign(col, value)` is shorthand for
 `Assignment(col, "?", [encode(value)])`. For non-`?` placeholders
@@ -448,11 +460,11 @@ def create(np: NewPatient) -> Task(Patient, SqlError)
 end
 ```
 
-`insert` / `update` / `delete` need `SqlMapper(a)` + `Identified(a)`.
-`insert_all` needs only `SqlMapper`. `update_all`/`delete_all` build
-the SET / WHERE clauses directly from the column accessors — no codec.
+`insert` / `insert_all` / `update` / `delete` need `Assignable(a)`, and
+nothing else. `update_all`/`delete_all` build the SET / WHERE clauses
+directly from the column accessors — no codec.
 
-`SqlMapper` is also implemented for `List(Assignment)` itself, so you
+`Assignable` is also implemented for `List(Assignment)` itself, so you
 can pass an assignment list to `insert` directly when you've already
 built it (e.g. from a sparse changeset):
 

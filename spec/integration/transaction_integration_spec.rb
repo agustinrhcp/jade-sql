@@ -12,7 +12,14 @@ module Jade
 
     let(:source) do
       <<~JADE
-        module App exposing (commit_two, rollback_on_err, single_count)
+        module App exposing (
+          commit_two,
+          inner_only_rollback,
+          nested_commit,
+          nested_rollback,
+          rollback_on_err,
+          single_count,
+        )
 
         import Sql exposing (
           Assignment,
@@ -109,6 +116,43 @@ module Jade
         def single_count -> Task(Int, SqlError)
           transaction(add("solo", 9))
         end
+
+
+        def nested_commit -> Task(Int, SqlError)
+          transaction(
+            add("outer", 1) |> Task.and_then((_) -> { transaction(add("inner", 2)) }),
+          )
+        end
+
+
+        def nested_rollback -> Task(Patient, SqlError)
+          transaction(
+            add("outer", 1)
+              |> Task.and_then((_) -> { transaction(add("inner", 2)) })
+              |> Task.and_then((_) -> { find_missing }),
+          )
+        end
+
+
+        def add_then_fail -> Task(Patient, SqlError)
+          add("inner", 2) |> Task.and_then((_) -> { find_missing })
+        end
+
+
+        def recover(t: Task(Patient, SqlError)) -> Task(Int, SqlError)
+          t
+            |> Task.map((_) -> { 0 })
+            |> Task.on_error((_) -> { Task.succeed(0) })
+        end
+
+
+        def inner_only_rollback -> Task(Int, SqlError)
+          transaction(
+            add("outer", 1)
+              |> Task.and_then((_) -> { recover(transaction(add_then_fail)) })
+              |> Task.and_then((_) -> { add("after", 3) }),
+          )
+        end
       JADE
     end
 
@@ -116,6 +160,10 @@ module Jade
 
     def conn = JadeSql::TestDb.connection
     def patient_count = conn.select_value("SELECT count(*) FROM patients")
+
+    def patient_names
+      conn.select_values("SELECT name FROM patients ORDER BY name")
+    end
 
     it 'commits every statement when the task succeeds' do
       expect(App::Internal.commit_two.run).to be_ok
@@ -131,6 +179,32 @@ module Jade
       result = App::Internal.rollback_on_err.run
 
       expect(result).to be_err(look_like('Sql::NotFound'))
+      expect(patient_count).to eql 0
+    end
+
+    it 'commits a nested transaction along with the outer one' do
+      expect(App::Internal.nested_commit.run).to be_ok
+      expect(patient_count).to eql 2
+    end
+
+    it 'rolls back work a nested transaction already committed' do
+      result = App::Internal.nested_rollback.run
+
+      expect(result).to be_err(look_like('Sql::NotFound'))
+      expect(patient_count).to eql 0
+    end
+
+    it 'rolls back only the nested transaction when its error is recovered' do
+      expect(App::Internal.inner_only_rollback.run).to be_ok
+      expect(patient_names).to eql %w[after outer]
+    end
+
+    it 'takes part in a surrounding ActiveRecord transaction' do
+      ::ActiveRecord::Base.transaction do
+        expect(App::Internal.single_count.run).to be_ok(1)
+        raise ::ActiveRecord::Rollback
+      end
+
       expect(patient_count).to eql 0
     end
   end

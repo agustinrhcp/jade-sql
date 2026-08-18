@@ -43,6 +43,7 @@ module Sql exposing (
   lte,
   maybe_columns,
   neg,
+  next_id,
   now,
   or,
   nullable,
@@ -461,6 +462,39 @@ end
 
 def fetch_many(r: r) -> Task(List(a), SqlError)
   render(r) |> fetch_many_raw
+end
+
+
+# Pulls the key from the table's sequence so the row is complete before it is
+# inserted, the way a Uuid key already is. Without it a DB-assigned key forces
+# either a placeholder value at the call site or a second struct without the
+# key field.
+def next_id(t: Table(c, m)) -> Task(Int, SqlError)
+  case t.pk.columns
+  in [col] then
+    fetch_one_raw(
+      (
+        "SELECT nextval(pg_get_serial_sequence(?, ?)) AS value",
+        [encode(t.name), encode(col)],
+      ),
+    )
+      |> Task.map(value_of)
+
+  else
+    Task.fail(
+      DbError("next_id needs a single-column primary key, table " ++ t.name),
+    )
+  end
+end
+
+
+struct NextId = {
+  value: Int
+}
+
+
+def value_of(row: NextId) -> Int
+  row.value
 end
 
 

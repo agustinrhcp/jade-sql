@@ -15,6 +15,7 @@ module Jade
         module App exposing (
           find_by_name,
           insert_patient,
+          insert_with_next_id,
           list_names,
           literal_q,
           load_numbers,
@@ -35,6 +36,7 @@ module Jade
           execute,
           fetch_many_raw,
           fetch_one_raw,
+          next_id,
           table,
         )
         import Sql.Mutation exposing (insert)
@@ -87,6 +89,16 @@ module Jade
 
         def new_patient_assigns(p: NewPatient) -> List(Assignment)
           [assign("name", p.name), assign("balance", p.balance)]
+        end
+
+
+        implements Assignable(Patient) with
+          to_assigns: patient_assigns
+        end
+
+
+        def patient_assigns(p: Patient) -> List(Assignment)
+          [assign("id", p.id), assign("name", p.name), assign("balance", p.balance)]
         end
 
 
@@ -147,6 +159,13 @@ module Jade
         end
 
 
+        def insert_with_next_id(n: String, b: Int) -> Task(Int, SqlError)
+          id <- next_id(patients)
+
+          insert(Patient(id, n, b), patients) |> execute
+        end
+
+
         def literal_q(n: String) -> Task(Patient, SqlError)
           fetch_one_raw(
             (
@@ -195,6 +214,13 @@ module Jade
       expect(result).to be_ok(1)
       expect(conn.select_value("SELECT balance FROM patients WHERE name = 'Frank'"))
         .to eql 200
+    end
+
+    it 'takes the key from the sequence so the row is complete before insert' do
+      expect(App::Internal.insert_with_next_id('Ada', 5).run).to be_ok(1)
+
+      expect(conn.select_value("SELECT id FROM patients WHERE name = 'Ada'"))
+        .to eql 1
     end
 
     it 'round-trips a text[] column' do

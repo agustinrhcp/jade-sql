@@ -469,7 +469,7 @@ end
 # inserted, the way a Uuid key already is. Without it a DB-assigned key forces
 # either a placeholder value at the call site or a second struct without the
 # key field.
-def next_id(t: Table(c, m)) -> Task(Int, SqlError)
+def next_id(t: Table(c, m)) -> Task(a, SqlError)
   case t.pk.columns
   in [col] then
     fetch_one_raw(
@@ -488,12 +488,7 @@ def next_id(t: Table(c, m)) -> Task(Int, SqlError)
 end
 
 
-struct NextId = {
-  value: Int
-}
-
-
-def value_of(row: NextId) -> Int
+def value_of(row: { value: a }) -> a
   row.value
 end
 

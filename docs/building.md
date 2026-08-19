@@ -382,6 +382,13 @@ NewPatient("Ada", "MRN-1") |> insert(patients)   # INSERT (name, mrn)
 Patient(7, "Ada", "MRN-2") |> update(patients)   # SET name, mrn WHERE id = 7
 ```
 
+`next_id(patients)` reads the next value off the key's sequence, so the
+row is complete before it is inserted rather than carrying a placeholder
+you are about to overwrite. It is polymorphic in the key — any type with a
+`Decodable` — and needs a single-column primary key; a composite one fails
+rather than guessing which sequence you meant. A `Uuid` key needs nothing
+extra: `Sql.Uuid.v7` already hands you one.
+
 Nothing pairs a column with a value by position, so a composite key
 cannot be listed in the wrong order. A key column the struct has no field
 for renders a `WHERE` that matches nothing, and the statement reports zero

@@ -2,7 +2,7 @@
 
 ## [0.8.0]
 
-Requires `jade-lang ~> 0.7.0`.
+Requires `jade-lang ~> 0.8.0`, which is where `Sql.Assignable` is derived.
 
 ### Breaking
 

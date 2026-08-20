@@ -37,6 +37,22 @@ loudly with the table+column name.
 `numeric`/`decimal` map to the stdlib `Decimal` — an exact base-10 value
 (`coefficient * 10^exponent`), never `Float`, so no precision is lost.
 Genuine floating-point columns (`double precision`/`real`) map to `Float`.
+A `CREATE TYPE … AS ENUM` becomes a union, and its columns are typed by it:
+
+```jade
+-- CREATE TYPE visit_status AS ENUM ('scheduled', 'in_progress', 'done');
+
+type VisitStatus
+  = Scheduled
+  | InProgress
+  | Done
+```
+
+Nullary unions derive `Encodable` and `Decodable` with the variant name in
+snake_case, which is the label Postgres stores — so the codec is free and
+`eq(v.status, to_expr("schedulled"))` stops compiling. Before this, an enum
+column failed generation outright with `Unknown SQL type`.
+
 `bytea` isn't mapped yet, though jade's `Bytes` is the natural target. See
 jade-lang's `Decimal` for the full API (`of`/`scaled`/`parse`, arithmetic,
 `round`, `to_i`/`to_float`).

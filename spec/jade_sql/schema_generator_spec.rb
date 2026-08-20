@@ -151,6 +151,47 @@ describe JadeSql::SchemaGenerator do
     end
   end
 
+  context 'an enum type' do
+    let(:sql) do
+      <<~SQL
+        CREATE TYPE public.visit_status AS ENUM (
+            'scheduled',
+            'in_progress',
+            'done'
+        );
+
+        CREATE TABLE public.visits (
+            id bigint NOT NULL,
+            status public.visit_status NOT NULL,
+            fallback visit_status
+        );
+      SQL
+    end
+
+    it 'emits the labels as a union, in DDL order' do
+      expect(generated).to include(<<~JADE.strip)
+        type VisitStatus
+          = Scheduled
+          | InProgress
+          | Done
+      JADE
+    end
+
+    it 'types the column by it, with or without the schema prefix' do
+      expect(generated).to include(<<~JADE.strip)
+        struct VisitsCols = {
+          id: Expr(Int),
+          status: Expr(VisitStatus),
+          fallback: Expr(Maybe(VisitStatus))
+        }
+      JADE
+    end
+
+    it 'exposes it, so callers can name the variants' do
+      expect(generated).to include('VisitStatus(..)')
+    end
+  end
+
   context 'multi-column primary key' do
     let(:sql) do
       <<~SQL

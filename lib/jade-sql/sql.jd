@@ -49,6 +49,7 @@ module Sql exposing (
   pk_values,
   render,
   set_,
+  strip_alias,
   sum,
   table,
   to_assigns,

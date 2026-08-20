@@ -13,6 +13,7 @@ module Sql.Query exposing (
   select,
   to_sql,
   where,
+  filter,
 )
 
 import Sql exposing (Expr, Renderable, Selector(..), Table, TableRef(..))
@@ -144,6 +145,13 @@ def where(q: Q(a), predicate: Expr(Bool)) -> Q(a)
     q.offset_,
     q.result,
   )
+end
+
+
+def filter(q: Q(a), build: a -> Expr(Bool)) -> Q(a)
+  a <- q
+
+  where(q, build(a))
 end
 
 

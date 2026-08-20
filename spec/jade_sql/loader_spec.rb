@@ -130,7 +130,6 @@ module Jade
           ) -> List(PatientView)
             orders_by_pid = group_by(orders, (o) -> { o.patient_id })
             addrs_by_pid = group_by(addresses, (a) -> { a.patient_id })
-
             List.map(
               patients,
               (p) -> { PatientView(
@@ -205,7 +204,6 @@ module Jade
             items: List(LineItem),
           ) -> List(OrderWithItems)
             items_by_oid = group_by(items, (i) -> { i.order_id })
-
             List.map(
               orders,
               (o) -> { OrderWithItems(o, lookup_or_empty(items_by_oid, o.id)) },
@@ -220,7 +218,6 @@ module Jade
           ) -> List(PatientView)
             orders_with_items = with_items(orders, items)
             owi_by_pid = group_by(orders_with_items, (owi) -> { owi.order.patient_id })
-
             List.map(
               patients,
               (p) -> { PatientView(p, lookup_or_empty(owi_by_pid, p.id)) },

@@ -440,6 +440,12 @@ def create(np: NewPatient) -> Task(Patient, SqlError)
 end
 ```
 
+`filter` narrows a query or a mutation you have already built. Where
+`where` takes a predicate, `filter` takes a *function* of the columns, so a
+caller that has not bound them can still add one — enough to write a
+tenancy wrapper that scopes a keyed write, rather than funnelling every
+scoped write through the `_all` forms.
+
 `insert` / `update` / `delete` need `SqlMapper(a)` + `Identified(a)`.
 `insert_all` needs only `SqlMapper`. `update_all`/`delete_all` build
 the SET / WHERE clauses directly from the column accessors — no codec.

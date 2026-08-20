@@ -8,6 +8,7 @@ module Sql.Mutation exposing (
   timestamped,
   to_sql,
   update,
+  filter,
   update_all,
   update_many,
 )
@@ -97,6 +98,19 @@ def delete(value: a, t: Table(c, m)) -> Mutation(Int, c)
     [pk_pred],
     Selector([], []),
      Nothing,
+  )
+end
+
+
+def filter(m: Mutation(ret, c), build: c -> Expr(Bool)) -> Mutation(ret, c)
+  Mutation(
+    m.kind,
+    m.table,
+    m.cols,
+    m.rows,
+    m.wheres ++ [m.cols |> build],
+    m.returning_selector,
+    m.from_,
   )
 end
 

@@ -68,14 +68,12 @@ module Jade
 
           def gen_v4 -> Task(String, Never)
             u <- v4
-
             Task.succeed(to_string(u))
           end
 
 
           def gen_v7 -> Task(String, Never)
             u <- v7
-
             Task.succeed(to_string(u))
           end
         JADE

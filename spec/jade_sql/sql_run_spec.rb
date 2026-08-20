@@ -98,7 +98,6 @@ module Jade
 
         def paul_query -> Q(Selector(Patient))
           p <- from(patients)
-
           select(Patient(_, _, _))
             |> field(p.id)
             |> field(p.name)

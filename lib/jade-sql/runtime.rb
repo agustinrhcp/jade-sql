@@ -45,25 +45,29 @@ module JadeSql
     # Transaction control on the shared connection. The execute/fetch ports
     # above use the same `ActiveRecord::Base.connection`, so anything they
     # run between begin and commit/rollback is part of this transaction.
-    # These bypass AR's transaction manager (no savepoints), so they don't
-    # nest — see `Sql.transaction`. Rollback is best-effort: it swallows
-    # adapter errors so the original failure is the one that propagates.
+    #
+    # Not the raw `begin_db_transaction` family: those only emit SQL, so a
+    # second BEGIN is a warning and its COMMIT ends whichever transaction was
+    # already running. The manager issues a SAVEPOINT instead.
+    #
+    # Rollback is best-effort: it swallows adapter errors so the original
+    # failure is the one that propagates.
     task :port_begin do |t|
-      ::ActiveRecord::Base.connection.begin_db_transaction
+      ::ActiveRecord::Base.connection.begin_transaction
       t.ok(true)
     rescue ::ActiveRecord::StatementInvalid => e
       t.err(JadeSql::SqlErrors.db_error(e.message))
     end
 
     task :port_commit do |t|
-      ::ActiveRecord::Base.connection.commit_db_transaction
+      ::ActiveRecord::Base.connection.commit_transaction
       t.ok(true)
     rescue ::ActiveRecord::StatementInvalid => e
       t.err(JadeSql::SqlErrors.db_error(e.message))
     end
 
     task :port_rollback do |t|
-      ::ActiveRecord::Base.connection.rollback_db_transaction
+      ::ActiveRecord::Base.connection.rollback_transaction
       t.ok(true)
     rescue ::ActiveRecord::StatementInvalid
       t.ok(true)

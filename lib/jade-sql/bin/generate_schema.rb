@@ -67,6 +67,7 @@ module JadeSql
     Column = Data.define(:name, :jade_type, :nullable)
 
     def generate(sql, tables: nil, columns: nil, module_name: 'Schema')
+      @enums = parse_enums(sql).to_h { [it.name, it] }
       bodies = scan_table_bodies(sql)
       bodies = select_tables(bodies, tables) if tables
       pks = parse_pks(sql)
@@ -150,13 +151,22 @@ module JadeSql
       # Strip trailing modifiers we don't care about (DEFAULT ..., COLLATE ...).
       type_part = type_part.sub(/\s+DEFAULT\s+.+\z/i, '').sub(/\s+COLLATE\s+.+\z/i, '').strip
 
-      jade_type = TYPE_MAP
+      jade_type = enum_type(type_part) || TYPE_MAP
         .find { |sql_pat, _| sql_pat.match?(type_part.downcase) }
         &.last
 
       raise "Unknown SQL type for #{table_name}.#{name}: #{type_part.inspect}" unless jade_type
 
       Column[name, jade_type, !not_null]
+    end
+
+    Enum = Data.define(:name, :labels)
+
+    # `CREATE TYPE public.visit_status AS ENUM ('scheduled', 'done');`
+    def parse_enums(sql)
+      sql
+        .scan(/CREATE TYPE (?:\w+\.)?(\w+) AS ENUM \(([^)]*)\)/i)
+        .map { |name, labels| Enum[name, labels.scan(/'([^']*)'/).flatten] }
     end
 
     def parse_pks(sql)
@@ -168,6 +178,7 @@ module JadeSql
     def emit(tables, module_name)
       [
         emit_header(tables, module_name),
+        *emit_enums,
         *tables.flat_map { |t|
           parts = [emit_strict_cols(t), emit_maybe_cols(t), emit_row(t), emit_table_fn(t)]
           reserved_cols?(t) ? parts + [emit_row_projector(t)] : parts
@@ -185,6 +196,7 @@ module JadeSql
       names = tables
         .flat_map { |t| ["#{camel(t.name)}Cols", "Maybe#{camel(t.name)}Cols", "#{camel(t.name)}Row(..)", t.name] }
       names += projectored.map { |t| "#{t.name}_row" }
+      names += (@enums || {}).values.map { "#{camel(it.name)}(..)" }
       exposed = names.sort.join(", ")
 
       sql_import = projectored.any? ?
@@ -275,6 +287,19 @@ module JadeSql
         #{projections}
         end
       JADE
+    end
+
+    # A column typed by a CREATE TYPE enum, with or without its schema prefix.
+    def enum_type(type_part)
+      type_part
+        .sub(/\A\w+\./, "")
+        .then { @enums&.key?(it) ? camel(it) : nil }
+    end
+
+    def emit_enums
+      (@enums || {})
+        .values
+        .map { |e| "type #{camel(e.name)}\n  = #{e.labels.map { camel(it) }.join("\n  | ")}" }
     end
 
     def camel(snake)

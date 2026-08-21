@@ -2,6 +2,7 @@ module Sql exposing (
   Assignment(..),
   Expr(..),
   Identified,
+  Pk(..),
   Renderable,
   Selector(..),
   SqlError(..),
@@ -46,6 +47,7 @@ module Sql exposing (
   now,
   or,
   nullable,
+  pk_of,
   pk_values,
   render,
   set_,
@@ -87,6 +89,18 @@ struct TableRef = {
   name: String,
   alias_: String
 }
+
+
+# The primary key of the table whose columns are `c`. Phantom in `c` so a
+# key can only be used with the table it came from.
+struct Pk(c) = {
+  columns: List(String)
+}
+
+
+def pk_of(t: Table(c, m)) -> Pk(c)
+  Pk(t.pk_columns)
+end
 
 
 struct Assignment = {

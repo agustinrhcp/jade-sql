@@ -30,3 +30,19 @@ and one migration is better than three.
   family, which only emits SQL. A second `BEGIN` on an open connection was a
   warning, and the matching `COMMIT` ended whichever transaction was already
   running.
+
+### Breaking
+
+- `Sql.SqlMapper` is now `Sql.Assignable`. The type implementing it is not a
+  mapper, it is the thing being mapped, and the name now matches the `-able`
+  interfaces around it.
+- `Sql.Identified` is gone. It asked callers to re-state, positionally, values
+  `to_assigns` already carried; `update` and `delete` now split those
+  assignments by the table's primary key instead — key columns to the `WHERE`,
+  in the order `structure.sql` declares them, and the rest to the `SET`.
+- The struct you pass is the columns you write. `insert` writes every
+  assignment, including the key, so a database-assigned key means inserting
+  from a struct without that field.
+
+To upgrade: rename the interface, and delete every `Identified` implementation
+and its `pk_values` function.

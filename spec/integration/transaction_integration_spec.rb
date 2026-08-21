@@ -22,10 +22,10 @@ module Jade
         )
 
         import Sql exposing (
+          Assignable,
           Assignment,
           Expr,
           SqlError,
-          SqlMapper,
           Table,
           assign,
           column,
@@ -63,7 +63,7 @@ module Jade
         }
 
 
-        implements SqlMapper(NewPatient) with
+        implements Assignable(NewPatient) with
           to_assigns: new_patient_assigns
         end
 

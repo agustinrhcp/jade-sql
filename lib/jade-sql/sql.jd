@@ -1,12 +1,11 @@
 module Sql exposing (
+  Assignable,
   Assignment(..),
   Expr(..),
-  Identified,
   Pk(..),
   Renderable,
   Selector(..),
   SqlError(..),
-  SqlMapper,
   Table,
   TableRef(..),
   aliased,
@@ -48,7 +47,6 @@ module Sql exposing (
   or,
   nullable,
   pk_of,
-  pk_values,
   render,
   set_,
   strip_alias,
@@ -81,7 +79,7 @@ struct Table(c, m) = {
   alias_: String,
   cols: String -> c,
   maybe_cols: String -> m,
-  pk_columns: List(String)
+  pk: Pk(c)
 }
 
 
@@ -99,7 +97,7 @@ struct Pk(c) = {
 
 
 def pk_of(t: Table(c, m)) -> Pk(c)
-  Pk(t.pk_columns)
+  t.pk
 end
 
 
@@ -131,18 +129,13 @@ def strip_alias(sql: String) -> String
 end
 
 
-interface SqlMapper(a) with
+interface Assignable(a) with
   to_assigns : a -> List(Assignment)
 end
 
 
-implements SqlMapper(List(Assignment)) with
+implements Assignable(List(Assignment)) with
   to_assigns: (a) -> { a }
-end
-
-
-interface Identified(a) with
-  pk_values : a -> List(Value)
 end
 
 
@@ -361,7 +354,7 @@ def table(
   maybe_cols: String -> m,
   pk_columns: List(String),
 ) -> Table(c, m)
-  Table(name, alias_, cols, maybe_cols, pk_columns)
+  Table(name, alias_, cols, maybe_cols, Pk(pk_columns))
 end
 
 
@@ -376,7 +369,7 @@ end
 
 
 def aliased(t: Table(c, m), alias_: String) -> Table(c, m)
-  Table(t.name, alias_, t.cols, t.maybe_cols, t.pk_columns)
+  Table(t.name, alias_, t.cols, t.maybe_cols, t.pk)
 end
 
 

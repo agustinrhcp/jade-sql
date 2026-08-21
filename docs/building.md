@@ -237,6 +237,30 @@ end
 Calling `limit`/`offset` more than once overrides the previous value
 (last call wins).
 
+### Walking a big result
+
+`in_batches` runs a query a page at a time, handing each page to a step and
+starting the next page only once that page's `Task` has finished, so nothing
+holds more than `size` rows. It answers how many rows it saw. `find_each` is
+the same thing with the step running per row.
+
+```jade
+import Sql.Query exposing(find_each, in_batches, order)
+
+def archive_all -> Task(Int, SqlError)
+  old_visits |> in_batches(1000, archive)
+end
+
+
+def notify_all -> Task(Int, SqlError)
+  old_visits |> find_each(1000, notify)
+end
+```
+
+Paging is LIMIT/OFFSET, so the query needs an `order` on something unique.
+Without one Postgres may return rows in a different order per page, and a row
+can be seen twice or missed entirely — nothing enforces this yet.
+
 ### Self-joins
 
 The schema's default alias = table name. Override with `aliased`:

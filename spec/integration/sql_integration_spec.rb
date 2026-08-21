@@ -28,6 +28,7 @@ module Jade
           Assignable,
           Assignment,
           Expr,
+          Pk(..),
           SqlError,
           Table,
           assign,
@@ -90,13 +91,28 @@ module Jade
         end
 
 
-        def patients -> Table(PatientsCols, MaybePatientsCols)
+        implements Assignable(Patient) with
+          to_assigns: patient_assigns
+        end
+
+
+        def patient_assigns(p: Patient) -> List(Assignment)
+          [assign("id", p.id), assign("name", p.name), assign("balance", p.balance)]
+        end
+
+
+        def patients_pk -> Pk(PatientsCols, Int)
+          Pk(["id"], (v) -> { [Encode.encode(v)] })
+        end
+
+
+        def patients -> Table(PatientsCols, MaybePatientsCols, Int)
           table(
             "patients",
             "patients",
             (a) -> { PatientsCols(column(a, "name"), column(a, "balance")) },
             (a) -> { MaybePatientsCols(column(a, "name"), column(a, "balance")) },
-            ["id"],
+            patients_pk,
           )
         end
 

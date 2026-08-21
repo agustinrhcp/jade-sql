@@ -185,7 +185,7 @@ module JadeSql
 
     def emit_table(t)
       [emit_strict_cols(t), emit_maybe_cols(t), emit_row(t), emit_table_fn(t)]
-        .then { keyed?(t) ? it + [emit_pk_fn(t)] : it }
+        .then { keyed?(t) ? it + [emit_pk_fn(t), emit_pk_values_fn(t)] : it }
         .then { reserved_cols?(t) ? it + [emit_row_projector(t)] : it }
     end
 
@@ -208,11 +208,18 @@ module JadeSql
       names += (@enums || {}).values.map { "#{camel(it.name)}(..)" }
       exposed = names.sort.join(", ")
 
-      types = ["Expr", "Table", *("Selector" if projectored.any?), *("Pk" if keyed.any?)].sort
-      fns = ["column", "table", *("pk_of" if keyed.any?)].sort
+      unkeyed = keyed.size < tables.size
+      types = [
+        "Expr", "Table",
+        *("Selector" if projectored.any?),
+        *("Pk(..)" if keyed.any?),
+        *("NoKey" if unkeyed),
+      ].sort
+      fns = ["column", "table", *("unkeyed" if unkeyed)].sort
       sql_import = "import Sql exposing(#{(types + fns).join(', ')})"
       query_import = projectored.any? ? ["import Sql.Query exposing(Q, field_as, select)"] : []
-      imports = [sql_import, *query_import, *extra_imports_for(tables)]
+      encode_import = keyed.any? ? ["import Decode", "import Encode"] : []
+      imports = [sql_import, *query_import, *encode_import, *extra_imports_for(tables)]
 
       <<~JADE.strip
         module #{module_name} exposing(#{exposed})
@@ -262,25 +269,59 @@ module JadeSql
     def emit_table_fn(t)
       strict_fields = t.columns.map { |c| "column(a, #{c.name.inspect})" }.join(", ")
       maybe_fields = t.columns.map { |c| "column(a, #{c.name.inspect})" }.join(", ")
-      pk_list = "[#{t.pk_columns.map(&:inspect).join(", ")}]"
 
       <<~JADE.strip
-        def #{t.name} -> Table(#{camel(t.name)}Cols, Maybe#{camel(t.name)}Cols)
+        def #{t.name} -> Table(#{camel(t.name)}Cols, Maybe#{camel(t.name)}Cols, #{key_type(t)})
           table(
             #{t.name.inspect},
             #{t.name.inspect},
             (a) -> { #{camel(t.name)}Cols(#{strict_fields}) },
             (a) -> { Maybe#{camel(t.name)}Cols(#{maybe_fields}) },
-            #{pk_list},
+            #{keyed?(t) ? "#{t.name}_pk" : "unkeyed"},
           )
         end
       JADE
     end
 
+    def key_columns(t)
+      t.columns.select { t.pk_columns.include?(it.name) }
+        .sort_by { t.pk_columns.index(it.name) }
+    end
+
+    def key_type(t)
+      return "NoKey" unless keyed?(t)
+
+      key_columns(t)
+        .map(&:jade_type)
+        .then { it.one? ? it.first : "(#{it.join(', ')})" }
+    end
+
     def emit_pk_fn(t)
+      cols = key_columns(t).map { it.name.inspect }.join(", ")
+
       <<~JADE.strip
-        def #{t.name}_pk -> Pk(#{camel(t.name)}Cols)
-          pk_of(#{t.name})
+        def #{t.name}_pk -> Pk(#{camel(t.name)}Cols, #{key_type(t)})
+          Pk([#{cols}], #{t.name}_pk_values)
+        end
+      JADE
+    end
+
+    # A composite key arrives as a tuple and has to spread across its columns
+    # in the order the DDL declares them, never the order a caller guesses.
+    # Named rather than a lambda so its parameter carries an annotation:
+    # inference does not reach a lambda passed to `Pk`, and destructuring a
+    # value of unknown type is a non-exhaustive match.
+    def emit_pk_values_fn(t)
+      names = key_columns(t).each_index.map { |i| "v#{i}" }
+      encoded = names.map { "Encode.encode(#{it})" }.join(", ")
+
+      body = names.one? ?
+        "  [Encode.encode(v)]" :
+        "  (#{names.join(', ')}) = v\n\n  [#{encoded}]"
+
+      <<~JADE.strip
+        def #{t.name}_pk_values(v: #{key_type(t)}) -> List(Decode.Value)
+        #{body}
         end
       JADE
     end

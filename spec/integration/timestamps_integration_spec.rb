@@ -20,6 +20,7 @@ module Jade
           Assignable,
           Assignment,
           Expr,
+          Pk(..),
           SqlError,
           Table,
           assign,
@@ -28,7 +29,7 @@ module Jade
           table,
         )
         import Sql.Mutation exposing (insert, timestamped, update)
-        import Encode exposing (encode)
+        import Encode
         import Decode exposing (Value)
 
 
@@ -67,13 +68,18 @@ module Jade
         end
 
 
-        def patients -> Table(PatientsCols, MaybePatientsCols)
+        def patients_pk -> Pk(PatientsCols, Int)
+          Pk(["id"], (v) -> { [Encode.encode(v)] })
+        end
+
+
+        def patients -> Table(PatientsCols, MaybePatientsCols, Int)
           table(
             "patients",
             "patients",
             (a) -> { PatientsCols(column(a, "name")) },
             (a) -> { MaybePatientsCols(column(a, "name")) },
-            ["id"],
+            patients_pk,
           )
         end
 
@@ -91,7 +97,7 @@ module Jade
 
 
         def touch(id: Int, name: String) -> Task(Int, SqlError)
-          update(Patient(id, name), patients)
+          update(Patient(id, name), patients, id)
             |> timestamped
             |> execute
         end

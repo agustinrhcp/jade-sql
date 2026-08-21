@@ -68,8 +68,8 @@ def patients -> Table(PatientsCols, MaybePatientsCols)
   table("patients", "patients", ..., ["id"])
 end
 
-def patients_pk -> Pk(PatientsCols)
-  pk_of(patients)
+def patients_pk -> Pk(PatientsCols, Int)
+  Pk(["id"], patients_pk_values)
 end
 ```
 
@@ -77,9 +77,12 @@ Strict cols mirror NOT NULL constraints; the maybe version wraps every
 field in `Maybe` for left-join projections. The default alias is the
 table name; override per-call with `aliased` (see joins below).
 
-`patients_pk` names the table's primary key. `Pk(c)` is phantom in the
-column struct, so a key can only be used with the table it came from.
-Tables with no `PRIMARY KEY` in `structure.sql` get no `_pk`.
+`patients_pk` names the table's primary key. `Pk(c, k)` is phantom in the
+column struct, so a key can only be used with the table it came from, and
+carries the key's own type — `Int` here, a tuple for a composite key,
+which a generated helper spreads across its columns in DDL order. A table
+with no `PRIMARY KEY` in `structure.sql` gets no `_pk` and keeps its key
+type free, so nothing can name a key it does not have.
 
 A column whose name is a Jade keyword (e.g. `type`) gets a trailing
 underscore in the struct field (`type_`) while the SQL column reference
@@ -386,22 +389,27 @@ end
 only needed when you want something other than one column per field.
 
 **The struct you pass is the columns you write.** `insert` writes every
-assignment; `update` and `delete` split them by the table's primary key —
-the key columns become the `WHERE`, in the order `structure.sql` declares
-them, and the rest become the `SET`. So a row whose key the database
-generates is inserted from a struct without that field:
+assignment. `update` and `delete` take the key as an argument, so what you
+write and which row you write it to stay separate:
 
 ```jade
 struct NewPatient = { name: String, mrn: String }
 
+struct Rename = { name: String }
+
 NewPatient("Ada", "MRN-1") |> insert(patients)   # INSERT (name, mrn)
-Patient(7, "Ada", "MRN-2") |> update(patients)   # SET name, mrn WHERE id = 7
+Rename("Ada") |> update(patients, 7)             # SET name WHERE id = 7
+delete(patients, 7)                              # DELETE WHERE id = 7
 ```
 
-Nothing pairs a column with a value by position, so a composite key
-cannot be listed in the wrong order. A key column the struct has no field
-for renders a `WHERE` that matches nothing, and the statement reports zero
-rows affected rather than writing against a partial key.
+A patch needs no key field of its own, and a struct that does carry one —
+a whole row — has it stripped from the `SET`. Every write is either keyed
+or scoped: `update` and `delete` take a key, `update_all` and `delete_all`
+take a predicate, and there is no third form to land in with neither.
+
+The key is a `k`, never a column name and never an order, so a composite
+key cannot be listed the wrong way round — the generated values function
+spreads it across its columns as `structure.sql` declares them.
 
 `assign(col, value)` is shorthand for
 `Assignment(col, "?", [encode(value)])`. For non-`?` placeholders

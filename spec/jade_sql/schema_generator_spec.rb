@@ -42,13 +42,13 @@ describe JadeSql::SchemaGenerator do
     end
 
     it 'imports Sql' do
-      expect(generated).to include('import Sql exposing (Expr, Pk, Table, column, pk_of, table)')
+      expect(generated).to include('import Sql exposing (Expr, Pk(..), Table, column, table)')
+      expect(generated).to include('import Encode')
     end
 
-    it 'does not emit Calendar/Clock/Decode imports when the schema does not use them' do
+    it 'does not emit Calendar/Clock imports when the schema does not use them' do
       expect(generated).not_to include('import Calendar')
       expect(generated).not_to include('import Clock')
-      expect(generated).not_to include('import Decode')
     end
 
     it 'emits a strict struct: NOT NULL → Expr(T), nullable → Expr(Maybe(T))' do
@@ -71,23 +71,28 @@ describe JadeSql::SchemaGenerator do
       STRUCT
     end
 
-    it 'emits a table function with alias = table name and pk_columns' do
+    it 'emits a table function with alias = table name and its key' do
       expect(generated).to include(<<~FN.strip)
-        def patients -> Table(PatientsCols, MaybePatientsCols)
+        def patients -> Table(PatientsCols, MaybePatientsCols, Int)
           table(
             "patients",
             "patients",
             (a) -> { PatientsCols(column(a, "id"), column(a, "name"), column(a, "balance")) },
             (a) -> { MaybePatientsCols(column(a, "id"), column(a, "name"), column(a, "balance")) },
-            ["id"],
+            patients_pk,
           )
       FN
     end
 
     it 'emits the key as a value typed to the table it came from' do
       expect(generated).to include(<<~FN.strip)
-        def patients_pk -> Pk(PatientsCols)
-          pk_of(patients)
+        def patients_pk -> Pk(PatientsCols, Int)
+          Pk(["id"], patients_pk_values)
+        end
+
+
+        def patients_pk_values(v: Int) -> List(Decode.Value)
+          [Encode.encode(v)]
         end
       FN
     end
@@ -219,8 +224,19 @@ describe JadeSql::SchemaGenerator do
       SQL
     end
 
-    it 'emits pk_columns as a list with all keys' do
-      expect(generated).to include('["user_id", "group_id"]')
+    it 'spreads a composite key across its columns, in DDL order' do
+      expect(generated).to include(<<~FN.strip)
+        def memberships_pk -> Pk(MembershipsCols, (Int, Int))
+          Pk(["user_id", "group_id"], memberships_pk_values)
+        end
+
+
+        def memberships_pk_values(v: (Int, Int)) -> List(Decode.Value)
+          (v0, v1) = v
+
+          [Encode.encode(v0), Encode.encode(v1)]
+        end
+      FN
     end
   end
 
@@ -233,13 +249,13 @@ describe JadeSql::SchemaGenerator do
       SQL
     end
 
-    it 'emits pk_columns as an empty list' do
-      expect(generated).to include('[]')
+    it 'keys the table by NoKey and passes unkeyed' do
+      expect(generated).to include('def events -> Table(EventsCols, MaybeEventsCols, NoKey)')
+      expect(generated).to include('unkeyed,')
     end
 
     it 'emits no key value, since there is no key to name' do
-      expect(generated).not_to include('Pk(')
-      expect(generated).not_to include('pk_of')
+      expect(generated).not_to include('events_pk')
     end
   end
 
@@ -256,7 +272,7 @@ describe JadeSql::SchemaGenerator do
     end
 
     it 'is generated like any other table' do
-      expect(generated).to include('def schema_migrations -> Table(SchemaMigrationsCols, MaybeSchemaMigrationsCols)')
+      expect(generated).to include('def schema_migrations -> Table(SchemaMigrationsCols, MaybeSchemaMigrationsCols, String)')
       expect(generated).to include('["version"]')
     end
   end

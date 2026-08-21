@@ -30,6 +30,7 @@ module Jade
           Assignable,
           Assignment,
           Expr,
+          Pk(..),
           SqlError,
           Table,
           assign,
@@ -37,6 +38,7 @@ module Jade
           execute,
           table,
         )
+        import Encode
         import Sql.Mutation exposing (insert)
 
 
@@ -59,13 +61,18 @@ module Jade
         end
 
 
-        def accounts -> Table(AccountsCols, MaybeAccountsCols)
+        def accounts_pk -> Pk(AccountsCols, Int)
+          Pk(["id"], (v) -> { [Encode.encode(v)] })
+        end
+
+
+        def accounts -> Table(AccountsCols, MaybeAccountsCols, Int)
           table(
             "accounts",
             "accounts",
             (a) -> { AccountsCols(column(a, "email")) },
             (a) -> { MaybeAccountsCols(column(a, "email")) },
-            ["id"],
+            accounts_pk,
           )
         end
 

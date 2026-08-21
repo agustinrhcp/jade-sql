@@ -280,6 +280,7 @@ module Jade
 
           import Sql exposing (
             Expr,
+            Pk(..),
             coalesce,
             column,
             count,
@@ -552,7 +553,8 @@ module Jade
         <<~JADE
           module App exposing (named_paul)
 
-          import Sql exposing (Expr, Table, column, columns, eq, table, to_expr)
+          import Sql exposing (Expr, Pk(..), Table, column, columns, eq, table, to_expr)
+          import Encode
           import Sql.Query exposing (Q, from, where)
 
 
@@ -568,13 +570,18 @@ module Jade
           }
 
 
-          def persons -> Table(PersonsCols, MaybePersonsCols)
+          def persons_pk -> Pk(PersonsCols, Int)
+            Pk(["id"], (v) -> { [Encode.encode(v)] })
+          end
+
+
+          def persons -> Table(PersonsCols, MaybePersonsCols, Int)
             table(
               "persons",
               "p",
               (a) -> { PersonsCols(column(a, "id"), column(a, "name")) },
               (a) -> { MaybePersonsCols(column(a, "id"), column(a, "name")) },
-              ["id"],
+              persons_pk,
             )
           end
 
@@ -605,7 +612,8 @@ module Jade
         <<~JADE
           module App exposing (persons_with_orders)
 
-          import Sql exposing (Expr, Table, column, eq, table)
+          import Sql exposing (Expr, Pk(..), Table, column, eq, table)
+          import Encode
           import Sql.Query exposing (Q, from, join)
 
 
@@ -627,24 +635,34 @@ module Jade
           }
 
 
-          def persons -> Table(PersonsCols, MaybePersonsCols)
+          def persons_pk -> Pk(PersonsCols, Int)
+            Pk(["id"], (v) -> { [Encode.encode(v)] })
+          end
+
+
+          def persons -> Table(PersonsCols, MaybePersonsCols, Int)
             table(
               "persons",
               "p",
               (a) -> { PersonsCols(column(a, "id")) },
               (a) -> { MaybePersonsCols(column(a, "id")) },
-              ["id"],
+              persons_pk,
             )
           end
 
 
-          def orders -> Table(OrdersCols, MaybeOrdersCols)
+          def orders_pk -> Pk(OrdersCols, Int)
+            Pk(["id"], (v) -> { [Encode.encode(v)] })
+          end
+
+
+          def orders -> Table(OrdersCols, MaybeOrdersCols, Int)
             table(
               "orders",
               "o",
               (a) -> { OrdersCols(column(a, "id"), column(a, "person_id")) },
               (a) -> { MaybeOrdersCols(column(a, "id"), column(a, "person_id")) },
-              ["id"],
+              orders_pk,
             )
           end
 
@@ -677,7 +695,8 @@ module Jade
         <<~JADE
           module App exposing (parents_and_kids)
 
-          import Sql exposing (Expr, Table, aliased, column, eq, table)
+          import Sql exposing (Expr, Pk(..), Table, aliased, column, eq, table)
+          import Encode
           import Sql.Query exposing (Q, from, join)
 
 
@@ -693,13 +712,18 @@ module Jade
           }
 
 
-          def persons -> Table(PersonsCols, MaybePersonsCols)
+          def persons_pk -> Pk(PersonsCols, Int)
+            Pk(["id"], (v) -> { [Encode.encode(v)] })
+          end
+
+
+          def persons -> Table(PersonsCols, MaybePersonsCols, Int)
             table(
               "persons",
               "persons",
               (a) -> { PersonsCols(column(a, "id"), column(a, "parent_id")) },
               (a) -> { MaybePersonsCols(column(a, "id"), column(a, "parent_id")) },
-              ["id"],
+              persons_pk,
             )
           end
 
@@ -732,7 +756,8 @@ module Jade
         <<~JADE
           module App exposing (persons_with_optional_orders)
 
-          import Sql exposing (Expr, Table, column, eq, table)
+          import Sql exposing (Expr, Pk(..), Table, column, eq, table)
+          import Encode
           import Sql.Query exposing (Q, from, left_join)
 
 
@@ -754,24 +779,34 @@ module Jade
           }
 
 
-          def persons -> Table(PersonsCols, MaybePersonsCols)
+          def persons_pk -> Pk(PersonsCols, Int)
+            Pk(["id"], (v) -> { [Encode.encode(v)] })
+          end
+
+
+          def persons -> Table(PersonsCols, MaybePersonsCols, Int)
             table(
               "persons",
               "p",
               (a) -> { PersonsCols(column(a, "id")) },
               (a) -> { MaybePersonsCols(column(a, "id")) },
-              ["id"],
+              persons_pk,
             )
           end
 
 
-          def orders -> Table(OrdersCols, MaybeOrdersCols)
+          def orders_pk -> Pk(OrdersCols, Int)
+            Pk(["id"], (v) -> { [Encode.encode(v)] })
+          end
+
+
+          def orders -> Table(OrdersCols, MaybeOrdersCols, Int)
             table(
               "orders",
               "o",
               (a) -> { OrdersCols(column(a, "id"), column(a, "person_id")) },
               (a) -> { MaybeOrdersCols(column(a, "id"), column(a, "person_id")) },
-              ["id"],
+              orders_pk,
             )
           end
 
@@ -799,7 +834,8 @@ module Jade
         <<~JADE
           module App exposing (persons_with_companies)
 
-          import Sql exposing (Expr, Table, column, eq, nullable, table)
+          import Sql exposing (Expr, Pk(..), Table, column, eq, nullable, table)
+          import Encode
           import Sql.Query exposing (Q, from, join)
 
 
@@ -821,24 +857,34 @@ module Jade
           struct MaybeCompaniesCols = { id: Expr(Maybe(Int)) }
 
 
-          def persons -> Table(PersonsCols, MaybePersonsCols)
+          def persons_pk -> Pk(PersonsCols, Int)
+            Pk(["id"], (v) -> { [Encode.encode(v)] })
+          end
+
+
+          def persons -> Table(PersonsCols, MaybePersonsCols, Int)
             table(
               "persons",
               "p",
               (a) -> { PersonsCols(column(a, "id"), column(a, "company_id")) },
               (a) -> { MaybePersonsCols(column(a, "id"), column(a, "company_id")) },
-              ["id"],
+              persons_pk,
             )
           end
 
 
-          def companies -> Table(CompaniesCols, MaybeCompaniesCols)
+          def companies_pk -> Pk(CompaniesCols, Int)
+            Pk(["id"], (v) -> { [Encode.encode(v)] })
+          end
+
+
+          def companies -> Table(CompaniesCols, MaybeCompaniesCols, Int)
             table(
               "companies",
               "c",
               (a) -> { CompaniesCols(column(a, "id")) },
               (a) -> { MaybeCompaniesCols(column(a, "id")) },
-              ["id"],
+              companies_pk,
             )
           end
 
@@ -865,7 +911,8 @@ module Jade
         <<~JADE
           module App exposing (adults_query)
 
-          import Sql exposing (Expr, Selector, Table, column, eq, table, to_expr)
+          import Sql exposing (Expr, Pk(..), Selector, Table, column, eq, table, to_expr)
+          import Encode
           import Sql.Query exposing (Q, field, from, select, where)
 
 
@@ -890,13 +937,18 @@ module Jade
           }
 
 
-          def persons -> Table(PersonsCols, MaybePersonsCols)
+          def persons_pk -> Pk(PersonsCols, Int)
+            Pk(["id"], (v) -> { [Encode.encode(v)] })
+          end
+
+
+          def persons -> Table(PersonsCols, MaybePersonsCols, Int)
             table(
               "persons",
               "p",
               (a) -> { PersonsCols(column(a, "id"), column(a, "name"), column(a, "age")) },
               (a) -> { MaybePersonsCols(column(a, "id"), column(a, "name"), column(a, "age")) },
-              ["id"],
+              persons_pk,
             )
           end
 
@@ -925,7 +977,18 @@ module Jade
         <<~JADE
           module App exposing (rendered)
 
-          import Sql exposing (Expr, Selector, Table, column, eq, is_not_null, table, to_expr)
+          import Sql exposing (
+            Expr,
+            Pk(..),
+            Selector,
+            Table,
+            column,
+            eq,
+            is_not_null,
+            table,
+            to_expr,
+          )
+          import Encode
           import Sql.Query exposing (Q, field, from, join, select, to_sql, where)
           import Decode exposing (Value)
 
@@ -965,24 +1028,34 @@ module Jade
           }
 
 
-          def persons -> Table(PersonsCols, MaybePersonsCols)
+          def persons_pk -> Pk(PersonsCols, Int)
+            Pk(["id"], (v) -> { [Encode.encode(v)] })
+          end
+
+
+          def persons -> Table(PersonsCols, MaybePersonsCols, Int)
             table(
               "persons",
               "p",
               (a) -> { PersonsCols(column(a, "id"), column(a, "name"), column(a, "age")) },
               (a) -> { MaybePersonsCols(column(a, "id"), column(a, "name"), column(a, "age")) },
-              ["id"],
+              persons_pk,
             )
           end
 
 
-          def orders -> Table(OrdersCols, MaybeOrdersCols)
+          def orders_pk -> Pk(OrdersCols, Int)
+            Pk(["id"], (v) -> { [Encode.encode(v)] })
+          end
+
+
+          def orders -> Table(OrdersCols, MaybeOrdersCols, Int)
             table(
               "orders",
               "o",
               (a) -> { OrdersCols(column(a, "id"), column(a, "person_id"), column(a, "total")) },
               (a) -> { MaybeOrdersCols(column(a, "id"), column(a, "person_id"), column(a, "total")) },
-              ["id"],
+              orders_pk,
             )
           end
 
@@ -1025,7 +1098,8 @@ module Jade
         <<~JADE
           module App exposing (rendered)
 
-          import Sql exposing (Expr, Selector, Table, column, table)
+          import Sql exposing (Expr, Pk(..), Selector, Table, column, table)
+          import Encode
           import Sql.Query exposing (Q, field_as, from, select, to_sql)
           import Decode exposing (Value)
 
@@ -1048,13 +1122,18 @@ module Jade
           }
 
 
-          def entries -> Table(EntriesCols, MaybeEntriesCols)
+          def entries_pk -> Pk(EntriesCols, Int)
+            Pk(["id"], (v) -> { [Encode.encode(v)] })
+          end
+
+
+          def entries -> Table(EntriesCols, MaybeEntriesCols, Int)
             table(
               "entries",
               "e",
               (a) -> { EntriesCols(column(a, "id"), column(a, "type")) },
               (a) -> { MaybeEntriesCols(column(a, "id"), column(a, "type")) },
-              ["id"],
+              entries_pk,
             )
           end
 
@@ -1092,7 +1171,8 @@ module Jade
             sorted_then_paged,
           )
 
-          import Sql exposing (Expr, Selector, Table, column, table)
+          import Sql exposing (Expr, Pk(..), Selector, Table, column, table)
+          import Encode
           import Sql.Query exposing (
             Q,
             field,
@@ -1129,7 +1209,12 @@ module Jade
           }
 
 
-          def persons -> Table(PersonsCols, MaybePersonsCols)
+          def persons_pk -> Pk(PersonsCols, Int)
+            Pk(["id"], (v) -> { [Encode.encode(v)] })
+          end
+
+
+          def persons -> Table(PersonsCols, MaybePersonsCols, Int)
             table(
               "persons",
               "p",
@@ -1139,7 +1224,7 @@ module Jade
                 column(a, "name"),
                 column(a, "age"),
               ) },
-              ["id"],
+              persons_pk,
             )
           end
 
@@ -1271,7 +1356,8 @@ module Jade
         <<~JADE
           module App exposing (no_paging, only_offset, page_one, page_two)
 
-          import Sql exposing (Expr, Selector, Table, column, table)
+          import Sql exposing (Expr, Pk(..), Selector, Table, column, table)
+          import Encode
           import Sql.Query exposing (Q, field, from, limit, offset, select, to_sql)
           import Decode exposing (Value)
 
@@ -1294,13 +1380,18 @@ module Jade
           }
 
 
-          def persons -> Table(PersonsCols, MaybePersonsCols)
+          def persons_pk -> Pk(PersonsCols, Int)
+            Pk(["id"], (v) -> { [Encode.encode(v)] })
+          end
+
+
+          def persons -> Table(PersonsCols, MaybePersonsCols, Int)
             table(
               "persons",
               "p",
               (a) -> { PersonsCols(column(a, "id"), column(a, "name")) },
               (a) -> { MaybePersonsCols(column(a, "id"), column(a, "name")) },
-              ["id"],
+              persons_pk,
             )
           end
 
@@ -1377,6 +1468,7 @@ module Jade
             insert_many,
             insert_paul,
             insert_paul_returning,
+            rename_paul,
             update_all_nothing,
             update_all_nothing_returning,
             update_all_to_zero,
@@ -1389,6 +1481,7 @@ module Jade
             Assignable,
             Assignment(..),
             Expr,
+            Pk(..),
             Selector,
             Table,
             assign,
@@ -1412,7 +1505,7 @@ module Jade
             update_all,
           )
           import Decode exposing (Value)
-          import Encode exposing (encode)
+          import Encode
 
 
           struct PatientsCols = {
@@ -1444,6 +1537,19 @@ module Jade
           }
 
 
+          struct Rename = { name: String }
+
+
+          implements Assignable(Rename) with
+            to_assigns: encode_rename
+          end
+
+
+          def encode_rename(r: Rename) -> List(Assignment)
+            [assign("name", r.name)]
+          end
+
+
           implements Assignable(NewPatient) with
             to_assigns: encode_new_patient
           end
@@ -1454,7 +1560,12 @@ module Jade
           end
 
 
-          def patients -> Table(PatientsCols, MaybePatientsCols)
+          def patients_pk -> Pk(PatientsCols, Int)
+            Pk(["id"], (v) -> { [Encode.encode(v)] })
+          end
+
+
+          def patients -> Table(PatientsCols, MaybePatientsCols, Int)
             table(
               "patients",
               "p",
@@ -1470,7 +1581,7 @@ module Jade
                 column(a, "balance"),
                 column(a, "archived"),
               ) },
-              ["id"],
+              patients_pk,
             )
           end
 
@@ -1503,17 +1614,22 @@ module Jade
           end
 
 
+          def rename_paul -> (String, List(Value))
+            Rename("Saul")
+              |> update(patients, 42)
+              |> to_sql
+          end
+
+
           def update_paul -> (String, List(Value))
             Patient(42, "Paul", 100)
-              |> update(patients)
+              |> update(patients, 42)
               |> to_sql
           end
 
 
           def delete_paul -> (String, List(Value))
-            Patient(42, "Paul", 100)
-              |> delete(patients)
-              |> to_sql
+            delete(patients, 42) |> to_sql
           end
 
 
@@ -1562,8 +1678,8 @@ module Jade
 
           def update_many_balances -> (String, List(Value))
             [
-              Patient(1, "Ada", 10),
-              Patient(2, "Grace", 20),
+              (1, Patient(1, "Ada", 10)),
+              (2, Patient(2, "Grace", 20)),
             ]
               |> Sql.Mutation.update_many(patients)
               |> to_sql
@@ -1592,7 +1708,7 @@ module Jade
 
           def update_paul_returning -> (String, List(Value))
             Patient(42, "Paul", 100)
-              |> update(patients)
+              |> update(patients, 42)
               |> returning(
             (p) -> { select(Patient(_, _, _))
               |> field(p.id)
@@ -1604,8 +1720,7 @@ module Jade
 
 
           def delete_paul_returning -> (String, List(Value))
-            Patient(42, "Paul", 100)
-              |> delete(patients)
+            delete(patients, 42)
               |> returning(
             (p) -> { select(Patient(_, _, _))
               |> field(p.id)
@@ -1635,6 +1750,12 @@ module Jade
         sql, params = App::Internal.update_paul.then { [it._1, it._2] }
         expect(sql).to eql 'UPDATE patients SET name = ?, balance = ? WHERE id = ?'
         expect(params).to eql ['Paul', 100, 42]
+      end
+
+      it 'updates from a patch that carries no key of its own' do
+        sql, params = App::Internal.rename_paul.then { [it._1, it._2] }
+        expect(sql).to eql 'UPDATE patients SET name = ? WHERE id = ?'
+        expect(params).to eql ['Saul', 42]
       end
 
       it 'delete renders DELETE … WHERE pk = ?' do
@@ -1716,11 +1837,13 @@ module Jade
             Assignable,
             Assignment,
             Expr,
+            Pk(..),
             Table,
             assign,
             column,
             table,
           )
+          import Encode
           import Sql.Mutation exposing (to_sql, update)
           import Decode exposing (Value)
 
@@ -1760,7 +1883,18 @@ module Jade
           end
 
 
-          def memberships -> Table(MembershipsCols, MaybeMembershipsCols)
+          def memberships_pk -> Pk(MembershipsCols, (Int, Int))
+            Pk(["user_id", "group_id"], memberships_pk_values)
+          end
+
+
+          def memberships_pk_values(v: (Int, Int)) -> List(Value)
+            (a, b) = v
+            [Encode.encode(a), Encode.encode(b)]
+          end
+
+
+          def memberships -> Table(MembershipsCols, MaybeMembershipsCols, (Int, Int))
             table(
               "memberships",
               "memberships",
@@ -1774,14 +1908,14 @@ module Jade
                 column(a, "group_id"),
                 column(a, "role"),
               ) },
-              ["user_id", "group_id"],
+              memberships_pk,
             )
           end
 
 
           def touch -> (String, List(Value))
             Membership(20, "admin", 10)
-              |> update(memberships)
+              |> update(memberships, (10, 20))
               |> to_sql
           end
         JADE
@@ -1789,13 +1923,73 @@ module Jade
 
       before { test_compiler.require('comp', source) }
 
-      # The struct declares group_id before user_id; the schema declares the
-      # key the other way round. The schema wins, and nothing pairs a column
-      # with a value by position.
-      it 'orders the key terms by the schema, not by the struct' do
+      # The caller supplies a tuple and never a column name; the generated
+      # values function spreads it in the order the DDL declares.
+      it 'orders the key terms by the schema, not by the caller' do
         sql, params = Comp::Internal.touch.then { [it._1, it._2] }
         expect(sql).to eql 'UPDATE memberships SET role = ? WHERE user_id = ? AND group_id = ?'
         expect(params).to eql ['admin', 10, 20]
+      end
+    end
+
+    context 'a table with no primary key' do
+      let(:source) do
+        <<~JADE.strip
+          module NoPk exposing (touch)
+
+          import Sql exposing (
+            Assignable,
+            Assignment,
+            Expr,
+            NoKey,
+            Table,
+            assign,
+            column,
+            table,
+            unkeyed,
+          )
+          import Sql.Mutation exposing (Mutation, update)
+
+
+          struct EventsCols = { payload: Expr(String) }
+
+
+          struct MaybeEventsCols = { payload: Expr(Maybe(String)) }
+
+
+          struct Patch = { payload: String }
+
+
+          implements Assignable(Patch) with
+            to_assigns: patch_assigns
+          end
+
+
+          def patch_assigns(p: Patch) -> List(Assignment)
+            [assign("payload", p.payload)]
+          end
+
+
+          def events -> Table(EventsCols, MaybeEventsCols, NoKey)
+            table(
+              "events",
+              "events",
+              (a) -> { EventsCols(column(a, "payload")) },
+              (a) -> { MaybeEventsCols(column(a, "payload")) },
+              unkeyed,
+            )
+          end
+
+
+          def touch -> Mutation(Int, EventsCols)
+            update(Patch("x"), events, 42)
+          end
+        JADE
+      end
+
+      it 'refuses a key, since there is no key to name' do
+        expect { test_compiler.require('no_pk', source) }
+          .to raise_error(/NoKey/)
       end
     end
 

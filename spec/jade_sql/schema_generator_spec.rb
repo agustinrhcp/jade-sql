@@ -42,7 +42,7 @@ describe JadeSql::SchemaGenerator do
     end
 
     it 'imports Sql' do
-      expect(generated).to include('import Sql exposing (Expr, Pk(..), Table, column, table)')
+      expect(generated).to include('import Sql exposing (Expr, NoJoins(..), Pk(..), Table, column, table)')
       expect(generated).to include('import Encode')
     end
 
@@ -73,13 +73,14 @@ describe JadeSql::SchemaGenerator do
 
     it 'emits a table function with alias = table name and its key' do
       expect(generated).to include(<<~FN.strip)
-        def patients -> Table(PatientsCols, MaybePatientsCols, Int)
+        def patients -> Table(PatientsCols, MaybePatientsCols, Int, NoJoins)
           table(
             "patients",
             "patients",
             (a) -> { PatientsCols(column(a, "id"), column(a, "name"), column(a, "balance")) },
             (a) -> { MaybePatientsCols(column(a, "id"), column(a, "name"), column(a, "balance")) },
             patients_pk,
+            NoJoins,
           )
       FN
     end
@@ -170,44 +171,60 @@ describe JadeSql::SchemaGenerator do
     end
   end
 
-  context 'an enum type' do
+  context 'foreign keys' do
     let(:sql) do
       <<~SQL
-        CREATE TYPE public.visit_status AS ENUM (
-            'scheduled',
-            'in_progress',
-            'done'
+        CREATE TABLE public.patients (
+            id uuid NOT NULL,
+            phone_id uuid,
+            name text NOT NULL
         );
 
-        CREATE TABLE public.visits (
-            id bigint NOT NULL,
-            status public.visit_status NOT NULL,
-            fallback visit_status
+        CREATE TABLE public.phones (
+            id uuid NOT NULL,
+            number text NOT NULL
         );
+
+        ALTER TABLE ONLY public.patients
+            ADD CONSTRAINT patients_pkey PRIMARY KEY (id);
+
+        ALTER TABLE ONLY public.phones
+            ADD CONSTRAINT phones_pkey PRIMARY KEY (id);
+
+        ALTER TABLE ONLY public.patients
+            ADD CONSTRAINT fk_phone FOREIGN KEY (phone_id) REFERENCES public.phones(id);
       SQL
     end
 
-    it 'emits the labels as a union, in DDL order' do
+    it 'names the outgoing side after the column, minus its _id' do
       expect(generated).to include(<<~JADE.strip)
-        type VisitStatus
-          = Scheduled
-          | InProgress
-          | Done
+        struct PatientsOn = { phone: PatientsCols -> (PhonesCols -> Expr(Bool)) }
       JADE
     end
 
-    it 'types the column by it, with or without the schema prefix' do
+    it 'names the incoming side after the table it comes from' do
       expect(generated).to include(<<~JADE.strip)
-        struct VisitsCols = {
-          id: Expr(Int),
-          status: Expr(VisitStatus),
-          fallback: Expr(Maybe(VisitStatus))
-        }
+        struct PhonesOn = { patients: PhonesCols -> (PatientsCols -> Expr(Bool)) }
       JADE
     end
 
-    it 'exposes it, so callers can name the variants' do
-      expect(generated).to include('VisitStatus(..)')
+    it 'lifts the non-nullable side, since a nullable key is Expr(Maybe(a))' do
+      expect(generated).to include(<<~JADE.strip)
+        def patients_on_phone(a: PatientsCols) -> (PhonesCols -> Expr(Bool))
+          (b) -> { eq(a.phone_id, b.id |> nullable) }
+        end
+      JADE
+
+      expect(generated).to include(<<~JADE.strip)
+        def phones_on_patients(a: PhonesCols) -> (PatientsCols -> Expr(Bool))
+          (b) -> { eq(a.id |> nullable, b.phone_id) }
+        end
+      JADE
+    end
+
+    it 'hands the record to the table' do
+      expect(generated).to include('def patients -> Table(PatientsCols, MaybePatientsCols, Uuid, PatientsOn)')
+      expect(generated).to include('PatientsOn(patients_on_phone),')
     end
   end
 
@@ -250,7 +267,7 @@ describe JadeSql::SchemaGenerator do
     end
 
     it 'keys the table by NoKey and passes unkeyed' do
-      expect(generated).to include('def events -> Table(EventsCols, MaybeEventsCols, NoKey)')
+      expect(generated).to include('def events -> Table(EventsCols, MaybeEventsCols, NoKey, NoJoins)')
       expect(generated).to include('unkeyed,')
     end
 
@@ -272,7 +289,7 @@ describe JadeSql::SchemaGenerator do
     end
 
     it 'is generated like any other table' do
-      expect(generated).to include('def schema_migrations -> Table(SchemaMigrationsCols, MaybeSchemaMigrationsCols, String)')
+      expect(generated).to include('def schema_migrations -> Table(SchemaMigrationsCols, MaybeSchemaMigrationsCols, String, NoJoins)')
       expect(generated).to include('["version"]')
     end
   end

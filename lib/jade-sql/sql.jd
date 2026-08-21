@@ -43,6 +43,7 @@ module Sql exposing (
   lt,
   lte,
   maybe_columns,
+  NoJoins(..),
   neg,
   now,
   or,
@@ -75,13 +76,30 @@ struct Selector(a) = {
 }
 
 
-struct Table(c, m, k) = {
+# A table, as `structure.sql` declares it. `c` is its strict column struct
+# (`Expr(String)` for a NOT NULL text column), `m` the same columns lifted into
+# `Maybe` for left-join projections, `k` the type of its primary key, and `o` a
+# record of one join predicate per foreign key it declares.
+#
+# `schema.jd` generates one of these per table, so you name the table rather
+# than build it: `from(patients)`, `insert(row, patients)`. Reach for `table`
+# yourself only for something the generator does not see.
+struct Table(c, m, k, o) = {
   name: String,
   alias_: String,
   cols: String -> c,
   maybe_cols: String -> m,
-  pk: Pk(c, k)
+  pk: Pk(c, k),
+  on: o
 }
+
+
+# The `on` of a table that declares no foreign keys. There is no relation to
+# name, so there is no join predicate to reach for — join such a table by
+# writing the predicate yourself:
+#
+#   from(patients) |> join(events, (e) -> { p.id |> eq(e.patient_id) })
+type NoJoins = NoJoins
 
 
 struct TableRef = {
@@ -376,23 +394,24 @@ def table(
   cols: String -> c,
   maybe_cols: String -> m,
   pk_: Pk(c, k),
-) -> Table(c, m, k)
-  Table(name, alias_, cols, maybe_cols, pk_)
+  on_: o,
+) -> Table(c, m, k, o)
+  Table(name, alias_, cols, maybe_cols, pk_, on_)
 end
 
 
-def columns(t: Table(c, m, k), alias_: String) -> c
+def columns(t: Table(c, m, k, o), alias_: String) -> c
   alias_ |> t.cols
 end
 
 
-def maybe_columns(t: Table(c, m, k), alias_: String) -> m
+def maybe_columns(t: Table(c, m, k, o), alias_: String) -> m
   alias_ |> t.maybe_cols
 end
 
 
-def aliased(t: Table(c, m, k), alias_: String) -> Table(c, m, k)
-  Table(t.name, alias_, t.cols, t.maybe_cols, t.pk)
+def aliased(t: Table(c, m, k, o), alias_: String) -> Table(c, m, k, o)
+  Table(t.name, alias_, t.cols, t.maybe_cols, t.pk, t.on)
 end
 
 

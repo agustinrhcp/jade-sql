@@ -63,7 +63,7 @@ module JadeSql
       case in if then else end with
     ].freeze
 
-    Table = Data.define(:name, :columns, :pk_columns)
+    Table = Data.define(:name, :columns, :pk_columns, :fks)
     Column = Data.define(:name, :jade_type, :nullable)
 
     def generate(sql, tables: nil, columns: nil, module_name: 'Schema')
@@ -71,7 +71,10 @@ module JadeSql
       bodies = scan_table_bodies(sql)
       bodies = select_tables(bodies, tables) if tables
       pks = parse_pks(sql)
-      parsed = bodies.map { |name, body| Table[name, parse_columns(body, name), pks[name] || []] }
+      fks = parse_fks(sql)
+      parsed = bodies
+        .map { |name, body| Table[name, parse_columns(body, name), pks[name] || [], fks[name]] }
+        .then { |ts| ts.map { |t| t.with(fks: relations(t, ts)) } }
       parsed = select_columns(parsed, columns) if columns
       format(emit(parsed, module_name))
     end
@@ -169,6 +172,16 @@ module JadeSql
         .map { |name, labels| Enum[name, labels.scan(/'([^']*)'/).flatten] }
     end
 
+    Fk = Data.define(:column, :parent, :parent_column)
+
+    def parse_fks(sql)
+      sql
+        .scan(/ALTER TABLE (?:ONLY\s+)?(?:\w+\.)?(\w+)\s+ADD CONSTRAINT \w+ FOREIGN KEY \(([^)]+)\) REFERENCES (?:\w+\.)?(\w+)\(([^)]+)\)/i)
+        .each_with_object(Hash.new { |h, k| h[k] = [] }) do |(child, col, parent, parent_col), acc|
+          acc[child] << Fk[col.strip.delete('"'), parent, parent_col.strip.delete('"')]
+        end
+    end
+
     def parse_pks(sql)
       sql
         .scan(/ALTER TABLE (?:ONLY\s+)?(?:\w+\.)?(\w+)\s+ADD CONSTRAINT \w+ PRIMARY KEY \(([^)]+)\)/i)
@@ -183,8 +196,50 @@ module JadeSql
       ].join("\n\n") + "\n"
     end
 
+    Rel = Data.define(:name, :other, :own_column, :other_column, :own_null, :other_null)
+
+    # Both ends of every foreign key, so a join reads the same from either
+    # side: `patients.on.phone` and `phones.on.patient` are one constraint.
+    # Only relationships whose other end was generated are emitted.
+    def relations(t, tables)
+      names = tables.map(&:name)
+
+      by_name = tables.to_h { [it.name, it] }
+      null = ->(table, col) { table&.columns&.find { it.name == col }&.nullable }
+
+      outgoing = t.fks
+        .select { names.include?(it.parent) }
+        .map do |fk|
+          Rel[
+            fk.column.sub(/_id\z/, ""), fk.parent, fk.column, fk.parent_column,
+            null.(t, fk.column), null.(by_name[fk.parent], fk.parent_column),
+          ]
+        end
+
+      incoming = tables
+        .flat_map { |other| other.fks.map { [other, it] } }
+        .select { |(other, fk)| fk.parent == t.name && other.name != t.name }
+        .map do |(other, fk)|
+          Rel[
+            other.name, other.name, fk.parent_column, fk.column,
+            null.(t, fk.parent_column), null.(other, fk.column),
+          ]
+        end
+
+      dedupe(outgoing + incoming)
+    end
+
+    def dedupe(rels)
+      rels.each_with_object([]) do |rel, acc|
+        taken = acc.map(&:name)
+        next acc << rel unless taken.include?(rel.name)
+
+        acc << rel.with(name: "#{rel.name}_#{rel.other_column.sub(/_id\z/, '')}")
+      end
+    end
+
     def emit_table(t)
-      [emit_strict_cols(t), emit_maybe_cols(t), emit_row(t), emit_table_fn(t)]
+      [emit_strict_cols(t), emit_maybe_cols(t), emit_row(t), *emit_on(t), *emit_on_fns(t), emit_table_fn(t)]
         .then { keyed?(t) ? it + [emit_pk_fn(t), emit_pk_values_fn(t)] : it }
         .then { reserved_cols?(t) ? it + [emit_row_projector(t)] : it }
     end
@@ -202,20 +257,30 @@ module JadeSql
       keyed = tables.select { |t| keyed?(t) }
 
       names = tables
-        .flat_map { |t| ["#{camel(t.name)}Cols", "Maybe#{camel(t.name)}Cols", "#{camel(t.name)}Row(..)", t.name] }
+        .flat_map { |t| ["#{camel(t.name)}Cols", "Maybe#{camel(t.name)}Cols", "#{camel(t.name)}Row(..)", *("#{camel(t.name)}On(..)" if t.fks.any?), t.name] }
       names += projectored.map { |t| "#{t.name}_row" }
       names += keyed.map { |t| "#{t.name}_pk" }
       names += (@enums || {}).values.map { "#{camel(it.name)}(..)" }
       exposed = names.sort.join(", ")
 
+      joined = tables.select { it.fks.any? }
+      bare = tables.select { it.fks.empty? }
       unkeyed = keyed.size < tables.size
+
       types = [
-        "Expr", "Table",
+        "Expr",
+        "Table",
         *("Selector" if projectored.any?),
         *("Pk(..)" if keyed.any?),
+        *("NoJoins(..)" if bare.any?),
         *("NoKey" if unkeyed),
       ].sort
-      fns = ["column", "table", *("unkeyed" if unkeyed)].sort
+      fns = [
+        "column",
+        "table",
+        *(%w[eq nullable] if joined.any?),
+        *("unkeyed" if unkeyed),
+      ].sort
       sql_import = "import Sql exposing(#{(types + fns).join(', ')})"
       query_import = projectored.any? ? ["import Sql.Query exposing(Q, field_as, select)"] : []
       encode_import = keyed.any? ? ["import Decode", "import Encode"] : []
@@ -271,13 +336,14 @@ module JadeSql
       maybe_fields = t.columns.map { |c| "column(a, #{c.name.inspect})" }.join(", ")
 
       <<~JADE.strip
-        def #{t.name} -> Table(#{camel(t.name)}Cols, Maybe#{camel(t.name)}Cols, #{key_type(t)})
+        def #{t.name} -> Table(#{camel(t.name)}Cols, Maybe#{camel(t.name)}Cols, #{key_type(t)}, #{on_type(t)})
           table(
             #{t.name.inspect},
             #{t.name.inspect},
             (a) -> { #{camel(t.name)}Cols(#{strict_fields}) },
             (a) -> { Maybe#{camel(t.name)}Cols(#{maybe_fields}) },
             #{keyed?(t) ? "#{t.name}_pk" : "unkeyed"},
+            #{emit_on_value(t)},
           )
         end
       JADE
@@ -294,6 +360,56 @@ module JadeSql
       key_columns(t)
         .map(&:jade_type)
         .then { it.one? ? it.first : "(#{it.join(', ')})" }
+    end
+
+    def emit_on(t)
+      return nil if t.fks.empty?
+
+      fields = t.fks
+        .map { "  #{it.name}: #{camel(t.name)}Cols -> (#{camel(it.other)}Cols -> Expr(Bool))" }
+        .join(",\n")
+
+      "struct #{camel(t.name)}On = {\n#{fields}\n}"
+    end
+
+    def on_type(t)
+      t.fks.empty? ? "NoJoins" : "#{camel(t.name)}On"
+    end
+
+    def emit_on_value(t)
+      return "NoJoins" if t.fks.empty?
+
+      t.fks
+        .map { on_fn_name(t, it) }
+        .join(", ")
+        .then { "#{camel(t.name)}On(#{it})" }
+    end
+
+    # A nullable foreign key column is `Expr(Maybe(a))` while the key it
+    # points at is `Expr(a)`, so whichever side is not nullable is lifted.
+    def side(var, column, mine, theirs)
+      ref = "#{var}.#{field_name(column)}"
+
+      !mine && theirs ? "#{ref} |> nullable" : ref
+    end
+
+    def on_fn_name(t, rel)
+      "#{t.name}_on_#{rel.name}"
+    end
+
+    # Named rather than inlined in the constructor for the same reason the key
+    # spread is: inference does not reach a lambda passed to a constructor, so
+    # `a.phone_id` there infers an open record instead of the column struct.
+    def emit_on_fns(t)
+      t.fks.map do |rel|
+        <<~JADE.strip
+          def #{on_fn_name(t, rel)}(a: #{camel(t.name)}Cols) -> #{camel(rel.other)}Cols -> Expr(Bool)
+            (b) -> {
+              eq(#{side("a", rel.own_column, rel.own_null, rel.other_null)}, #{side("b", rel.other_column, rel.other_null, rel.own_null)})
+            }
+          end
+        JADE
+      end
     end
 
     def emit_pk_fn(t)

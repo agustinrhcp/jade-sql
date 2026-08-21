@@ -70,3 +70,18 @@ and its `pk_values` function.
 To upgrade: pass the key to `update` and `delete`, and regenerate `schema.jd`
 — the generator's output changed, and a stale one has neither the `_pk` values
 nor the new imports.
+
+### Added (joins)
+
+- Tables carry their foreign keys. The generator emits an `on` record per
+  table with one join predicate per relation, and `Table(c, m, k)` becomes
+  `Table(c, m, k, o)` to hold it. A join is written by naming the relation
+  rather than by pairing two columns, so it cannot pair the wrong two, and
+  nullable sides are lifted to match:
+
+      p <- from(patients)
+      a <- join(appointments, p |> patients.on.appointments)
+
+  Each field takes the parent columns and returns the predicate `join` wants,
+  which is a function of the joined table's columns alone. A table that
+  declares no foreign keys gets `NoJoins`.

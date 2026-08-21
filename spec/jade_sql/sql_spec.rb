@@ -553,7 +553,7 @@ module Jade
         <<~JADE
           module App exposing (named_paul)
 
-          import Sql exposing (Expr, Pk(..), Table, column, columns, eq, table, to_expr)
+          import Sql exposing (Expr, NoJoins(..), Pk(..), Table, column, columns, eq, table, to_expr)
           import Encode
           import Sql.Query exposing (Q, from, where)
 
@@ -575,13 +575,14 @@ module Jade
           end
 
 
-          def persons -> Table(PersonsCols, MaybePersonsCols, Int)
+          def persons -> Table(PersonsCols, MaybePersonsCols, Int, NoJoins)
             table(
               "persons",
               "p",
               (a) -> { PersonsCols(column(a, "id"), column(a, "name")) },
               (a) -> { MaybePersonsCols(column(a, "id"), column(a, "name")) },
               persons_pk,
+              NoJoins,
             )
           end
 
@@ -612,7 +613,7 @@ module Jade
         <<~JADE
           module App exposing (persons_with_orders)
 
-          import Sql exposing (Expr, Pk(..), Table, column, eq, table)
+          import Sql exposing (Expr, NoJoins(..), Pk(..), Table, column, eq, table)
           import Encode
           import Sql.Query exposing (Q, from, join)
 
@@ -640,13 +641,14 @@ module Jade
           end
 
 
-          def persons -> Table(PersonsCols, MaybePersonsCols, Int)
+          def persons -> Table(PersonsCols, MaybePersonsCols, Int, NoJoins)
             table(
               "persons",
               "p",
               (a) -> { PersonsCols(column(a, "id")) },
               (a) -> { MaybePersonsCols(column(a, "id")) },
               persons_pk,
+              NoJoins,
             )
           end
 
@@ -656,13 +658,14 @@ module Jade
           end
 
 
-          def orders -> Table(OrdersCols, MaybeOrdersCols, Int)
+          def orders -> Table(OrdersCols, MaybeOrdersCols, Int, NoJoins)
             table(
               "orders",
               "o",
               (a) -> { OrdersCols(column(a, "id"), column(a, "person_id")) },
               (a) -> { MaybeOrdersCols(column(a, "id"), column(a, "person_id")) },
               orders_pk,
+              NoJoins,
             )
           end
 
@@ -695,7 +698,7 @@ module Jade
         <<~JADE
           module App exposing (parents_and_kids)
 
-          import Sql exposing (Expr, Pk(..), Table, aliased, column, eq, table)
+          import Sql exposing (Expr, NoJoins(..), Pk(..), Table, aliased, column, eq, table)
           import Encode
           import Sql.Query exposing (Q, from, join)
 
@@ -717,13 +720,14 @@ module Jade
           end
 
 
-          def persons -> Table(PersonsCols, MaybePersonsCols, Int)
+          def persons -> Table(PersonsCols, MaybePersonsCols, Int, NoJoins)
             table(
               "persons",
               "persons",
               (a) -> { PersonsCols(column(a, "id"), column(a, "parent_id")) },
               (a) -> { MaybePersonsCols(column(a, "id"), column(a, "parent_id")) },
               persons_pk,
+              NoJoins,
             )
           end
 
@@ -756,7 +760,7 @@ module Jade
         <<~JADE
           module App exposing (persons_with_optional_orders)
 
-          import Sql exposing (Expr, Pk(..), Table, column, eq, table)
+          import Sql exposing (Expr, NoJoins(..), Pk(..), Table, column, eq, table)
           import Encode
           import Sql.Query exposing (Q, from, left_join)
 
@@ -784,13 +788,14 @@ module Jade
           end
 
 
-          def persons -> Table(PersonsCols, MaybePersonsCols, Int)
+          def persons -> Table(PersonsCols, MaybePersonsCols, Int, NoJoins)
             table(
               "persons",
               "p",
               (a) -> { PersonsCols(column(a, "id")) },
               (a) -> { MaybePersonsCols(column(a, "id")) },
               persons_pk,
+              NoJoins,
             )
           end
 
@@ -800,13 +805,14 @@ module Jade
           end
 
 
-          def orders -> Table(OrdersCols, MaybeOrdersCols, Int)
+          def orders -> Table(OrdersCols, MaybeOrdersCols, Int, NoJoins)
             table(
               "orders",
               "o",
               (a) -> { OrdersCols(column(a, "id"), column(a, "person_id")) },
               (a) -> { MaybeOrdersCols(column(a, "id"), column(a, "person_id")) },
               orders_pk,
+              NoJoins,
             )
           end
 
@@ -834,7 +840,7 @@ module Jade
         <<~JADE
           module App exposing (persons_with_companies)
 
-          import Sql exposing (Expr, Pk(..), Table, column, eq, nullable, table)
+          import Sql exposing (Expr, NoJoins(..), Pk(..), Table, column, eq, nullable, table)
           import Encode
           import Sql.Query exposing (Q, from, join)
 
@@ -862,13 +868,14 @@ module Jade
           end
 
 
-          def persons -> Table(PersonsCols, MaybePersonsCols, Int)
+          def persons -> Table(PersonsCols, MaybePersonsCols, Int, NoJoins)
             table(
               "persons",
               "p",
               (a) -> { PersonsCols(column(a, "id"), column(a, "company_id")) },
               (a) -> { MaybePersonsCols(column(a, "id"), column(a, "company_id")) },
               persons_pk,
+              NoJoins,
             )
           end
 
@@ -878,13 +885,14 @@ module Jade
           end
 
 
-          def companies -> Table(CompaniesCols, MaybeCompaniesCols, Int)
+          def companies -> Table(CompaniesCols, MaybeCompaniesCols, Int, NoJoins)
             table(
               "companies",
               "c",
               (a) -> { CompaniesCols(column(a, "id")) },
               (a) -> { MaybeCompaniesCols(column(a, "id")) },
               companies_pk,
+              NoJoins,
             )
           end
 
@@ -911,7 +919,17 @@ module Jade
         <<~JADE
           module App exposing (adults_query)
 
-          import Sql exposing (Expr, Pk(..), Selector, Table, column, eq, table, to_expr)
+          import Sql exposing (
+            Expr,
+            NoJoins(..),
+            Pk(..),
+            Selector,
+            Table,
+            column,
+            eq,
+            table,
+            to_expr,
+          )
           import Encode
           import Sql.Query exposing (Q, field, from, select, where)
 
@@ -942,13 +960,14 @@ module Jade
           end
 
 
-          def persons -> Table(PersonsCols, MaybePersonsCols, Int)
+          def persons -> Table(PersonsCols, MaybePersonsCols, Int, NoJoins)
             table(
               "persons",
               "p",
               (a) -> { PersonsCols(column(a, "id"), column(a, "name"), column(a, "age")) },
               (a) -> { MaybePersonsCols(column(a, "id"), column(a, "name"), column(a, "age")) },
               persons_pk,
+              NoJoins,
             )
           end
 
@@ -979,6 +998,7 @@ module Jade
 
           import Sql exposing (
             Expr,
+            NoJoins(..),
             Pk(..),
             Selector,
             Table,
@@ -1033,13 +1053,14 @@ module Jade
           end
 
 
-          def persons -> Table(PersonsCols, MaybePersonsCols, Int)
+          def persons -> Table(PersonsCols, MaybePersonsCols, Int, NoJoins)
             table(
               "persons",
               "p",
               (a) -> { PersonsCols(column(a, "id"), column(a, "name"), column(a, "age")) },
               (a) -> { MaybePersonsCols(column(a, "id"), column(a, "name"), column(a, "age")) },
               persons_pk,
+              NoJoins,
             )
           end
 
@@ -1049,13 +1070,14 @@ module Jade
           end
 
 
-          def orders -> Table(OrdersCols, MaybeOrdersCols, Int)
+          def orders -> Table(OrdersCols, MaybeOrdersCols, Int, NoJoins)
             table(
               "orders",
               "o",
               (a) -> { OrdersCols(column(a, "id"), column(a, "person_id"), column(a, "total")) },
               (a) -> { MaybeOrdersCols(column(a, "id"), column(a, "person_id"), column(a, "total")) },
               orders_pk,
+              NoJoins,
             )
           end
 
@@ -1098,7 +1120,7 @@ module Jade
         <<~JADE
           module App exposing (rendered)
 
-          import Sql exposing (Expr, Pk(..), Selector, Table, column, table)
+          import Sql exposing (Expr, NoJoins(..), Pk(..), Selector, Table, column, table)
           import Encode
           import Sql.Query exposing (Q, field_as, from, select, to_sql)
           import Decode exposing (Value)
@@ -1127,13 +1149,14 @@ module Jade
           end
 
 
-          def entries -> Table(EntriesCols, MaybeEntriesCols, Int)
+          def entries -> Table(EntriesCols, MaybeEntriesCols, Int, NoJoins)
             table(
               "entries",
               "e",
               (a) -> { EntriesCols(column(a, "id"), column(a, "type")) },
               (a) -> { MaybeEntriesCols(column(a, "id"), column(a, "type")) },
               entries_pk,
+              NoJoins,
             )
           end
 
@@ -1171,7 +1194,7 @@ module Jade
             sorted_then_paged,
           )
 
-          import Sql exposing (Expr, Pk(..), Selector, Table, column, table)
+          import Sql exposing (Expr, NoJoins(..), Pk(..), Selector, Table, column, table)
           import Encode
           import Sql.Query exposing (
             Q,
@@ -1214,7 +1237,7 @@ module Jade
           end
 
 
-          def persons -> Table(PersonsCols, MaybePersonsCols, Int)
+          def persons -> Table(PersonsCols, MaybePersonsCols, Int, NoJoins)
             table(
               "persons",
               "p",
@@ -1225,6 +1248,7 @@ module Jade
                 column(a, "age"),
               ) },
               persons_pk,
+              NoJoins,
             )
           end
 
@@ -1356,7 +1380,7 @@ module Jade
         <<~JADE
           module App exposing (no_paging, only_offset, page_one, page_two)
 
-          import Sql exposing (Expr, Pk(..), Selector, Table, column, table)
+          import Sql exposing (Expr, NoJoins(..), Pk(..), Selector, Table, column, table)
           import Encode
           import Sql.Query exposing (Q, field, from, limit, offset, select, to_sql)
           import Decode exposing (Value)
@@ -1385,13 +1409,14 @@ module Jade
           end
 
 
-          def persons -> Table(PersonsCols, MaybePersonsCols, Int)
+          def persons -> Table(PersonsCols, MaybePersonsCols, Int, NoJoins)
             table(
               "persons",
               "p",
               (a) -> { PersonsCols(column(a, "id"), column(a, "name")) },
               (a) -> { MaybePersonsCols(column(a, "id"), column(a, "name")) },
               persons_pk,
+              NoJoins,
             )
           end
 
@@ -1481,6 +1506,7 @@ module Jade
             Assignable,
             Assignment(..),
             Expr,
+            NoJoins(..),
             Pk(..),
             Selector,
             Table,
@@ -1565,7 +1591,7 @@ module Jade
           end
 
 
-          def patients -> Table(PatientsCols, MaybePatientsCols, Int)
+          def patients -> Table(PatientsCols, MaybePatientsCols, Int, NoJoins)
             table(
               "patients",
               "p",
@@ -1582,6 +1608,7 @@ module Jade
                 column(a, "archived"),
               ) },
               patients_pk,
+              NoJoins,
             )
           end
 
@@ -1837,6 +1864,7 @@ module Jade
             Assignable,
             Assignment,
             Expr,
+            NoJoins(..),
             Pk(..),
             Table,
             assign,
@@ -1894,7 +1922,7 @@ module Jade
           end
 
 
-          def memberships -> Table(MembershipsCols, MaybeMembershipsCols, (Int, Int))
+          def memberships -> Table(MembershipsCols, MaybeMembershipsCols, (Int, Int), NoJoins)
             table(
               "memberships",
               "memberships",
@@ -1909,6 +1937,7 @@ module Jade
                 column(a, "role"),
               ) },
               memberships_pk,
+              NoJoins,
             )
           end
 
@@ -1941,6 +1970,7 @@ module Jade
             Assignable,
             Assignment,
             Expr,
+            NoJoins(..),
             NoKey,
             Table,
             assign,
@@ -1970,13 +2000,14 @@ module Jade
           end
 
 
-          def events -> Table(EventsCols, MaybeEventsCols, NoKey)
+          def events -> Table(EventsCols, MaybeEventsCols, NoKey, NoJoins)
             table(
               "events",
               "events",
               (a) -> { EventsCols(column(a, "payload")) },
               (a) -> { MaybeEventsCols(column(a, "payload")) },
               unkeyed,
+              NoJoins,
             )
           end
 
@@ -1990,6 +2021,86 @@ module Jade
       it 'refuses a key, since there is no key to name' do
         expect { test_compiler.require('no_pk', source) }
           .to raise_error(/NoKey/)
+      end
+    end
+
+    describe 'joining through a table\'s on record' do
+      let(:source) do
+        <<~JADE.strip
+          module Joined exposing (persons_with_orders)
+
+          import Encode
+          import Sql exposing (
+            Expr,
+            NoJoins(..),
+            Pk(..),
+            Table,
+            column,
+            eq,
+            table,
+          )
+          import Sql.Query exposing (Q, from, join)
+
+
+          struct PersonsCols = { id: Expr(Int) }
+
+
+          struct MaybePersonsCols = { id: Expr(Maybe(Int)) }
+
+
+          struct OrdersCols = { person_id: Expr(Int) }
+
+
+          struct MaybeOrdersCols = { person_id: Expr(Maybe(Int)) }
+
+
+          struct PersonsOn = { orders: PersonsCols -> (OrdersCols -> Expr(Bool)) }
+
+
+          def persons_on_orders(a: PersonsCols) -> (OrdersCols -> Expr(Bool))
+            (b) -> { eq(a.id, b.person_id) }
+          end
+
+
+          def persons -> Table(PersonsCols, MaybePersonsCols, Int, PersonsOn)
+            table(
+              "persons",
+              "p",
+              (a) -> { PersonsCols(column(a, "id")) },
+              (a) -> { MaybePersonsCols(column(a, "id")) },
+              Pk(["id"], (v) -> { [Encode.encode(v)] }),
+              PersonsOn(persons_on_orders),
+            )
+          end
+
+
+          def orders -> Table(OrdersCols, MaybeOrdersCols, Int, NoJoins)
+            table(
+              "orders",
+              "o",
+              (a) -> { OrdersCols(column(a, "person_id")) },
+              (a) -> { MaybeOrdersCols(column(a, "person_id")) },
+              Pk(["person_id"], (v) -> { [Encode.encode(v)] }),
+              NoJoins,
+            )
+          end
+
+
+          def persons_with_orders -> Q(OrdersCols)
+            p <- from(persons)
+            join(orders, p |> persons.on.orders)
+          end
+        JADE
+      end
+
+      before { test_compiler.require('joined', source) }
+
+      # The parent columns pipe in; `join` supplies the child\'s, which it is
+      # the only one holding.
+      it 'builds the same predicate a hand-written lambda would' do
+        Joined::Internal.persons_with_orders.then do |q|
+          expect(q.joins.first.on.sql).to eql 'p.id = o.person_id'
+        end
       end
     end
 

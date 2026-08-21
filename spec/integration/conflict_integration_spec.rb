@@ -30,6 +30,7 @@ module Jade
           Assignable,
           Assignment,
           Expr,
+          NoJoins(..),
           Pk(..),
           SqlError,
           Table,
@@ -66,13 +67,14 @@ module Jade
         end
 
 
-        def accounts -> Table(AccountsCols, MaybeAccountsCols, Int)
+        def accounts -> Table(AccountsCols, MaybeAccountsCols, Int, NoJoins)
           table(
             "accounts",
             "accounts",
             (a) -> { AccountsCols(column(a, "email")) },
             (a) -> { MaybeAccountsCols(column(a, "email")) },
             accounts_pk,
+            NoJoins,
           )
         end
 

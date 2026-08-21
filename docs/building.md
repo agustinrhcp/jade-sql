@@ -81,8 +81,42 @@ table name; override per-call with `aliased` (see joins below).
 column struct, so a key can only be used with the table it came from, and
 carries the key's own type — `Int` here, a tuple for a composite key,
 which a generated helper spreads across its columns in DDL order. A table
-with no `PRIMARY KEY` in `structure.sql` gets no `_pk` and keeps its key
-type free, so nothing can name a key it does not have.
+with no `PRIMARY KEY` in `structure.sql` gets no `_pk` and is keyed by
+`NoKey`, which has no constructor you can reach — so `update` and `delete`
+are unavailable on it, and `update_all`/`delete_all` are how you write to it.
+
+Every foreign key in `structure.sql` becomes a field on the table's `on`
+record, from both ends — one constraint, two ways to read it:
+
+```jade
+p  <- from(patients)
+a  <- join(appointments, p |> patients.on.appointments)
+ph <- left_join(phones, p |> patients.on.phone)
+```
+
+`join` never sees the left side — it builds a query the bind chain composes —
+so the predicate it takes is a function of the joined table's columns alone.
+Each field on the `on` record takes the parent columns and returns exactly
+that, which is why the parent goes in by pipe and the child is left to `join`.
+
+The result is an ordinary predicate function, the same thing a hand-written
+`(ph) -> { ... }` is, so extra conditions compose:
+
+```jade
+ph <- left_join(phones, (ph) -> {
+  ph |> (p |> patients.on.phone) |> and(ph.deleted_at |> is_null)
+})
+```
+
+On a left join that distinction matters: the same condition in `where` would
+drop the parent row instead of nulling the child.
+
+An outgoing key is named after its column minus `_id`, an incoming one after
+the table it comes from, and a second key between the same pair keeps its
+column name to stay distinct. A nullable foreign key column is
+`Expr(Maybe(a))` while the key it points at is `Expr(a)`, so the generated
+predicate lifts whichever side is not nullable. A table with no foreign keys
+carries `NoJoins`.
 
 A column whose name is a Jade keyword (e.g. `type`) gets a trailing
 underscore in the struct field (`type_`) while the SQL column reference

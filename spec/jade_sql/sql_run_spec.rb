@@ -32,6 +32,7 @@ module Jade
         import Decode exposing (Value)
         import Encode
         import Sql exposing (
+          NoJoins(..),
           Pk(..),
           SqlError,
           execute,
@@ -69,13 +70,14 @@ module Jade
         end
 
 
-        def patients -> Table(PatientsCols, MaybePatientsCols, Int)
+        def patients -> Table(PatientsCols, MaybePatientsCols, Int, NoJoins)
           table(
             "patients",
             "patients",
             (a) -> { PatientsCols(column(a, "id"), column(a, "name"), column(a, "balance")) },
             (a) -> { MaybePatientsCols(column(a, "id"), column(a, "name"), column(a, "balance")) },
             patients_pk,
+            NoJoins,
           )
         end
 

@@ -28,6 +28,7 @@ module Jade
           Assignable,
           Assignment,
           Expr,
+          NoJoins(..),
           Pk(..),
           SqlError,
           Table,
@@ -106,13 +107,14 @@ module Jade
         end
 
 
-        def patients -> Table(PatientsCols, MaybePatientsCols, Int)
+        def patients -> Table(PatientsCols, MaybePatientsCols, Int, NoJoins)
           table(
             "patients",
             "patients",
             (a) -> { PatientsCols(column(a, "name"), column(a, "balance")) },
             (a) -> { MaybePatientsCols(column(a, "name"), column(a, "balance")) },
             patients_pk,
+            NoJoins,
           )
         end
 

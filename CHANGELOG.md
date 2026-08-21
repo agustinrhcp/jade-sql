@@ -24,6 +24,11 @@ and one migration is better than three.
   name from the `Expr`, so a scope needs the accessor alone rather than an
   accessor and a matching string.
 
+- `Sql.Query.in_batches` and `Sql.Query.find_each` walk a query a page at a
+  time, running the next page only once the previous page's `Task` has
+  finished, so nothing holds more than one page of rows. Paging is
+  LIMIT/OFFSET, so the query needs an `order` on something unique.
+
 ### Fixed
 
 - The transaction ports went through ActiveRecord's raw `begin_db_transaction`

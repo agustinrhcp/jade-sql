@@ -4,6 +4,8 @@ module Sql.Query exposing (
   field_as,
   from,
   group,
+  find_each,
+  in_batches,
   join,
   left_join,
   limit,
@@ -16,7 +18,7 @@ module Sql.Query exposing (
   filter,
 )
 
-import Sql exposing (Expr, Renderable, Selector(..), Table, TableRef(..))
+import Sql exposing (Expr, Renderable, Selector(..), SqlError, Table, TableRef(..))
 import Decode exposing (Value)
 
 
@@ -336,4 +338,61 @@ def to_sql(q: Q(Selector(a))) -> (String, List(Value))
       ++ offset_clause,
     q.result.params ++ join_ps ++ where_ps ++ group_ps ++ order_ps,
   )
+end
+
+
+# Walks a query one page at a time, handing each page to `step` and running
+# the next only once that page's Task has finished, so nothing holds more
+# than `size` rows at once. Answers how many rows were seen.
+#
+#     patients_by_id |> in_batches(1000, (rows) -> { archive(rows) })
+#
+# Paging is LIMIT/OFFSET, so give the query an `order` on something unique.
+# Without one Postgres is free to return rows in any order per page, and a
+# row can be seen twice or skipped.
+def in_batches(q: Q(s), size: Int, step: List(a) -> Task(b, SqlError)) -> Task(Int, SqlError)
+  page(q, size, 0, 0, step)
+end
+
+
+# `in_batches` for one row at a time. The page is still what is read and held;
+# `step` just runs per row within it, in order.
+#
+#     patients_by_id |> find_each(1000, (p) -> { notify(p) })
+def find_each(q: Q(s), size: Int, step: a -> Task(b, SqlError)) -> Task(Int, SqlError)
+  in_batches(q, size, (rows) -> { rows |> List.map(step) |> Task.sequence })
+end
+
+
+def page(
+  q: Q(s),
+  size: Int,
+  from_: Int,
+  seen: Int,
+  step: List(a) -> Task(b, SqlError),
+) -> Task(Int, SqlError)
+  q
+    |> limit(size)
+    |> offset(from_)
+    |> Sql.fetch_many
+    |> Task.and_then((rows) -> { continue_(q, size, from_, seen, rows, step) })
+end
+
+
+def continue_(
+  q: Q(s),
+  size: Int,
+  from_: Int,
+  seen: Int,
+  rows: List(a),
+  step: List(a) -> Task(b, SqlError),
+) -> Task(Int, SqlError)
+  case rows
+  in [] then Task.succeed(seen)
+  in [_ | _] then
+    step(rows)
+      |> Task.and_then((_) -> {
+        page(q, size, from_ + size, seen + List.length(rows), step)
+      })
+  end
 end

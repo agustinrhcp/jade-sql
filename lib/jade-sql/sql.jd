@@ -2,6 +2,7 @@ module Sql exposing (
   Assignable,
   Assignment(..),
   Expr(..),
+  NoKey,
   Pk(..),
   Renderable,
   Selector(..),
@@ -46,7 +47,7 @@ module Sql exposing (
   now,
   or,
   nullable,
-  pk_of,
+  unkeyed,
   render,
   set_,
   strip_alias,
@@ -74,12 +75,12 @@ struct Selector(a) = {
 }
 
 
-struct Table(c, m) = {
+struct Table(c, m, k) = {
   name: String,
   alias_: String,
   cols: String -> c,
   maybe_cols: String -> m,
-  pk: Pk(c)
+  pk: Pk(c, k)
 }
 
 
@@ -89,15 +90,37 @@ struct TableRef = {
 }
 
 
-# The primary key of the table whose columns are `c`. Phantom in `c` so a
-# key can only be used with the table it came from.
-struct Pk(c) = {
-  columns: List(String)
+# A table's primary key: the columns that make it up, and how to spread a key
+# value across them. `k` is what you pass to `update` and `delete` — `Int` for
+# a serial id, `Uuid` for a uuid one, a tuple like `(Int, Int)` for a composite
+# key, in the order `structure.sql` declares the columns.
+#
+# Phantom in `c`, the table's column struct, so a key belongs to the one table
+# it came from and cannot be passed to another. Both halves are generated from
+# the same DDL, so the columns and the values cannot fall out of step.
+struct Pk(c, k) = {
+  columns: List(String),
+  values: k -> List(Value)
 }
 
 
-def pk_of(t: Table(c, m)) -> Pk(c)
-  t.pk
+# The key type of a table that has none — a join table, an append-only log,
+# anything `structure.sql` declares without a PRIMARY KEY. `NoKey` has no
+# constructor you can reach, so there is no value to pass where a key is
+# expected.
+type NoKey = NoKey
+
+
+# The `Pk` such a table is built with. Reaching for it means giving up
+# `update` and `delete`, which take a key; write to the table with
+# `update_all`/`delete_all`, which take a predicate:
+#
+#   delete_all(events, (c) -> { c.recorded_at |> lt(to_expr(cutoff)) })
+#
+# The generator passes this for you. You need it by hand only when writing a
+# table function yourself.
+def unkeyed -> Pk(c, NoKey)
+  Pk([], (v) -> { [] })
 end
 
 
@@ -352,23 +375,23 @@ def table(
   alias_: String,
   cols: String -> c,
   maybe_cols: String -> m,
-  pk_columns: List(String),
-) -> Table(c, m)
-  Table(name, alias_, cols, maybe_cols, Pk(pk_columns))
+  pk_: Pk(c, k),
+) -> Table(c, m, k)
+  Table(name, alias_, cols, maybe_cols, pk_)
 end
 
 
-def columns(t: Table(c, m), alias_: String) -> c
+def columns(t: Table(c, m, k), alias_: String) -> c
   alias_ |> t.cols
 end
 
 
-def maybe_columns(t: Table(c, m), alias_: String) -> m
+def maybe_columns(t: Table(c, m, k), alias_: String) -> m
   alias_ |> t.maybe_cols
 end
 
 
-def aliased(t: Table(c, m), alias_: String) -> Table(c, m)
+def aliased(t: Table(c, m, k), alias_: String) -> Table(c, m, k)
   Table(t.name, alias_, t.cols, t.maybe_cols, t.pk)
 end
 

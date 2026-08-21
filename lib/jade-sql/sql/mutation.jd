@@ -46,7 +46,7 @@ struct Mutation(ret, c) = {
 }
 
 
-def insert(value: a, t: Table(c, m)) -> Mutation(Int, c)
+def insert(value: a, t: Table(c, m, k)) -> Mutation(Int, c)
   Mutation(
     InsertK,
     TableRef(t.name, t.alias_),
@@ -59,7 +59,7 @@ def insert(value: a, t: Table(c, m)) -> Mutation(Int, c)
 end
 
 
-def insert_all(values: List(a), t: Table(c, m)) -> Mutation(Int, c)
+def insert_all(values: List(a), t: Table(c, m, k)) -> Mutation(Int, c)
   Mutation(
     InsertK,
     TableRef(t.name, t.alias_),
@@ -72,28 +72,26 @@ def insert_all(values: List(a), t: Table(c, m)) -> Mutation(Int, c)
 end
 
 
-def update(value: a, t: Table(c, m)) -> Mutation(Int, c)
-  assigns = to_assigns(value)
-
+def update(value: a, t: Table(c, m, k), key: k) -> Mutation(Int, c)
   Mutation(
     UpdateK,
     TableRef(t.name, t.alias_),
     t.alias_ |> t.cols,
-    [without_key(t.pk, assigns)],
-    [key_predicate(t.pk, assigns)],
+    [without_key(t.pk, to_assigns(value))],
+    [key_predicate(t.pk, key)],
     Selector([], []),
      Nothing,
   )
 end
 
 
-def delete(value: a, t: Table(c, m)) -> Mutation(Int, c)
+def delete(t: Table(c, m, k), key: k) -> Mutation(Int, c)
   Mutation(
     DeleteK,
     TableRef(t.name, t.alias_),
     t.alias_ |> t.cols,
     [],
-    [key_predicate(t.pk, to_assigns(value))],
+    [key_predicate(t.pk, key)],
     Selector([], []),
      Nothing,
   )
@@ -114,7 +112,7 @@ end
 
 
 def update_all(
-  t: Table(c, m),
+  t: Table(c, m, k),
   pred_fn: c -> Expr(Bool),
   build: c -> List(Assignment),
 ) -> Mutation(Int, c)
@@ -133,8 +131,8 @@ def update_all(
 end
 
 
-def update_many(values: List(a), t: Table(c, m)) -> Mutation(Int, c)
-  rows = values |> List.map((v) -> { to_assigns(v) })
+def update_many(rows_: List((k, a)), t: Table(c, m, k)) -> Mutation(Int, c)
+  rows = rows_ |> List.map((r) -> { keyed_assigns(t.pk, r) })
 
   Mutation(
     UpdateK,
@@ -145,6 +143,21 @@ def update_many(values: List(a), t: Table(c, m)) -> Mutation(Int, c)
     Selector([], []),
     Just(source_of(t.name, rows)),
   )
+end
+
+
+# The key travels with each row so the JSON source carries the columns the
+# join matches on, without the caller's struct having to hold them.
+def keyed_assigns(pk_: Pk(c, k), r: (k, a)) -> List(Assignment)
+  (key, value) = r
+
+  key_assigns(pk_, key) ++ without_key(pk_, to_assigns(value))
+end
+
+
+def key_assigns(pk_: Pk(c, k), key: k) -> List(Assignment)
+  List.zip(pk_.columns, key |> pk_.values)
+    |> List.map((p) -> { Assignment(Tuple.first(p), "?", [Tuple.second(p)]) })
 end
 
 
@@ -175,7 +188,7 @@ def first_param(a: Assignment) -> Value
 end
 
 
-def source_assigns(pk_: Pk(c), rows: List(List(Assignment))) -> List(Assignment)
+def source_assigns(pk_: Pk(c, k), rows: List(List(Assignment))) -> List(Assignment)
   rows
     |> touched_cols
     |> List.filter((col) -> { List.member?(pk_.columns, col) |> Basics.not })
@@ -201,7 +214,7 @@ def pk_join(pk_columns: List(String)) -> Expr(Bool)
 end
 
 
-def delete_all(t: Table(c, m), pred_fn: c -> Expr(Bool)) -> Mutation(Int, c)
+def delete_all(t: Table(c, m, k), pred_fn: c -> Expr(Bool)) -> Mutation(Int, c)
   cols_ = t.alias_ |> t.cols
   pred = cols_ |> pred_fn
 
@@ -264,30 +277,21 @@ def with_rows(m: Mutation(ret, c), rows: List(List(Assignment))) -> Mutation(ret
 end
 
 
-def without_key(pk_: Pk(c), assigns: List(Assignment)) -> List(Assignment)
+def without_key(pk_: Pk(c, k), assigns: List(Assignment)) -> List(Assignment)
   assigns |> List.filter((a) -> { List.member?(pk_.columns, a.col) |> Basics.not })
 end
 
 
-# The key columns come from the schema, so the caller never orders them and
-# never pairs one with a value. A column the value has no field for renders
-# a term that cannot match, so the statement reports nothing updated rather
-# than matching on a partial key.
-def key_predicate(pk_: Pk(c), assigns: List(Assignment)) -> Expr(Bool)
-  terms = pk_.columns |> List.map((col) -> { key_term(col, assigns) })
+# The `WHERE` that selects one row by its key: `id = ?`, or
+# `user_id = ? AND group_id = ?` for a composite key. Columns and values both
+# come from the table's `Pk`, in the order `structure.sql` declares them, so a
+# caller supplies a `k` and never a column name or an ordering.
+def key_predicate(pk_: Pk(c, k), key: k) -> Expr(Bool)
+  sql = pk_.columns
+    |> List.map((col) -> { col ++ " = ?" })
+    |> String.join(" AND ")
 
-  Expr(
-    terms |> List.map(.sql) |> String.join(" AND "),
-    terms |> List.and_then(.params),
-  )
-end
-
-
-def key_term(col: String, assigns: List(Assignment)) -> Expr(Bool)
-  assigns
-    |> List.find((a) -> { a.col == col })
-    |> Maybe.map((a) -> { Expr(col ++ " = " ++ a.value_sql, a.params) })
-    |> Maybe.with_default(Expr("FALSE", []))
+  Expr(sql, key |> pk_.values)
 end
 
 

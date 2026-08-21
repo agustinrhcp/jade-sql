@@ -32,6 +32,7 @@ module Jade
         import Decode exposing (Value)
         import Encode
         import Sql exposing (
+          Pk(..),
           SqlError,
           execute,
           execute_raw,
@@ -63,13 +64,18 @@ module Jade
         }
 
 
-        def patients -> Table(PatientsCols, MaybePatientsCols)
+        def patients_pk -> Pk(PatientsCols, Int)
+          Pk(["id"], (v) -> { [Encode.encode(v)] })
+        end
+
+
+        def patients -> Table(PatientsCols, MaybePatientsCols, Int)
           table(
             "patients",
             "patients",
             (a) -> { PatientsCols(column(a, "id"), column(a, "name"), column(a, "balance")) },
             (a) -> { MaybePatientsCols(column(a, "id"), column(a, "name"), column(a, "balance")) },
-            ["id"],
+            patients_pk,
           )
         end
 

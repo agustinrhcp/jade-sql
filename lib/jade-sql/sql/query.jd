@@ -92,14 +92,14 @@ def merge_paging(prev: Maybe(Int), next_: Maybe(Int)) -> Maybe(Int)
 end
 
 
-def from(t: Table(c, m)) -> Q(c)
+def from(t: Table(c, m, k)) -> Q(c)
   cols_ = t.alias_ |> t.cols
 
   Q([TableRef(t.name, t.alias_)], [], [], [], [], Nothing, Nothing, cols_)
 end
 
 
-def join(t: Table(c, m), on_: c -> Expr(Bool)) -> Q(c)
+def join(t: Table(c, m, k), on_: c -> Expr(Bool)) -> Q(c)
   cols_ = t.alias_ |> t.cols
   pred = cols_ |> on_
 
@@ -116,7 +116,7 @@ def join(t: Table(c, m), on_: c -> Expr(Bool)) -> Q(c)
 end
 
 
-def left_join(t: Table(c, m), on_: c -> Expr(Bool)) -> Q(m)
+def left_join(t: Table(c, m, k), on_: c -> Expr(Bool)) -> Q(m)
   cols_strict = t.alias_ |> t.cols
   cols_maybe = t.alias_ |> t.maybe_cols
   pred = cols_strict |> on_

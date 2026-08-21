@@ -51,7 +51,7 @@ describe 'jade:schema rake task' do
 
     expect(File).to exist('app/jade/schema.jd')
     expect(File.read('app/jade/schema.jd'))
-      .to include('def patients -> Table(PatientsCols, MaybePatientsCols)')
+      .to include('def patients -> Table(PatientsCols, MaybePatientsCols, Int)')
   end
 
   it 'honours INPUT and OUTPUT env vars' do

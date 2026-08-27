@@ -58,11 +58,6 @@ module JadeSql
 
     # Column names that collide with Jade keywords get a trailing underscore
     # in the struct field; the SQL column reference keeps the real name.
-    RESERVED = %w[
-      type def module import exposing struct interface implements uses
-      case in if then else end with
-    ].freeze
-
     Table = Data.define(:name, :columns, :pk_columns, :fks)
     Column = Data.define(:name, :jade_type, :nullable)
 
@@ -249,7 +244,7 @@ module JadeSql
     end
 
     def reserved_cols?(t)
-      t.columns.any? { |c| RESERVED.include?(c.name) }
+      t.columns.any? { |c| reserved?(c.name) }
     end
 
     def emit_header(tables, module_name)
@@ -327,8 +322,13 @@ module JadeSql
       "struct #{camel(t.name)}Row = {\n#{fields}\n}"
     end
 
+    # A column whose name is a jade keyword cannot be a field, so it gains a
+    # trailing underscore. `JadeSql::Compiler.column_name` is the inverse, and
+    # both read the lexer rather than a list of their own.
+    def reserved?(name) = Jade::Lexer::KEYWORDS.include?(name)
+
     def field_name(name)
-      RESERVED.include?(name) ? "#{name}_" : name
+      reserved?(name) ? "#{name}_" : name
     end
 
     def emit_table_fn(t)

@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+Requires `jade-lang ~> 0.9.0`.
+
 Held unreleased on purpose: the accessor work and policies are breaking too,
 and one migration is better than three.
 
@@ -85,3 +87,9 @@ nor the new imports.
   Each field takes the parent columns and returns the predicate `join` wants,
   which is a function of the joined table's columns alone. A table that
   declares no foreign keys gets `NoJoins`.
+
+### Changed (compiler)
+
+- The `Sql.Assignable` deriver and the column check move out of jade and into
+  this gem, registered through `Jade::Extensions`. Requires
+  `jade-lang ~> 0.9.0`.

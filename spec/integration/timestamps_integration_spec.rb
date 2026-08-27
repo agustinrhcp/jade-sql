@@ -43,10 +43,16 @@ module Jade
         struct NewPatient = { name: String }
 
 
-        struct PatientsCols = { name: Expr(String) }
+        struct PatientsCols = {
+          id: Expr(Int),
+          name: Expr(String)
+        }
 
 
-        struct MaybePatientsCols = { name: Expr(Maybe(String)) }
+        struct MaybePatientsCols = {
+          id: Expr(Maybe(Int)),
+          name: Expr(Maybe(String))
+        }
 
 
         implements Assignable(NewPatient) with
@@ -78,8 +84,8 @@ module Jade
           table(
             "patients",
             "patients",
-            (a) -> { PatientsCols(column(a, "name")) },
-            (a) -> { MaybePatientsCols(column(a, "name")) },
+            (a) -> { PatientsCols(column(a, "id"), column(a, "name")) },
+            (a) -> { MaybePatientsCols(column(a, "id"), column(a, "name")) },
             patients_pk,
             NoJoins,
           )

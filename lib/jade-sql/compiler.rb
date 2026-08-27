@@ -1,7 +1,8 @@
 require 'jade'
 
 module JadeSql
-  # jade-sql's half of the compiler, registered through `Jade::Extensions`.
+  # jade-sql's half of the compiler: an interface it derives and a check it
+  # runs, both registered through `Jade::Extensions`.
   module Compiler
     Type = Jade::Type
     Symbol = Jade::Symbol
@@ -22,6 +23,9 @@ module JadeSql
   end
 end
 
+require_relative 'compiler/errors'
 require_relative 'compiler/assignable'
+require_relative 'compiler/columns'
 
 Jade::Extensions.register_deriver('jade-sql', JadeSql::Compiler::Assignable)
+Jade::Extensions.register_check('jade-sql', :call, JadeSql::Compiler::Columns)

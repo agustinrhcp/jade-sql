@@ -14,101 +14,103 @@ module Jade
 
     let(:source) do
       <<~JADE
-        module App exposing (add_plain, add_stamped, touch)
+module App exposing (add_plain, add_stamped, touch)
 
-        import Sql exposing (
-          Assignable,
-          Assignment,
-          Expr,
-          NoJoins(..),
-          Pk(..),
-          SqlError,
-          Table,
-          assign,
-          column,
-          execute,
-          table,
-        )
-        import Sql.Mutation exposing (insert, timestamped, update)
-        import Encode
-        import Decode exposing (Value)
-
-
-        struct Patient = {
-          id: Int,
-          name: String
-        }
+import Sql exposing (
+  Assignable,
+  Assignment,
+  Expr,
+  NoJoins,
+  Pk,
+  SqlError,
+  Table,
+  assign,
+  column,
+  execute,
+  no_joins,
+  pk,
+  table,
+)
+import Sql.Mutation exposing (insert, timestamped, update)
+import Encode
+import Decode exposing (Value)
 
 
-        struct NewPatient = { name: String }
+struct Patient = {
+  id: Int,
+  name: String
+}
 
 
-        struct PatientsCols = {
-          id: Expr(Int),
-          name: Expr(String)
-        }
+struct NewPatient = { name: String }
 
 
-        struct MaybePatientsCols = {
-          id: Expr(Maybe(Int)),
-          name: Expr(Maybe(String))
-        }
+struct PatientsCols = {
+  id: Expr(Int),
+  name: Expr(String)
+}
 
 
-        implements Assignable(NewPatient) with
-          to_assigns: new_assigns
-        end
+struct MaybePatientsCols = {
+  id: Expr(Maybe(Int)),
+  name: Expr(Maybe(String))
+}
 
 
-        def new_assigns(p: NewPatient) -> List(Assignment)
-          [assign("name", p.name)]
-        end
+implements Assignable(NewPatient) with
+  to_assigns: new_assigns
+end
 
 
-        implements Assignable(Patient) with
-          to_assigns: patient_assigns
-        end
+def new_assigns(p: NewPatient) -> List(Assignment)
+  [assign("name", p.name)]
+end
 
 
-        def patient_assigns(p: Patient) -> List(Assignment)
-          [assign("id", p.id), assign("name", p.name)]
-        end
+implements Assignable(Patient) with
+  to_assigns: patient_assigns
+end
 
 
-        def patients_pk -> Pk(PatientsCols, Int)
-          Pk(["id"], (v) -> { [Encode.encode(v)] })
-        end
+def patient_assigns(p: Patient) -> List(Assignment)
+  [assign("id", p.id), assign("name", p.name)]
+end
 
 
-        def patients -> Table(PatientsCols, MaybePatientsCols, Int, NoJoins)
-          table(
-            "patients",
-            "patients",
-            (a) -> { PatientsCols(column(a, "id"), column(a, "name")) },
-            (a) -> { MaybePatientsCols(column(a, "id"), column(a, "name")) },
-            patients_pk,
-            NoJoins,
-          )
-        end
+def patients_pk -> Pk(PatientsCols, Int)
+  pk(["id"], (v) -> { [Encode.encode(v)] })
+end
 
 
-        def add_stamped(name: String) -> Task(Int, SqlError)
-          insert(NewPatient(name), patients)
-            |> timestamped
-            |> execute
-        end
+def patients -> Table(PatientsCols, MaybePatientsCols, Int, NoJoins)
+  table(
+    "patients",
+    "patients",
+    (a) -> { PatientsCols(column(a, "id"), column(a, "name")) },
+    (a) -> { MaybePatientsCols(column(a, "id"), column(a, "name")) },
+    patients_pk,
+    no_joins,
+  )
+end
 
 
-        def add_plain(name: String) -> Task(Int, SqlError)
-          insert(NewPatient(name), patients) |> execute
-        end
+def add_stamped(name: String) -> Task(Int, SqlError)
+  insert(NewPatient(name), patients)
+    |> timestamped
+    |> execute
+end
 
 
-        def touch(id: Int, name: String) -> Task(Int, SqlError)
-          update(Patient(id, name), patients, id)
-            |> timestamped
-            |> execute
-        end
+def add_plain(name: String) -> Task(Int, SqlError)
+  insert(NewPatient(name), patients) |> execute
+end
+
+
+def touch(id: Int, name: String) -> Task(Int, SqlError)
+  update(Patient(id, name), patients, id)
+    |> timestamped
+    |> execute
+end
       JADE
     end
 

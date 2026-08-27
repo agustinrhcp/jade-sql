@@ -3,7 +3,7 @@ module Sql exposing (
   Assignment(..),
   Expr(..),
   NoKey,
-  Pk(..),
+  Pk,
   Renderable,
   Selector(..),
   SqlError(..),
@@ -41,11 +41,13 @@ module Sql exposing (
   lt,
   lte,
   maybe_columns,
-  NoJoins(..),
+  NoJoins,
   neg,
   now,
   or,
   nullable,
+  no_joins,
+  pk,
   unkeyed,
   render,
   set_,
@@ -97,7 +99,13 @@ struct Table(c, m, k, o) = {
 # writing the predicate yourself:
 #
 #   from(patients) |> join(events, (e) -> { p.id |> eq(e.patient_id) })
-type NoJoins = NoJoins
+type NoJoins = NoJoinsOnly
+
+
+# The `on` you hand `table` for such a table.
+def no_joins -> NoJoins
+  NoJoinsOnly
+end
 
 
 struct TableRef = {
@@ -135,6 +143,15 @@ type NoKey = NoKey
 #
 # The generator passes this for you. You need it by hand only when writing a
 # table function yourself.
+# The primary key of a table: its key columns in DDL order, and how to spread
+# a key value across them.
+#
+#   pk(["id"], (v) -> { [Encode.encode(v)] })
+def pk(key_cols: List(String), values: k -> List(Value)) -> Pk(c, k)
+  Pk(key_cols, values)
+end
+
+
 def unkeyed -> Pk(c, NoKey)
   Pk([], (v) -> { [] })
 end

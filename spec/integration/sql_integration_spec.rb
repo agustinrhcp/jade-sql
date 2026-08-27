@@ -12,167 +12,169 @@ module Jade
 
     let(:source) do
       <<~JADE
-        module App exposing (
-          find_by_name,
-          insert_patient,
-          list_names,
-          literal_q,
-          load_numbers,
-          load_tags,
-          rate_coefficient,
-          rate_exponent,
-          weight_of,
-        )
+module App exposing (
+  find_by_name,
+  insert_patient,
+  list_names,
+  literal_q,
+  load_numbers,
+  load_tags,
+  rate_coefficient,
+  rate_exponent,
+  weight_of,
+)
 
-        import Sql exposing (
-          Assignable,
-          Assignment,
-          Expr,
-          NoJoins(..),
-          Pk(..),
-          SqlError,
-          Table,
-          assign,
-          column,
-          execute,
-          fetch_many_raw,
-          fetch_one_raw,
-          table,
-        )
-        import Sql.Mutation exposing (insert)
-        import Decimal exposing (Decimal, coefficient, exponent)
-        import Encode
-
-
-        struct Patient = {
-          id: Int,
-          name: String,
-          balance: Int
-        }
+import Sql exposing (
+  Assignable,
+  Assignment,
+  Expr,
+  NoJoins,
+  Pk,
+  SqlError,
+  Table,
+  assign,
+  column,
+  execute,
+  fetch_many_raw,
+  fetch_one_raw,
+  no_joins,
+  pk,
+  table,
+)
+import Sql.Mutation exposing (insert)
+import Decimal exposing (Decimal, coefficient, exponent)
+import Encode
 
 
-        struct Tagged = {
-          name: String,
-          tags: List(String)
-        }
+struct Patient = {
+  id: Int,
+  name: String,
+  balance: Int
+}
 
 
-        struct Numbers = {
-          name: String,
-          rate: Decimal,
-          weight: Float
-        }
+struct Tagged = {
+  name: String,
+  tags: List(String)
+}
 
 
-        struct NewPatient = {
-          name: String,
-          balance: Int
-        }
+struct Numbers = {
+  name: String,
+  rate: Decimal,
+  weight: Float
+}
 
 
-        struct PatientsCols = {
-          name: Expr(String),
-          balance: Expr(Int)
-        }
+struct NewPatient = {
+  name: String,
+  balance: Int
+}
 
 
-        struct MaybePatientsCols = {
-          name: Expr(Maybe(String)),
-          balance: Expr(Maybe(Int))
-        }
+struct PatientsCols = {
+  name: Expr(String),
+  balance: Expr(Int)
+}
 
 
-        implements Assignable(NewPatient) with
-          to_assigns: new_patient_assigns
-        end
+struct MaybePatientsCols = {
+  name: Expr(Maybe(String)),
+  balance: Expr(Maybe(Int))
+}
 
 
-        def new_patient_assigns(p: NewPatient) -> List(Assignment)
-          [assign("name", p.name), assign("balance", p.balance)]
-        end
+implements Assignable(NewPatient) with
+  to_assigns: new_patient_assigns
+end
 
 
-        implements Assignable(Patient) with
-          to_assigns: patient_assigns
-        end
+def new_patient_assigns(p: NewPatient) -> List(Assignment)
+  [assign("name", p.name), assign("balance", p.balance)]
+end
 
 
-        def patient_assigns(p: Patient) -> List(Assignment)
-          [assign("id", p.id), assign("name", p.name), assign("balance", p.balance)]
-        end
+implements Assignable(Patient) with
+  to_assigns: patient_assigns
+end
 
 
-        def patients_pk -> Pk(PatientsCols, Int)
-          Pk(["id"], (v) -> { [Encode.encode(v)] })
-        end
+def patient_assigns(p: Patient) -> List(Assignment)
+  [assign("id", p.id), assign("name", p.name), assign("balance", p.balance)]
+end
 
 
-        def patients -> Table(PatientsCols, MaybePatientsCols, Int, NoJoins)
-          table(
-            "patients",
-            "patients",
-            (a) -> { PatientsCols(column(a, "name"), column(a, "balance")) },
-            (a) -> { MaybePatientsCols(column(a, "name"), column(a, "balance")) },
-            patients_pk,
-            NoJoins,
-          )
-        end
+def patients_pk -> Pk(PatientsCols, Int)
+  pk(["id"], (v) -> { [Encode.encode(v)] })
+end
 
 
-        def find_by_name(n: String) -> Task(Patient, SqlError)
-          fetch_one_raw(
-            ("SELECT id, name, balance FROM patients WHERE name = ?", [Encode.encode(n)]),
-          )
-        end
+def patients -> Table(PatientsCols, MaybePatientsCols, Int, NoJoins)
+  table(
+    "patients",
+    "patients",
+    (a) -> { PatientsCols(column(a, "name"), column(a, "balance")) },
+    (a) -> { MaybePatientsCols(column(a, "name"), column(a, "balance")) },
+    patients_pk,
+    no_joins,
+  )
+end
 
 
-        def list_names -> Task(List(Patient), SqlError)
-          fetch_many_raw(("SELECT id, name, balance FROM patients ORDER BY id", []))
-        end
+def find_by_name(n: String) -> Task(Patient, SqlError)
+  fetch_one_raw(
+    ("SELECT id, name, balance FROM patients WHERE name = ?", [Encode.encode(n)]),
+  )
+end
 
 
-        def load_tags(n: String) -> Task(Tagged, SqlError)
-          fetch_one_raw(
-            ("SELECT name, tags FROM patients WHERE name = ?", [Encode.encode(n)]),
-          )
-        end
+def list_names -> Task(List(Patient), SqlError)
+  fetch_many_raw(("SELECT id, name, balance FROM patients ORDER BY id", []))
+end
 
 
-        def load_numbers(n: String) -> Task(Numbers, SqlError)
-          fetch_one_raw(
-            ("SELECT name, rate, weight FROM patients WHERE name = ?", [Encode.encode(n)]),
-          )
-        end
+def load_tags(n: String) -> Task(Tagged, SqlError)
+  fetch_one_raw(
+    ("SELECT name, tags FROM patients WHERE name = ?", [Encode.encode(n)]),
+  )
+end
 
 
-        def rate_coefficient(n: String) -> Task(Int, SqlError)
-          load_numbers(n) |> Task.map((x) -> { coefficient(x.rate) })
-        end
+def load_numbers(n: String) -> Task(Numbers, SqlError)
+  fetch_one_raw(
+    ("SELECT name, rate, weight FROM patients WHERE name = ?", [Encode.encode(n)]),
+  )
+end
 
 
-        def rate_exponent(n: String) -> Task(Int, SqlError)
-          load_numbers(n) |> Task.map((x) -> { exponent(x.rate) })
-        end
+def rate_coefficient(n: String) -> Task(Int, SqlError)
+  load_numbers(n) |> Task.map((x) -> { coefficient(x.rate) })
+end
 
 
-        def weight_of(n: String) -> Task(Float, SqlError)
-          load_numbers(n) |> Task.map((x) -> { x.weight })
-        end
+def rate_exponent(n: String) -> Task(Int, SqlError)
+  load_numbers(n) |> Task.map((x) -> { exponent(x.rate) })
+end
 
 
-        def insert_patient(n: String, b: Int) -> Task(Int, SqlError)
-          insert(NewPatient(n, b), patients) |> execute
-        end
+def weight_of(n: String) -> Task(Float, SqlError)
+  load_numbers(n) |> Task.map((x) -> { x.weight })
+end
 
 
-        def literal_q(n: String) -> Task(Patient, SqlError)
-          fetch_one_raw(
-            (
-              "SELECT id, name, balance FROM patients WHERE name <> 'n/a?' AND name = ?",
-              [Encode.encode(n)],
-            ),
-          )
-        end
+def insert_patient(n: String, b: Int) -> Task(Int, SqlError)
+  insert(NewPatient(n, b), patients) |> execute
+end
+
+
+def literal_q(n: String) -> Task(Patient, SqlError)
+  fetch_one_raw(
+    (
+      "SELECT id, name, balance FROM patients WHERE name <> 'n/a?' AND name = ?",
+      [Encode.encode(n)],
+    ),
+  )
+end
       JADE
     end
 

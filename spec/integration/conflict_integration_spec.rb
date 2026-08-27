@@ -24,64 +24,66 @@ module Jade
       conn.execute("INSERT INTO accounts (email) VALUES ('dup@x.com')")
 
       test_compiler.require('app', <<~JADE)
-        module App exposing (add)
+module App exposing (add)
 
-        import Sql exposing (
-          Assignable,
-          Assignment,
-          Expr,
-          NoJoins(..),
-          Pk(..),
-          SqlError,
-          Table,
-          assign,
-          column,
-          execute,
-          table,
-        )
-        import Encode
-        import Sql.Mutation exposing (insert)
-
-
-        struct Account = { email: String }
-
-
-        struct AccountsCols = { email: Expr(String) }
+import Sql exposing (
+  Assignable,
+  Assignment,
+  Expr,
+  NoJoins,
+  Pk,
+  SqlError,
+  Table,
+  assign,
+  column,
+  execute,
+  no_joins,
+  pk,
+  table,
+)
+import Encode
+import Sql.Mutation exposing (insert)
 
 
-        struct MaybeAccountsCols = { email: Expr(Maybe(String)) }
+struct Account = { email: String }
 
 
-        implements Assignable(Account) with
-          to_assigns: account_assigns
-        end
+struct AccountsCols = { email: Expr(String) }
 
 
-        def account_assigns(a: Account) -> List(Assignment)
-          [assign("email", a.email)]
-        end
+struct MaybeAccountsCols = { email: Expr(Maybe(String)) }
 
 
-        def accounts_pk -> Pk(AccountsCols, Int)
-          Pk(["id"], (v) -> { [Encode.encode(v)] })
-        end
+implements Assignable(Account) with
+  to_assigns: account_assigns
+end
 
 
-        def accounts -> Table(AccountsCols, MaybeAccountsCols, Int, NoJoins)
-          table(
-            "accounts",
-            "accounts",
-            (a) -> { AccountsCols(column(a, "email")) },
-            (a) -> { MaybeAccountsCols(column(a, "email")) },
-            accounts_pk,
-            NoJoins,
-          )
-        end
+def account_assigns(a: Account) -> List(Assignment)
+  [assign("email", a.email)]
+end
 
 
-        def add(email: String) -> Task(Int, SqlError)
-          insert(Account(email), accounts) |> execute
-        end
+def accounts_pk -> Pk(AccountsCols, Int)
+  pk(["id"], (v) -> { [Encode.encode(v)] })
+end
+
+
+def accounts -> Table(AccountsCols, MaybeAccountsCols, Int, NoJoins)
+  table(
+    "accounts",
+    "accounts",
+    (a) -> { AccountsCols(column(a, "email")) },
+    (a) -> { MaybeAccountsCols(column(a, "email")) },
+    accounts_pk,
+    no_joins,
+  )
+end
+
+
+def add(email: String) -> Task(Int, SqlError)
+  insert(Account(email), accounts) |> execute
+end
       JADE
     end
 

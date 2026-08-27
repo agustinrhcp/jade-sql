@@ -13,7 +13,7 @@ module JadeSql
         module App exposing (go)
 
         import Encode
-        import Sql exposing (Expr, NoJoins(..), Pk(..), Table, column, table)
+        import Sql exposing (Expr, NoJoins, Pk, Table, column, no_joins, pk, table)
         import Sql.Mutation exposing (Mutation, insert, insert_all, update)
 
 
@@ -37,7 +37,7 @@ module JadeSql
 
 
         def patients_pk -> Pk(PatientsCols, Int)
-          Pk(["id"], (v) -> { [Encode.encode(v)] })
+          pk(["id"], (v) -> { [Encode.encode(v)] })
         end
 
 
@@ -48,7 +48,7 @@ module JadeSql
             (a) -> { PatientsCols(column(a, "id"), column(a, "name"), column(a, "balance")) },
             (a) -> { MaybePatientsCols(column(a, "id"), column(a, "name"), column(a, "balance")) },
             patients_pk,
-            NoJoins,
+            no_joins,
           )
         end
 
@@ -94,7 +94,7 @@ module JadeSql
           module App exposing (go)
 
           import Encode
-          import Sql exposing (Expr, NoJoins(..), Pk(..), Table, column, table)
+          import Sql exposing (Expr, NoJoins, Pk, Table, column, no_joins, pk, table)
           import Sql.Mutation exposing (Mutation, insert)
 
 
@@ -113,8 +113,8 @@ module JadeSql
               "entries",
               (a) -> { EntriesCols(column(a, "type")) },
               (a) -> { MaybeEntriesCols(column(a, "type")) },
-              Pk(["id"], (v) -> { [Encode.encode(v)] }),
-              NoJoins,
+              pk(["id"], (v) -> { [Encode.encode(v)] }),
+              no_joins,
             )
           end
 
@@ -136,7 +136,7 @@ module JadeSql
           module App exposing (go)
 
           import Encode
-          import Sql exposing (Expr, NoJoins(..), Pk(..), Table, column, table)
+          import Sql exposing (Expr, NoJoins, Pk, Table, column, no_joins, pk, table)
           import Sql.Mutation exposing (Mutation, insert)
 
 
@@ -155,8 +155,8 @@ module JadeSql
               "patients",
               (a) -> { PatientsCols(column(a, "name")) },
               (a) -> { MaybePatientsCols(column(a, "name")) },
-              Pk(["id"], (v) -> { [Encode.encode(v)] }),
-              NoJoins,
+              pk(["id"], (v) -> { [Encode.encode(v)] }),
+              no_joins,
             )
           end
 
@@ -189,11 +189,13 @@ module JadeSql
             Assignable,
             Assignment,
             Expr,
-            NoJoins(..),
-            Pk(..),
+            NoJoins,
+            Pk,
             Table,
             assign,
             column,
+            no_joins,
+            pk,
             table,
           )
           import Sql.Mutation exposing (Mutation, insert)
@@ -254,8 +256,8 @@ module JadeSql
               "invoices",
               (a) -> { InvoicesCols(column(a, "payer_type"), column(a, "payer_id")) },
               (a) -> { MaybeInvoicesCols(column(a, "payer_type"), column(a, "payer_id")) },
-              Pk(["id"], (v) -> { [Encode.encode(v)] }),
-              NoJoins,
+              pk(["id"], (v) -> { [Encode.encode(v)] }),
+              no_joins,
             )
           end
 

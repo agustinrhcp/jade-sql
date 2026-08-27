@@ -4,6 +4,7 @@ require_relative 'jade-sql/version'
 
 Jade.extension(__FILE__)
 
+require_relative 'jade-sql/compiler'
 require_relative 'jade-sql/uuid_runtime'
 
 # Encoded `Sql.SqlError` values (the `[tag, ...args]` shape produced

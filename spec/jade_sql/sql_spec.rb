@@ -611,11 +611,22 @@ module Jade
     describe 'inner join via bind chain' do
       let(:source) do
         <<~JADE
-          module App exposing (persons_with_orders)
+          module App exposing (filtered_sql, persons_with_orders)
 
-          import Sql exposing (Expr, NoJoins(..), Pk(..), Table, column, eq, table)
+          import Sql exposing (
+            Expr,
+            NoJoins(..),
+            Pk(..),
+            Selector,
+            Table,
+            column,
+            eq,
+            table,
+            to_expr,
+          )
+          import Decode exposing (Value)
           import Encode
-          import Sql.Query exposing (Q, from, join)
+          import Sql.Query exposing (Q, field, filter, from, join, select, to_sql)
 
 
           struct PersonsCols = { id: Expr(Int) }
@@ -674,7 +685,42 @@ module Jade
             p <- from(persons)
             join(orders, (o) -> { p.id |> eq(o.person_id) })
           end
+
+
+          struct Order = { id: Int }
+
+
+          def filtered_sql -> String
+            filtered
+              |> to_sql
+              |> sql_of
+          end
+
+
+          def filtered -> Q(Selector(Order))
+            o <- persons_with_orders |> filter((c) -> { c.id |> eq(to_expr(7)) })
+            select(Order(_)) |> field(o.id)
+          end
+
+
+          def sql_of(p: (String, List(Value))) -> String
+            case p
+            in (sql, _) then sql
+            end
+          end
         JADE
+      end
+
+      # `filter` adds a predicate to the query it was given. Building it out of
+      # a bind would concatenate that query onto itself, and the second copy of
+      # a join is what Postgres rejects.
+      it 'adds a predicate without repeating the query it filters' do
+        test_compiler.require('app', source)
+
+        expect(App.filtered_sql).to eql(
+          'SELECT o.id FROM persons p ' \
+            'INNER JOIN orders o ON p.id = o.person_id WHERE o.id = ?',
+        )
       end
 
       it 'records the inner join with predicate' do
@@ -700,7 +746,7 @@ module Jade
 
           import Sql exposing (Expr, NoJoins(..), Pk(..), Table, aliased, column, eq, table)
           import Encode
-          import Sql.Query exposing (Q, from, join)
+          import Sql.Query exposing (Q, filter, from, join)
 
 
           struct PersonsCols = {
@@ -842,7 +888,7 @@ module Jade
 
           import Sql exposing (Expr, NoJoins(..), Pk(..), Table, column, eq, nullable, table)
           import Encode
-          import Sql.Query exposing (Q, from, join)
+          import Sql.Query exposing (Q, filter, from, join)
 
 
           struct PersonsCols = {
@@ -2039,7 +2085,7 @@ module Jade
             eq,
             table,
           )
-          import Sql.Query exposing (Q, from, join)
+          import Sql.Query exposing (Q, filter, from, join)
 
 
           struct PersonsCols = { id: Expr(Int) }

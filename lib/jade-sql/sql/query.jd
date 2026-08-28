@@ -149,9 +149,7 @@ end
 
 
 def filter(q: Q(a), build: a -> Expr(Bool)) -> Q(a)
-  a <- q
-
-  where(q, build(a))
+  where(q, build(q.result))
 end
 
 

@@ -35,6 +35,15 @@ and one migration is better than three.
 
 ### Breaking
 
+- `Sql.fetch_one` and `Sql.fetch_many` are gone. They were polymorphic over
+  anything `Renderable` with an **unconstrained result type**, so a
+  `Q(Selector(Patient))` could be fetched as a `Task(Order, SqlError)` and it
+  compiled. `Sql.Query.fetch_one` / `fetch_many` and `Sql.Mutation.fetch_one` /
+  `fetch_many` / `execute` replace them, each typed against what its module
+  builds. `Sql.execute` stays — its result is `Int`, so it had nothing to lose.
+  The `*_raw` forms keep the free result type, which is honest: nothing about a
+  hand-written string says what it returns.
+
 - `Sql.SqlMapper` is now `Sql.Assignable`. The type implementing it is not a
   mapper, it is the thing being mapped, and the name now matches the `-able`
   interfaces around it.

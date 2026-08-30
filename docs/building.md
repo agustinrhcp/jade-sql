@@ -503,7 +503,7 @@ Q(Selector(target))` shape, so a single `def patient_projector(p)`
 works for `from(patients) |> patient_projector` (query) and
 `... |> returning(patient_projector)` (RETURNING).
 
-Combined with `Sql.fetch_one`, the inserted row decodes into the
+Combined with `Sql.Mutation.fetch_one`, the inserted row decodes into the
 target struct:
 
 ```jade

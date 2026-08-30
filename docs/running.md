@@ -1,12 +1,17 @@
 # Running queries and mutations
 
-`Sql` exposes `fetch_one` / `fetch_many` for reads and `execute` for
-writes — all polymorphic over anything `Renderable` (Q, Mutation, …) —
-plus `*_raw` siblings that take a `(String, List(Value))` pair for the
-escape hatch:
+`Sql.Query` and `Sql.Mutation` each run what they build: `fetch_one` /
+`fetch_many` for reads, `execute` for writes. They live in the builder
+modules rather than in `Sql` because that is where the row type is known —
+a `Q(Selector(Patient))` fetches a `Patient` and nothing else.
+
+`Sql` keeps the `*_raw` siblings, which take a `(String, List(Value))` pair
+and cannot know what they return:
 
 ```jade
-import Sql exposing (SqlError, execute, execute_raw, fetch_many, fetch_one)
+import Sql exposing (SqlError, execute_raw)
+import Sql.Query exposing (fetch_many, fetch_one)
+import Sql.Mutation exposing (execute)
 
 # Affected count for INSERT/UPDATE/DELETE
 def reschedule(a: Appointment) -> Task(Int, SqlError)
@@ -29,12 +34,21 @@ def count_active -> Task(Int, SqlError)
 end
 ```
 
-`fetch_one` / `fetch_many` / `execute` accept anything that implements
-`Sql.Renderable` (Q, Mutation). Internally they call `render(r) |> *_raw`,
-where `render` is the interface method that resolves to each container's
-`to_sql`. For raw SQL, skip the builder and call `fetch_one_raw` /
-`fetch_many_raw` / `execute_raw` directly with a `(String, List(Value))`
-pair.
+Each runner is typed against what its module builds, so the row type the
+query was written to produce is the one it hands back:
+
+```jade
+Sql.Query.fetch_one    : Q(Selector(a))   -> Task(a, SqlError)
+Sql.Mutation.fetch_one : Mutation(ret, c) -> Task(ret, SqlError)
+```
+
+A mutation only has a row type once `returning` gives it one, which is what
+makes fetching from one meaningful.
+
+For raw SQL, skip the builders: `fetch_one_raw` / `fetch_many_raw` /
+`execute_raw` take a `(String, List(Value))` pair. Their result type is
+unconstrained, which is honest — nothing about a hand-written string says
+what it returns.
 
 Row decoding is automatic — the caller's type (`Patient`, `List(Patient)`)
 threads its `Decodable` instance into the polymorphic port. The runtime

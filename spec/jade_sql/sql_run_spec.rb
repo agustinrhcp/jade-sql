@@ -28,7 +28,7 @@ module Jade
         )
 
         import Sql exposing (Expr, Selector, Table, column, eq, table, to_expr)
-        import Sql.Query exposing (Q, field, from, select, where)
+        import Sql.Query exposing (Q, fetch_many, fetch_one, field, from, select, where)
         import Decode exposing (Value)
         import Encode
         import Sql exposing (
@@ -37,9 +37,7 @@ module Jade
           SqlError,
           execute,
           execute_raw,
-          fetch_many,
           fetch_many_raw,
-          fetch_one,
           fetch_one_raw,
         )
 
@@ -278,5 +276,60 @@ module Jade
       expect(Sql::Errors::NotFound.ancestors).to include(Sql::Errors::Error)
       expect(Sql::Errors::NotUnique.ancestors).to include(Sql::Errors::Error)
     end
+
+    describe 'a query hands back the row type it was built for' do
+      include_context 'with test compiler'
+
+      let(:source) do
+        <<~JADE.strip
+          module Wrong exposing (mismatched)
+
+          import Sql exposing (Expr, NoJoins(..), Pk(..), Selector, SqlError, Table, column, table)
+          import Sql.Query exposing (Q, fetch_one, field, from, select)
+          import Encode
+
+
+          struct PersonsCols = { id: Expr(Int) }
+
+
+          struct MaybePersonsCols = { id: Expr(Maybe(Int)) }
+
+
+          struct Person = { id: Int }
+
+
+          struct Order = { id: Int }
+
+
+          def persons -> Table(PersonsCols, MaybePersonsCols, Int, NoJoins)
+            table(
+              "persons",
+              "p",
+              (a) -> { PersonsCols(column(a, "id")) },
+              (a) -> { MaybePersonsCols(column(a, "id")) },
+              Pk(["id"], (v) -> { [Encode.encode(v)] }),
+              NoJoins,
+            )
+          end
+
+
+          def everyone -> Q(Selector(Person))
+            p <- from(persons)
+            select(Person(_)) |> field(p.id)
+          end
+
+
+          def mismatched -> Task(Order, SqlError)
+            everyone |> fetch_one
+          end
+        JADE
+      end
+
+      it 'refuses to fetch a Person query as an Order' do
+        expect { test_compiler.require('wrong', source) }
+          .to raise_error(/Person/)
+      end
+    end
+
   end
 end

@@ -596,58 +596,37 @@ module Jade
     describe 'from + where via postfix' do
       let(:source) do
         <<~JADE
-          module App exposing (named_paul)
+module App exposing (named_paul)
 
-          import Sql exposing (
-            Expr,
-            NoJoins,
-            Pk,
-            Table,
-            column,
-            columns,
-            eq,
-            no_joins,
-            pk,
-            table,
-            to_expr,
-          )
-          import Encode
-          import Sql.Query exposing (Q, from, where)
-
-
-          struct PersonsCols = {
-            id: Expr(Int),
-            name: Expr(String)
-          }
+import Sql exposing (
+  Expr,
+  NoJoins,
+  Pk,
+  Table,
+  column,
+  columns,
+  eq,
+  no_joins,
+  pk,
+  table,
+  to_expr,
+)
+import Encode
+import Sql.Query exposing (Q, from, where)
 
 
-          struct MaybePersonsCols = {
-            id: Expr(Maybe(Int)),
-            name: Expr(Maybe(String))
-          }
+#{jade_table('persons', { id: 'Int', name: 'String' }, alias_: 'p', pk: 'persons_pk')}
 
 
-          def persons_pk -> Pk(PersonsCols, Int)
-            pk(["id"], (v) -> { [Encode.encode(v)] })
-          end
+def persons_pk -> Pk(PersonsCols, Int)
+  pk(["id"], (v) -> { [Encode.encode(v)] })
+end
 
 
-          def persons -> Table(PersonsCols, MaybePersonsCols, Int, NoJoins)
-            table(
-              "persons",
-              "p",
-              (a) -> { PersonsCols(column(a, "id"), column(a, "name")) },
-              (a) -> { MaybePersonsCols(column(a, "id"), column(a, "name")) },
-              persons_pk,
-              no_joins,
-            )
-          end
-
-
-          def named_paul -> Q(PersonsCols)
-            p_cols = columns(persons, "p")
-            from(persons) |> where(p_cols.name |> eq(to_expr("Paul")))
-          end
+def named_paul -> Q(PersonsCols)
+  p_cols = columns(persons, "p")
+  from(persons) |> where(p_cols.name |> eq(to_expr("Paul")))
+end
         JADE
       end
 
@@ -753,48 +732,27 @@ end
     describe 'aliased — self-join with explicit alias' do
       let(:source) do
         <<~JADE
-          module App exposing (parents_and_kids)
+module App exposing (parents_and_kids)
 
-          import Sql exposing (Expr, NoJoins, Pk, Table, aliased, column, eq, no_joins, pk, table)
-          import Encode
-          import Sql.Query exposing (Q, from, join)
-
-
-          struct PersonsCols = {
-            id: Expr(Int),
-            parent_id: Expr(Int)
-          }
+import Sql exposing (Expr, NoJoins, Pk, Table, aliased, column, eq, no_joins, pk, table)
+import Encode
+import Sql.Query exposing (Q, from, join)
 
 
-          struct MaybePersonsCols = {
-            id: Expr(Maybe(Int)),
-            parent_id: Expr(Maybe(Int))
-          }
+#{jade_table('persons', { id: 'Int', parent_id: 'Int' }, pk: 'persons_pk')}
 
 
-          def persons_pk -> Pk(PersonsCols, Int)
-            pk(["id"], (v) -> { [Encode.encode(v)] })
-          end
+def persons_pk -> Pk(PersonsCols, Int)
+  pk(["id"], (v) -> { [Encode.encode(v)] })
+end
 
 
-          def persons -> Table(PersonsCols, MaybePersonsCols, Int, NoJoins)
-            table(
-              "persons",
-              "persons",
-              (a) -> { PersonsCols(column(a, "id"), column(a, "parent_id")) },
-              (a) -> { MaybePersonsCols(column(a, "id"), column(a, "parent_id")) },
-              persons_pk,
-              no_joins,
-            )
-          end
-
-
-          def parents_and_kids -> Q(PersonsCols)
-            p <- from(persons)
-            persons
-              |> aliased("c")
-              |> join((c) -> { p.id |> eq(c.parent_id) })
-          end
+def parents_and_kids -> Q(PersonsCols)
+  p <- from(persons)
+  persons
+    |> aliased("c")
+    |> join((c) -> { p.id |> eq(c.parent_id) })
+end
         JADE
       end
 
@@ -815,69 +773,33 @@ end
     describe 'left_join via bind chain' do
       let(:source) do
         <<~JADE
-          module App exposing (persons_with_optional_orders)
+module App exposing (persons_with_optional_orders)
 
-          import Sql exposing (Expr, NoJoins, Pk, Table, column, eq, no_joins, pk, table)
-          import Encode
-          import Sql.Query exposing (Q, from, left_join)
-
-
-          struct PersonsCols = { id: Expr(Int) }
+import Sql exposing (Expr, NoJoins, Pk, Table, column, eq, no_joins, pk, table)
+import Encode
+import Sql.Query exposing (Q, from, left_join)
 
 
-          struct MaybePersonsCols = { id: Expr(Maybe(Int)) }
+#{jade_table('persons', { id: 'Int' }, alias_: 'p', pk: 'persons_pk')}
 
 
-          struct OrdersCols = {
-            id: Expr(Int),
-            person_id: Expr(Int)
-          }
+#{jade_table('orders', { id: 'Int', person_id: 'Int' }, alias_: 'o', pk: 'orders_pk')}
 
 
-          struct MaybeOrdersCols = {
-            id: Expr(Maybe(Int)),
-            person_id: Expr(Maybe(Int))
-          }
+def persons_pk -> Pk(PersonsCols, Int)
+  pk(["id"], (v) -> { [Encode.encode(v)] })
+end
 
 
-          def persons_pk -> Pk(PersonsCols, Int)
-            pk(["id"], (v) -> { [Encode.encode(v)] })
-          end
+def orders_pk -> Pk(OrdersCols, Int)
+  pk(["id"], (v) -> { [Encode.encode(v)] })
+end
 
 
-          def persons -> Table(PersonsCols, MaybePersonsCols, Int, NoJoins)
-            table(
-              "persons",
-              "p",
-              (a) -> { PersonsCols(column(a, "id")) },
-              (a) -> { MaybePersonsCols(column(a, "id")) },
-              persons_pk,
-              no_joins,
-            )
-          end
-
-
-          def orders_pk -> Pk(OrdersCols, Int)
-            pk(["id"], (v) -> { [Encode.encode(v)] })
-          end
-
-
-          def orders -> Table(OrdersCols, MaybeOrdersCols, Int, NoJoins)
-            table(
-              "orders",
-              "o",
-              (a) -> { OrdersCols(column(a, "id"), column(a, "person_id")) },
-              (a) -> { MaybeOrdersCols(column(a, "id"), column(a, "person_id")) },
-              orders_pk,
-              no_joins,
-            )
-          end
-
-
-          def persons_with_optional_orders -> Q(MaybeOrdersCols)
-            p <- from(persons)
-            left_join(orders, (o) -> { p.id |> eq(o.person_id) })
-          end
+def persons_with_optional_orders -> Q(MaybeOrdersCols)
+  p <- from(persons)
+  left_join(orders, (o) -> { p.id |> eq(o.person_id) })
+end
         JADE
       end
 
@@ -895,69 +817,33 @@ end
     describe 'inner join on a nullable FK requires nullable() lift' do
       let(:source) do
         <<~JADE
-          module App exposing (persons_with_companies)
+module App exposing (persons_with_companies)
 
-          import Sql exposing (Expr, NoJoins, Pk, Table, column, eq, no_joins, nullable, pk, table)
-          import Encode
-          import Sql.Query exposing (Q, from, join)
-
-
-          struct PersonsCols = {
-            id: Expr(Int),
-            company_id: Expr(Maybe(Int))
-          }
+import Sql exposing (Expr, NoJoins, Pk, Table, column, eq, no_joins, nullable, pk, table)
+import Encode
+import Sql.Query exposing (Q, from, join)
 
 
-          struct MaybePersonsCols = {
-            id: Expr(Maybe(Int)),
-            company_id: Expr(Maybe(Int))
-          }
+#{jade_table('persons', { id: 'Int', company_id: 'Maybe(Int)' }, alias_: 'p', pk: 'persons_pk')}
 
 
-          struct CompaniesCols = { id: Expr(Int) }
+#{jade_table('companies', { id: 'Int' }, alias_: 'c', pk: 'companies_pk')}
 
 
-          struct MaybeCompaniesCols = { id: Expr(Maybe(Int)) }
+def persons_pk -> Pk(PersonsCols, Int)
+  pk(["id"], (v) -> { [Encode.encode(v)] })
+end
 
 
-          def persons_pk -> Pk(PersonsCols, Int)
-            pk(["id"], (v) -> { [Encode.encode(v)] })
-          end
+def companies_pk -> Pk(CompaniesCols, Int)
+  pk(["id"], (v) -> { [Encode.encode(v)] })
+end
 
 
-          def persons -> Table(PersonsCols, MaybePersonsCols, Int, NoJoins)
-            table(
-              "persons",
-              "p",
-              (a) -> { PersonsCols(column(a, "id"), column(a, "company_id")) },
-              (a) -> { MaybePersonsCols(column(a, "id"), column(a, "company_id")) },
-              persons_pk,
-              no_joins,
-            )
-          end
-
-
-          def companies_pk -> Pk(CompaniesCols, Int)
-            pk(["id"], (v) -> { [Encode.encode(v)] })
-          end
-
-
-          def companies -> Table(CompaniesCols, MaybeCompaniesCols, Int, NoJoins)
-            table(
-              "companies",
-              "c",
-              (a) -> { CompaniesCols(column(a, "id")) },
-              (a) -> { MaybeCompaniesCols(column(a, "id")) },
-              companies_pk,
-              no_joins,
-            )
-          end
-
-
-          def persons_with_companies -> Q(CompaniesCols)
-            p <- from(persons)
-            join(companies, (c) -> { p.company_id |> eq(c.id |> nullable) })
-          end
+def persons_with_companies -> Q(CompaniesCols)
+  p <- from(persons)
+  join(companies, (c) -> { p.company_id |> eq(c.id |> nullable) })
+end
         JADE
       end
 
@@ -993,18 +879,7 @@ import Encode
 import Sql.Query exposing (Q, field, from, select, where)
 
 
-struct PersonsCols = {
-  id: Expr(Int),
-  name: Expr(String),
-  age: Expr(Int)
-}
-
-
-struct MaybePersonsCols = {
-  id: Expr(Maybe(Int)),
-  name: Expr(Maybe(String)),
-  age: Expr(Maybe(Int))
-}
+#{jade_table('persons', { id: 'Int', name: 'String', age: 'Int' }, alias_: 'p', pk: 'persons_pk')}
 
 
 struct Person = {
@@ -1016,18 +891,6 @@ struct Person = {
 
 def persons_pk -> Pk(PersonsCols, Int)
   pk(["id"], (v) -> { [Encode.encode(v)] })
-end
-
-
-def persons -> Table(PersonsCols, MaybePersonsCols, Int, NoJoins)
-  table(
-    "persons",
-    "p",
-    (a) -> { PersonsCols(column(a, "id"), column(a, "name"), column(a, "age")) },
-    (a) -> { MaybePersonsCols(column(a, "id"), column(a, "name"), column(a, "age")) },
-    persons_pk,
-    no_joins,
-  )
 end
 
 
@@ -1074,32 +937,20 @@ import Sql.Query exposing (Q, field, from, join, select, to_sql, where)
 import Decode exposing (Value)
 
 
-struct PersonsCols = {
-  id: Expr(Int),
-  name: Expr(String),
-  age: Expr(Maybe(Int))
-}
+#{jade_table(
+  'persons',
+  { id: 'Int', name: 'String', age: 'Maybe(Int)' },
+  alias_: 'p',
+  pk: 'persons_pk',
+)}
 
 
-struct MaybePersonsCols = {
-  id: Expr(Maybe(Int)),
-  name: Expr(Maybe(String)),
-  age: Expr(Maybe(Int))
-}
-
-
-struct OrdersCols = {
-  id: Expr(Int),
-  person_id: Expr(Int),
-  total: Expr(Int)
-}
-
-
-struct MaybeOrdersCols = {
-  id: Expr(Maybe(Int)),
-  person_id: Expr(Maybe(Int)),
-  total: Expr(Maybe(Int))
-}
+#{jade_table(
+  'orders',
+  { id: 'Int', person_id: 'Int', total: 'Int' },
+  alias_: 'o',
+  pk: 'orders_pk',
+)}
 
 
 struct Row = {
@@ -1114,32 +965,8 @@ def persons_pk -> Pk(PersonsCols, Int)
 end
 
 
-def persons -> Table(PersonsCols, MaybePersonsCols, Int, NoJoins)
-  table(
-    "persons",
-    "p",
-    (a) -> { PersonsCols(column(a, "id"), column(a, "name"), column(a, "age")) },
-    (a) -> { MaybePersonsCols(column(a, "id"), column(a, "name"), column(a, "age")) },
-    persons_pk,
-    no_joins,
-  )
-end
-
-
 def orders_pk -> Pk(OrdersCols, Int)
   pk(["id"], (v) -> { [Encode.encode(v)] })
-end
-
-
-def orders -> Table(OrdersCols, MaybeOrdersCols, Int, NoJoins)
-  table(
-    "orders",
-    "o",
-    (a) -> { OrdersCols(column(a, "id"), column(a, "person_id"), column(a, "total")) },
-    (a) -> { MaybeOrdersCols(column(a, "id"), column(a, "person_id"), column(a, "total")) },
-    orders_pk,
-    no_joins,
-  )
 end
 
 
@@ -1179,60 +1006,39 @@ end
     describe 'field_as renders an AS alias in the projection' do
       let(:source) do
         <<~JADE
-          module App exposing (rendered)
+module App exposing (rendered)
 
-          import Sql exposing (Expr, NoJoins, Pk, Selector, Table, column, no_joins, pk, table)
-          import Encode
-          import Sql.Query exposing (Q, field_as, from, select, to_sql)
-          import Decode exposing (Value)
-
-
-          struct EntriesCols = {
-            id: Expr(Int),
-            type_: Expr(String)
-          }
+import Sql exposing (Expr, NoJoins, Pk, Selector, Table, column, no_joins, pk, table)
+import Encode
+import Sql.Query exposing (Q, field_as, from, select, to_sql)
+import Decode exposing (Value)
 
 
-          struct MaybeEntriesCols = {
-            id: Expr(Maybe(Int)),
-            type_: Expr(Maybe(String))
-          }
+#{jade_table('entries', { id: 'Int', type_: 'String' }, alias_: 'e', pk: 'entries_pk')}
 
 
-          struct Row = {
-            id: Int,
-            type_: String
-          }
+struct Row = {
+  id: Int,
+  type_: String
+}
 
 
-          def entries_pk -> Pk(EntriesCols, Int)
-            pk(["id"], (v) -> { [Encode.encode(v)] })
-          end
+def entries_pk -> Pk(EntriesCols, Int)
+  pk(["id"], (v) -> { [Encode.encode(v)] })
+end
 
 
-          def entries -> Table(EntriesCols, MaybeEntriesCols, Int, NoJoins)
-            table(
-              "entries",
-              "e",
-              (a) -> { EntriesCols(column(a, "id"), column(a, "type")) },
-              (a) -> { MaybeEntriesCols(column(a, "id"), column(a, "type")) },
-              entries_pk,
-              no_joins,
-            )
-          end
+def query -> Q(Selector(Row))
+  c <- from(entries)
+  select(Row(_, _))
+    |> field_as(c.id, "id")
+    |> field_as(c.type_, "type_")
+end
 
 
-          def query -> Q(Selector(Row))
-            c <- from(entries)
-            select(Row(_, _))
-              |> field_as(c.id, "id")
-              |> field_as(c.type_, "type_")
-          end
-
-
-          def rendered -> (String, List(Value))
-            query |> to_sql
-          end
+def rendered -> (String, List(Value))
+  query |> to_sql
+end
         JADE
       end
 
@@ -1247,151 +1053,124 @@ end
     describe 'order and group for sorting and grouping' do
       let(:source) do
         <<~JADE
-          module App exposing (
-            grouped,
-            multi_sorted,
-            sorted_asc,
-            sorted_desc,
-            sorted_then_paged,
-          )
+module App exposing (
+  grouped,
+  multi_sorted,
+  sorted_asc,
+  sorted_desc,
+  sorted_then_paged,
+)
 
-          import Sql exposing (Expr, NoJoins, Pk, Selector, Table, column, no_joins, pk, table)
-          import Encode
-          import Sql.Query exposing (
-            Q,
-            field,
-            from,
-            group,
-            limit,
-            offset,
-            order,
-            order_desc,
-            select,
-            to_sql,
-          )
-          import Decode exposing (Value)
-
-
-          struct PersonsCols = {
-            id: Expr(Int),
-            name: Expr(String),
-            age: Expr(Int)
-          }
+import Sql exposing (Expr, NoJoins, Pk, Selector, Table, column, no_joins, pk, table)
+import Encode
+import Sql.Query exposing (
+  Q,
+  field,
+  from,
+  group,
+  limit,
+  offset,
+  order,
+  order_desc,
+  select,
+  to_sql,
+)
+import Decode exposing (Value)
 
 
-          struct MaybePersonsCols = {
-            id: Expr(Maybe(Int)),
-            name: Expr(Maybe(String)),
-            age: Expr(Maybe(Int))
-          }
+#{jade_table('persons', { id: 'Int', name: 'String', age: 'Int' }, alias_: 'p', pk: 'persons_pk')}
 
 
-          struct Person = {
-            id: Int,
-            name: String,
-            age: Int
-          }
+struct Person = {
+  id: Int,
+  name: String,
+  age: Int
+}
 
 
-          def persons_pk -> Pk(PersonsCols, Int)
-            pk(["id"], (v) -> { [Encode.encode(v)] })
-          end
+def persons_pk -> Pk(PersonsCols, Int)
+  pk(["id"], (v) -> { [Encode.encode(v)] })
+end
 
 
-          def persons -> Table(PersonsCols, MaybePersonsCols, Int, NoJoins)
-            table(
-              "persons",
-              "p",
-              (a) -> { PersonsCols(column(a, "id"), column(a, "name"), column(a, "age")) },
-              (a) -> { MaybePersonsCols(
-                column(a, "id"),
-                column(a, "name"),
-                column(a, "age"),
-              ) },
-              persons_pk,
-              no_joins,
-            )
-          end
+def projected -> Q(Selector(Person))
+  p <- from(persons)
+  select(Person(_, _, _))
+    |> field(p.id)
+    |> field(p.name)
+    |> field(p.age)
+end
 
 
-          def projected -> Q(Selector(Person))
-            p <- from(persons)
-            select(Person(_, _, _))
-              |> field(p.id)
-              |> field(p.name)
-              |> field(p.age)
-          end
+def sorted_asc_q -> Q(Selector(Person))
+  p <- from(persons)
+  select(Person(_, _, _))
+    |> field(p.id)
+    |> field(p.name)
+    |> field(p.age)
+    |> order(p.name)
+end
 
 
-          def sorted_asc_q -> Q(Selector(Person))
-            p <- from(persons)
-            select(Person(_, _, _))
-              |> field(p.id)
-              |> field(p.name)
-              |> field(p.age)
-              |> order(p.name)
-          end
+def sorted_desc_q -> Q(Selector(Person))
+  p <- from(persons)
+  select(Person(_, _, _))
+    |> field(p.id)
+    |> field(p.name)
+    |> field(p.age)
+    |> order_desc(p.age)
+end
 
 
-          def sorted_desc_q -> Q(Selector(Person))
-            p <- from(persons)
-            select(Person(_, _, _))
-              |> field(p.id)
-              |> field(p.name)
-              |> field(p.age)
-              |> order_desc(p.age)
-          end
+def multi_sorted_q -> Q(Selector(Person))
+  p <- from(persons)
+  select(Person(_, _, _))
+    |> field(p.id)
+    |> field(p.name)
+    |> field(p.age)
+    |> order_desc(p.age)
+    |> order(p.name)
+end
 
 
-          def multi_sorted_q -> Q(Selector(Person))
-            p <- from(persons)
-            select(Person(_, _, _))
-              |> field(p.id)
-              |> field(p.name)
-              |> field(p.age)
-              |> order_desc(p.age)
-              |> order(p.name)
-          end
+def grouped_q -> Q(Selector(Person))
+  p <- from(persons)
+  select(Person(_, _, _))
+    |> field(p.id)
+    |> field(p.name)
+    |> field(p.age)
+    |> group(p.age)
+    |> group(p.name)
+end
 
 
-          def grouped_q -> Q(Selector(Person))
-            p <- from(persons)
-            select(Person(_, _, _))
-              |> field(p.id)
-              |> field(p.name)
-              |> field(p.age)
-              |> group(p.age)
-              |> group(p.name)
-          end
+def sorted_asc -> (String, List(Value))
+  sorted_asc_q |> to_sql
+end
 
 
-          def sorted_asc -> (String, List(Value))
-            sorted_asc_q |> to_sql
-          end
+def sorted_desc -> (String, List(Value))
+  sorted_desc_q |> to_sql
+end
 
 
-          def sorted_desc -> (String, List(Value))
-            sorted_desc_q |> to_sql
-          end
+def multi_sorted -> (String, List(Value))
+  multi_sorted_q |> to_sql
+end
 
 
-          def multi_sorted -> (String, List(Value))
-            multi_sorted_q |> to_sql
-          end
+def grouped -> (String, List(Value))
+  grouped_q |> to_sql
+end
 
 
-          def grouped -> (String, List(Value))
-            grouped_q |> to_sql
-          end
-
-
-          def sorted_then_paged -> (String, List(Value))
-            projected
-              |> order_desc(column("p", "id"))
-              |> limit(10)
-              |> offset(20)
-              |> to_sql
-          end
+def sorted_then_paged -> (String, List(Value))
+  projected
+    |> order_desc(column("p", "id"))
+    |> limit(10)
+    |> offset(20)
+    |> to_sql
+end
         JADE
       end
 
@@ -1439,82 +1218,61 @@ end
     describe 'limit and offset for pagination' do
       let(:source) do
         <<~JADE
-          module App exposing (no_paging, only_offset, page_one, page_two)
+module App exposing (no_paging, only_offset, page_one, page_two)
 
-          import Sql exposing (Expr, NoJoins, Pk, Selector, Table, column, no_joins, pk, table)
-          import Encode
-          import Sql.Query exposing (Q, field, from, limit, offset, select, to_sql)
-          import Decode exposing (Value)
-
-
-          struct PersonsCols = {
-            id: Expr(Int),
-            name: Expr(String)
-          }
+import Sql exposing (Expr, NoJoins, Pk, Selector, Table, column, no_joins, pk, table)
+import Encode
+import Sql.Query exposing (Q, field, from, limit, offset, select, to_sql)
+import Decode exposing (Value)
 
 
-          struct MaybePersonsCols = {
-            id: Expr(Maybe(Int)),
-            name: Expr(Maybe(String))
-          }
+#{jade_table('persons', { id: 'Int', name: 'String' }, alias_: 'p', pk: 'persons_pk')}
 
 
-          struct Person = {
-            id: Int,
-            name: String
-          }
+struct Person = {
+  id: Int,
+  name: String
+}
 
 
-          def persons_pk -> Pk(PersonsCols, Int)
-            pk(["id"], (v) -> { [Encode.encode(v)] })
-          end
+def persons_pk -> Pk(PersonsCols, Int)
+  pk(["id"], (v) -> { [Encode.encode(v)] })
+end
 
 
-          def persons -> Table(PersonsCols, MaybePersonsCols, Int, NoJoins)
-            table(
-              "persons",
-              "p",
-              (a) -> { PersonsCols(column(a, "id"), column(a, "name")) },
-              (a) -> { MaybePersonsCols(column(a, "id"), column(a, "name")) },
-              persons_pk,
-              no_joins,
-            )
-          end
+def projected -> Q(Selector(Person))
+  p <- from(persons)
+  select(Person(_, _))
+    |> field(p.id)
+    |> field(p.name)
+end
 
 
-          def projected -> Q(Selector(Person))
-            p <- from(persons)
-            select(Person(_, _))
-              |> field(p.id)
-              |> field(p.name)
-          end
+def page_one -> (String, List(Value))
+  projected
+    |> limit(10)
+    |> to_sql
+end
 
 
-          def page_one -> (String, List(Value))
-            projected
-              |> limit(10)
-              |> to_sql
-          end
+def page_two -> (String, List(Value))
+  projected
+    |> limit(10)
+    |> offset(10)
+    |> to_sql
+end
 
 
-          def page_two -> (String, List(Value))
-            projected
-              |> limit(10)
-              |> offset(10)
-              |> to_sql
-          end
+def only_offset -> (String, List(Value))
+  projected
+    |> offset(20)
+    |> to_sql
+end
 
 
-          def only_offset -> (String, List(Value))
-            projected
-              |> offset(20)
-              |> to_sql
-          end
-
-
-          def no_paging -> (String, List(Value))
-            projected |> to_sql
-          end
+def no_paging -> (String, List(Value))
+  projected |> to_sql
+end
         JADE
       end
 
@@ -1546,279 +1304,249 @@ end
     describe 'codec-driven mutations' do
       let(:source) do
         <<~JADE
-          module App exposing (
-            delete_archived,
-            delete_paul,
-            delete_paul_returning,
-            insert_from_assigns,
-            insert_many,
-            insert_paul,
-            insert_paul_returning,
-            rename_paul,
-            update_all_nothing,
-            update_all_nothing_returning,
-            update_all_to_zero,
-            update_many_balances,
-            update_paul,
-            update_paul_returning,
-          )
+module App exposing (
+  delete_archived,
+  delete_paul,
+  delete_paul_returning,
+  insert_from_assigns,
+  insert_many,
+  insert_paul,
+  insert_paul_returning,
+  rename_paul,
+  update_all_nothing,
+  update_all_nothing_returning,
+  update_all_to_zero,
+  update_many_balances,
+  update_paul,
+  update_paul_returning,
+)
 
-          import Sql exposing (
-            Assignable,
-            Assignment(..),
-            Expr,
-            NoJoins,
-            Pk,
-            Selector,
-            Table,
-            assign,
-            column,
-            eq,
-            no_joins,
-            pk,
-            set_,
-            table,
-            to_assigns,
-            to_expr,
-          )
-          import Sql.Query exposing (Q, field, select)
-          import Sql.Mutation exposing (
-            Mutation,
-            delete,
-            delete_all,
-            insert,
-            insert_all,
-            returning,
-            to_sql,
-            update,
-            update_all,
-          )
-          import Decode exposing (Value)
-          import Encode
-
-
-          struct PatientsCols = {
-            id: Expr(Int),
-            name: Expr(String),
-            balance: Expr(Int),
-            archived: Expr(Bool)
-          }
+import Sql exposing (
+  Assignable,
+  Assignment(..),
+  Expr,
+  NoJoins,
+  Pk,
+  Selector,
+  Table,
+  assign,
+  column,
+  eq,
+  no_joins,
+  pk,
+  set_,
+  table,
+  to_assigns,
+  to_expr,
+)
+import Sql.Query exposing (Q, field, select)
+import Sql.Mutation exposing (
+  Mutation,
+  delete,
+  delete_all,
+  insert,
+  insert_all,
+  returning,
+  to_sql,
+  update,
+  update_all,
+)
+import Decode exposing (Value)
+import Encode
 
 
-          struct MaybePatientsCols = {
-            id: Expr(Maybe(Int)),
-            name: Expr(Maybe(String)),
-            balance: Expr(Maybe(Int)),
-            archived: Expr(Maybe(Bool))
-          }
+#{jade_table(
+  'patients',
+  { id: 'Int', name: 'String', balance: 'Int', archived: 'Bool' },
+  alias_: 'p',
+  pk: 'patients_pk',
+)}
 
 
-          struct Patient = {
-            id: Int,
-            name: String,
-            balance: Int
-          }
+struct Patient = {
+  id: Int,
+  name: String,
+  balance: Int
+}
 
 
-          struct NewPatient = {
-            name: String,
-            balance: Int
-          }
+struct NewPatient = {
+  name: String,
+  balance: Int
+}
 
 
-          struct Rename = { name: String }
+struct Rename = { name: String }
 
 
-          implements Assignable(Rename) with
-            to_assigns: encode_rename
-          end
+implements Assignable(Rename) with
+  to_assigns: encode_rename
+end
 
 
-          def encode_rename(r: Rename) -> List(Assignment)
-            [assign("name", r.name)]
-          end
+def encode_rename(r: Rename) -> List(Assignment)
+  [assign("name", r.name)]
+end
 
 
-          implements Assignable(NewPatient) with
-            to_assigns: encode_new_patient
-          end
+implements Assignable(NewPatient) with
+  to_assigns: encode_new_patient
+end
 
 
-          def encode_new_patient(p: NewPatient) -> List(Assignment)
-            [assign("name", p.name), assign("balance", p.balance)]
-          end
+def encode_new_patient(p: NewPatient) -> List(Assignment)
+  [assign("name", p.name), assign("balance", p.balance)]
+end
 
 
-          def patients_pk -> Pk(PatientsCols, Int)
-            pk(["id"], (v) -> { [Encode.encode(v)] })
-          end
+def patients_pk -> Pk(PatientsCols, Int)
+  pk(["id"], (v) -> { [Encode.encode(v)] })
+end
 
 
-          def patients -> Table(PatientsCols, MaybePatientsCols, Int, NoJoins)
-            table(
-              "patients",
-              "p",
-              (a) -> { PatientsCols(
-                column(a, "id"),
-                column(a, "name"),
-                column(a, "balance"),
-                column(a, "archived"),
-              ) },
-              (a) -> { MaybePatientsCols(
-                column(a, "id"),
-                column(a, "name"),
-                column(a, "balance"),
-                column(a, "archived"),
-              ) },
-              patients_pk,
-              no_joins,
-            )
-          end
+implements Assignable(Patient) with
+  to_assigns: encode_patient
+end
 
 
-          implements Assignable(Patient) with
-            to_assigns: encode_patient
-          end
+def encode_patient(p: Patient) -> List(Assignment)
+  [
+    assign("id", p.id),
+    assign("name", p.name),
+    assign("balance", p.balance),
+  ]
+end
 
 
-          def encode_patient(p: Patient) -> List(Assignment)
-            [
-              assign("id", p.id),
-              assign("name", p.name),
-              assign("balance", p.balance),
-            ]
-          end
+def insert_paul -> (String, List(Value))
+  NewPatient("Paul", 100)
+    |> insert(patients)
+    |> to_sql
+end
 
 
-          def insert_paul -> (String, List(Value))
-            NewPatient("Paul", 100)
-              |> insert(patients)
-              |> to_sql
-          end
+def insert_from_assigns -> (String, List(Value))
+  [assign("name", "Paul"), assign("balance", 100)]
+    |> insert(patients)
+    |> to_sql
+end
 
 
-          def insert_from_assigns -> (String, List(Value))
-            [assign("name", "Paul"), assign("balance", 100)]
-              |> insert(patients)
-              |> to_sql
-          end
+def rename_paul -> (String, List(Value))
+  Rename("Saul")
+    |> update(patients, 42)
+    |> to_sql
+end
 
 
-          def rename_paul -> (String, List(Value))
-            Rename("Saul")
-              |> update(patients, 42)
-              |> to_sql
-          end
+def update_paul -> (String, List(Value))
+  Patient(42, "Paul", 100)
+    |> update(patients, 42)
+    |> to_sql
+end
 
 
-          def update_paul -> (String, List(Value))
-            Patient(42, "Paul", 100)
-              |> update(patients, 42)
-              |> to_sql
-          end
+def delete_paul -> (String, List(Value))
+  delete(patients, 42) |> to_sql
+end
 
 
-          def delete_paul -> (String, List(Value))
-            delete(patients, 42) |> to_sql
-          end
+def insert_many -> (String, List(Value))
+  [NewPatient("Paul", 100), NewPatient("Frank", 200)]
+    |> insert_all(patients)
+    |> to_sql
+end
 
 
-          def insert_many -> (String, List(Value))
-            [NewPatient("Paul", 100), NewPatient("Frank", 200)]
-              |> insert_all(patients)
-              |> to_sql
-          end
+def update_all_nothing -> (String, List(Value))
+  patients
+    |> update_all(
+  (p) -> { p.balance |> eq(to_expr(0)) },
+  (p) -> { [] },
+)
+    |> to_sql
+end
 
 
-          def update_all_nothing -> (String, List(Value))
-            patients
-              |> update_all(
-            (p) -> { p.balance |> eq(to_expr(0)) },
-            (p) -> { [] },
-          )
-              |> to_sql
-          end
+def update_all_nothing_returning -> (String, List(Value))
+  patients
+    |> update_all(
+  (p) -> { p.balance |> eq(to_expr(0)) },
+  (p) -> { [] },
+)
+    |> returning(
+  (p) -> { select(Patient(_, _, _))
+    |> field(p.id)
+    |> field(p.name)
+    |> field(p.balance) },
+)
+    |> to_sql
+end
 
 
-          def update_all_nothing_returning -> (String, List(Value))
-            patients
-              |> update_all(
-            (p) -> { p.balance |> eq(to_expr(0)) },
-            (p) -> { [] },
-          )
-              |> returning(
-            (p) -> { select(Patient(_, _, _))
-              |> field(p.id)
-              |> field(p.name)
-              |> field(p.balance) },
-          )
-              |> to_sql
-          end
+def update_all_to_zero -> (String, List(Value))
+  patients
+    |> update_all(
+  (p) -> { p.balance |> eq(to_expr(0)) },
+  (p) -> { [p.archived |> set_(to_expr(True))] },
+)
+    |> to_sql
+end
 
 
-          def update_all_to_zero -> (String, List(Value))
-            patients
-              |> update_all(
-            (p) -> { p.balance |> eq(to_expr(0)) },
-            (p) -> { [p.archived |> set_(to_expr(True))] },
-          )
-              |> to_sql
-          end
+def update_many_balances -> (String, List(Value))
+  [
+    (1, Patient(1, "Ada", 10)),
+    (2, Patient(2, "Grace", 20)),
+  ]
+    |> Sql.Mutation.update_many(patients)
+    |> to_sql
+end
 
 
-          def update_many_balances -> (String, List(Value))
-            [
-              (1, Patient(1, "Ada", 10)),
-              (2, Patient(2, "Grace", 20)),
-            ]
-              |> Sql.Mutation.update_many(patients)
-              |> to_sql
-          end
+def delete_archived -> (String, List(Value))
+  patients
+    |> delete_all((p) -> { p.archived |> eq(to_expr(True)) })
+    |> to_sql
+end
 
 
-          def delete_archived -> (String, List(Value))
-            patients
-              |> delete_all((p) -> { p.archived |> eq(to_expr(True)) })
-              |> to_sql
-          end
+def insert_paul_returning -> (String, List(Value))
+  NewPatient("Paul", 100)
+    |> insert(patients)
+    |> returning(
+  (p) -> { select(Patient(_, _, _))
+    |> field(p.id)
+    |> field(p.name)
+    |> field(p.balance) },
+)
+    |> to_sql
+end
 
 
-          def insert_paul_returning -> (String, List(Value))
-            NewPatient("Paul", 100)
-              |> insert(patients)
-              |> returning(
-            (p) -> { select(Patient(_, _, _))
-              |> field(p.id)
-              |> field(p.name)
-              |> field(p.balance) },
-          )
-              |> to_sql
-          end
+def update_paul_returning -> (String, List(Value))
+  Patient(42, "Paul", 100)
+    |> update(patients, 42)
+    |> returning(
+  (p) -> { select(Patient(_, _, _))
+    |> field(p.id)
+    |> field(p.name)
+    |> field(p.balance) },
+)
+    |> to_sql
+end
 
 
-          def update_paul_returning -> (String, List(Value))
-            Patient(42, "Paul", 100)
-              |> update(patients, 42)
-              |> returning(
-            (p) -> { select(Patient(_, _, _))
-              |> field(p.id)
-              |> field(p.name)
-              |> field(p.balance) },
-          )
-              |> to_sql
-          end
-
-
-          def delete_paul_returning -> (String, List(Value))
-            delete(patients, 42)
-              |> returning(
-            (p) -> { select(Patient(_, _, _))
-              |> field(p.id)
-              |> field(p.name)
-              |> field(p.balance) },
-          )
-              |> to_sql
-          end
+def delete_paul_returning -> (String, List(Value))
+  delete(patients, 42)
+    |> returning(
+  (p) -> { select(Patient(_, _, _))
+    |> field(p.id)
+    |> field(p.name)
+    |> field(p.balance) },
+)
+    |> to_sql
+end
         JADE
       end
 
@@ -1941,18 +1669,12 @@ import Sql.Mutation exposing (to_sql, update)
 import Decode exposing (Value)
 
 
-struct MembershipsCols = {
-  user_id: Expr(Int),
-  group_id: Expr(Int),
-  role: Expr(String)
-}
-
-
-struct MaybeMembershipsCols = {
-  user_id: Expr(Maybe(Int)),
-  group_id: Expr(Maybe(Int)),
-  role: Expr(Maybe(String))
-}
+#{jade_table(
+  'memberships',
+  { user_id: 'Int', group_id: 'Int', role: 'String' },
+  key: '(Int, Int)',
+  pk: 'memberships_pk',
+)}
 
 
 struct Membership = {
@@ -1984,26 +1706,6 @@ end
 def memberships_pk_values(v: (Int, Int)) -> List(Value)
   (a, b) = v
   [Encode.encode(a), Encode.encode(b)]
-end
-
-
-def memberships -> Table(MembershipsCols, MaybeMembershipsCols, (Int, Int), NoJoins)
-  table(
-    "memberships",
-    "memberships",
-    (a) -> { MembershipsCols(
-      column(a, "user_id"),
-      column(a, "group_id"),
-      column(a, "role"),
-    ) },
-    (a) -> { MaybeMembershipsCols(
-      column(a, "user_id"),
-      column(a, "group_id"),
-      column(a, "role"),
-    ) },
-    memberships_pk,
-    no_joins,
-  )
 end
 
 
@@ -2047,10 +1749,7 @@ import Sql exposing (
 import Sql.Mutation exposing (Mutation, update)
 
 
-struct EventsCols = { payload: Expr(String) }
-
-
-struct MaybeEventsCols = { payload: Expr(Maybe(String)) }
+#{jade_table('events', { payload: 'String' }, key: 'NoKey')}
 
 
 struct Patch = { payload: String }
@@ -2063,18 +1762,6 @@ end
 
 def patch_assigns(p: Patch) -> List(Assignment)
   [assign("payload", p.payload)]
-end
-
-
-def events -> Table(EventsCols, MaybeEventsCols, NoKey, NoJoins)
-  table(
-    "events",
-    "events",
-    (a) -> { EventsCols(column(a, "payload")) },
-    (a) -> { MaybeEventsCols(column(a, "payload")) },
-    unkeyed,
-    no_joins,
-  )
 end
 
 
@@ -2110,16 +1797,15 @@ import Sql exposing (
 import Sql.Query exposing (Q, from, join)
 
 
-struct PersonsCols = { id: Expr(Int) }
+#{jade_table('persons', { id: 'Int' }, alias_: 'p', joins: 'PersonsOn(persons_on_orders)')}
 
 
-struct MaybePersonsCols = { id: Expr(Maybe(Int)) }
-
-
-struct OrdersCols = { person_id: Expr(Int) }
-
-
-struct MaybeOrdersCols = { person_id: Expr(Maybe(Int)) }
+#{jade_table(
+  'orders',
+  { person_id: 'Int' },
+  alias_: 'o',
+  pk: "pk([\"person_id\"], (v) -> { [Encode.encode(v)] })",
+)}
 
 
 struct PersonsOn = { orders: PersonsCols -> (OrdersCols -> Expr(Bool)) }
@@ -2127,30 +1813,6 @@ struct PersonsOn = { orders: PersonsCols -> (OrdersCols -> Expr(Bool)) }
 
 def persons_on_orders(a: PersonsCols) -> (OrdersCols -> Expr(Bool))
   (b) -> { eq(a.id, b.person_id) }
-end
-
-
-def persons -> Table(PersonsCols, MaybePersonsCols, Int, PersonsOn)
-  table(
-    "persons",
-    "p",
-    (a) -> { PersonsCols(column(a, "id")) },
-    (a) -> { MaybePersonsCols(column(a, "id")) },
-    pk(["id"], (v) -> { [Encode.encode(v)] }),
-    PersonsOn(persons_on_orders),
-  )
-end
-
-
-def orders -> Table(OrdersCols, MaybeOrdersCols, Int, NoJoins)
-  table(
-    "orders",
-    "o",
-    (a) -> { OrdersCols(column(a, "person_id")) },
-    (a) -> { MaybeOrdersCols(column(a, "person_id")) },
-    pk(["person_id"], (v) -> { [Encode.encode(v)] }),
-    no_joins,
-  )
 end
 
 

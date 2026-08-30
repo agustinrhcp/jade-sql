@@ -57,34 +57,11 @@ struct Patient = {
 }
 
 
-struct PatientsCols = {
-  id: Expr(Int),
-  name: Expr(String),
-  balance: Expr(Int)
-}
-
-
-struct MaybePatientsCols = {
-  id: Expr(Maybe(Int)),
-  name: Expr(Maybe(String)),
-  balance: Expr(Maybe(Int))
-}
+#{jade_table('patients', { id: 'Int', name: 'String', balance: 'Int' }, pk: 'patients_pk')}
 
 
 def patients_pk -> Pk(PatientsCols, Int)
   pk(["id"], (v) -> { [Encode.encode(v)] })
-end
-
-
-def patients -> Table(PatientsCols, MaybePatientsCols, Int, NoJoins)
-  table(
-    "patients",
-    "patients",
-    (a) -> { PatientsCols(column(a, "id"), column(a, "name"), column(a, "balance")) },
-    (a) -> { MaybePatientsCols(column(a, "id"), column(a, "name"), column(a, "balance")) },
-    patients_pk,
-    no_joins,
-  )
 end
 
 
@@ -290,57 +267,42 @@ end
 
       let(:source) do
         <<~JADE.strip
-          module Wrong exposing (mismatched)
+module Wrong exposing (mismatched)
 
-          import Sql exposing (
-            Expr,
-            NoJoins,
-            Pk,
-            Selector,
-            SqlError,
-            Table,
-            column,
-            no_joins,
-            pk,
-            table,
-          )
-          import Sql.Query exposing (Q, fetch_one, field, from, select)
-          import Encode
-
-
-          struct PersonsCols = { id: Expr(Int) }
+import Sql exposing (
+  Expr,
+  NoJoins,
+  Pk,
+  Selector,
+  SqlError,
+  Table,
+  column,
+  no_joins,
+  pk,
+  table,
+)
+import Sql.Query exposing (Q, fetch_one, field, from, select)
+import Encode
 
 
-          struct MaybePersonsCols = { id: Expr(Maybe(Int)) }
+#{jade_table('persons', { id: 'Int' }, alias_: 'p')}
 
 
-          struct Person = { id: Int }
+struct Person = { id: Int }
 
 
-          struct Order = { id: Int }
+struct Order = { id: Int }
 
 
-          def persons -> Table(PersonsCols, MaybePersonsCols, Int, NoJoins)
-            table(
-              "persons",
-              "p",
-              (a) -> { PersonsCols(column(a, "id")) },
-              (a) -> { MaybePersonsCols(column(a, "id")) },
-              pk(["id"], (v) -> { [Encode.encode(v)] }),
-              no_joins,
-            )
-          end
+def everyone -> Q(Selector(Person))
+  p <- from(persons)
+  select(Person(_)) |> field(p.id)
+end
 
 
-          def everyone -> Q(Selector(Person))
-            p <- from(persons)
-            select(Person(_)) |> field(p.id)
-          end
-
-
-          def mismatched -> Task(Order, SqlError)
-            everyone |> fetch_one
-          end
+def mismatched -> Task(Order, SqlError)
+  everyone |> fetch_one
+end
         JADE
       end
 

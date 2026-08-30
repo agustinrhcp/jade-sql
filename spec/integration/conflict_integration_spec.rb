@@ -48,10 +48,7 @@ import Sql.Mutation exposing (insert)
 struct Account = { email: String }
 
 
-struct AccountsCols = { email: Expr(String) }
-
-
-struct MaybeAccountsCols = { email: Expr(Maybe(String)) }
+#{jade_table('accounts', { email: 'String' }, pk: 'accounts_pk')}
 
 
 implements Assignable(Account) with
@@ -66,18 +63,6 @@ end
 
 def accounts_pk -> Pk(AccountsCols, Int)
   pk(["id"], (v) -> { [Encode.encode(v)] })
-end
-
-
-def accounts -> Table(AccountsCols, MaybeAccountsCols, Int, NoJoins)
-  table(
-    "accounts",
-    "accounts",
-    (a) -> { AccountsCols(column(a, "email")) },
-    (a) -> { MaybeAccountsCols(column(a, "email")) },
-    accounts_pk,
-    no_joins,
-  )
 end
 
 

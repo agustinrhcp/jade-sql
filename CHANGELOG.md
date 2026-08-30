@@ -92,3 +92,6 @@ nor the new imports.
 
 - The `Sql.Assignable` deriver moves out of jade and into this gem, registered
   through `Jade::Extensions`. Requires `jade-lang ~> 0.9.0`.
+- A struct written to a table is checked against that table's columns, where
+  the mapping was derived. A field with no column of its name, or one whose
+  type is not the column's, is a compile error rather than invalid SQL.

@@ -180,6 +180,51 @@ module Jade
       end
     end
 
+    describe 'neq, not_, like and ilike' do
+      it 'renders each operator' do
+        test_compiler.require('app', <<~JADE)
+          module App exposing (different, insensitive, matching)
+
+          import Sql exposing (Expr, column, ilike, like, neq, to_expr)
+
+
+          def different -> Expr(Bool)
+            column("p", "name") |> neq(to_expr("Ada"))
+          end
+
+
+          def matching -> Expr(Bool)
+            column("p", "name") |> like(to_expr("Ada%"))
+          end
+
+
+          def insensitive -> Expr(Bool)
+            column("p", "name") |> ilike(to_expr("ada%"))
+          end
+        JADE
+
+        expect(App::Internal.different.sql).to eql 'p.name <> ?'
+        expect(App::Internal.different.params).to eql ['Ada']
+        expect(App::Internal.matching.sql).to eql 'p.name LIKE ?'
+        expect(App::Internal.insensitive.sql).to eql 'p.name ILIKE ?'
+      end
+
+      it 'parenthesises what it negates' do
+        test_compiler.require('app', <<~JADE)
+          module App exposing (predicate)
+
+          import Sql exposing (Expr, and, column, is_null, not_)
+
+
+          def predicate -> Expr(Bool)
+            not_(and(is_null(column("p", "a")), is_null(column("p", "b"))))
+          end
+        JADE
+
+        expect(App::Internal.predicate.sql).to eql 'NOT (p.a IS NULL AND p.b IS NULL)'
+      end
+    end
+
     describe 'and' do
       it 'joins predicates with AND' do
         test_compiler.require('app', <<~JADE)

@@ -9,6 +9,8 @@ and one migration is better than three.
 
 ### Added
 
+- `neq`, `not_`, `like` and `ilike`.
+
 - `Sql.transaction` nests. It becomes a savepoint of whichever transaction is
   already open, jade's or ActiveRecord's, so a recovered inner failure no
   longer discards the outer's work and a jade task inside an

@@ -37,12 +37,16 @@ module Sql exposing (
   is_not_null,
   is_null,
   jsonb_contains,
+  ilike,
   jsonb_path_exists,
+  like,
   lt,
   lte,
   maybe_columns,
   NoJoins,
   neg,
+  neq,
+  not_,
   now,
   or,
   nullable,
@@ -222,6 +226,13 @@ def eq(left: Expr(a), right: Expr(a)) -> Expr(Bool)
 end
 
 
+# `NULL <> x` is NULL, not true, so a nullable column never matches this.
+# Pair it with `is_null` when "different, or absent" is what you mean.
+def neq(left: Expr(a), right: Expr(a)) -> Expr(Bool)
+  Expr(left.sql ++ " <> " ++ right.sql, left.params ++ right.params)
+end
+
+
 def gt(left: Expr(a), right: Expr(a)) -> Expr(Bool)
   Expr(left.sql ++ " > " ++ right.sql, left.params ++ right.params)
 end
@@ -259,6 +270,27 @@ end
 
 def cast(e: Expr(a)) -> Expr(b)
   Expr(e.sql, e.params)
+end
+
+
+def not_(e: Expr(Bool)) -> Expr(Bool)
+  # `NOT a AND b` binds as `(NOT a) AND b`.
+  Expr("NOT (" ++ e.sql ++ ")", e.params)
+end
+
+
+# `LIKE` is case-sensitive, `ILIKE` is not. Neither escapes `%` or `_` in the
+# pattern — a user-supplied string containing either is a wildcard, so escape
+# it yourself before it gets here.
+#
+#   c.name |> like(to_expr("Ada%"))
+def like(e: Expr(String), pattern: Expr(String)) -> Expr(Bool)
+  Expr(e.sql ++ " LIKE " ++ pattern.sql, e.params ++ pattern.params)
+end
+
+
+def ilike(e: Expr(String), pattern: Expr(String)) -> Expr(Bool)
+  Expr(e.sql ++ " ILIKE " ++ pattern.sql, e.params ++ pattern.params)
 end
 
 

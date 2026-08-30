@@ -10,52 +10,29 @@ module JadeSql
 
     def app(struct_fields, call)
       <<~JADE.strip
-        module App exposing (go)
+module App exposing (go)
 
-        import Encode
-        import Sql exposing (Expr, NoJoins, Pk, Table, column, no_joins, pk, table)
-        import Sql.Mutation exposing (Mutation, insert, insert_all, update)
-
-
-        struct PatientsCols = {
-          id: Expr(Int),
-          name: Expr(String),
-          balance: Expr(Maybe(Int))
-        }
+import Encode
+import Sql exposing (Expr, NoJoins, Pk, Table, column, no_joins, pk, table)
+import Sql.Mutation exposing (Mutation, insert, insert_all, update)
 
 
-        struct MaybePatientsCols = {
-          id: Expr(Maybe(Int)),
-          name: Expr(Maybe(String)),
-          balance: Expr(Maybe(Int))
-        }
+#{jade_table('patients', { id: 'Int', name: 'String', balance: 'Maybe(Int)' }, pk: 'patients_pk')}
 
 
-        struct Patient = {
-        #{struct_fields}
-        }
+struct Patient = {
+#{struct_fields}
+}
 
 
-        def patients_pk -> Pk(PatientsCols, Int)
-          pk(["id"], (v) -> { [Encode.encode(v)] })
-        end
+def patients_pk -> Pk(PatientsCols, Int)
+  pk(["id"], (v) -> { [Encode.encode(v)] })
+end
 
 
-        def patients -> Table(PatientsCols, MaybePatientsCols, Int, NoJoins)
-          table(
-            "patients",
-            "patients",
-            (a) -> { PatientsCols(column(a, "id"), column(a, "name"), column(a, "balance")) },
-            (a) -> { MaybePatientsCols(column(a, "id"), column(a, "name"), column(a, "balance")) },
-            patients_pk,
-            no_joins,
-          )
-        end
-
-
-        def go -> Mutation(Int, PatientsCols)
-          #{call}
-        end
+def go -> Mutation(Int, PatientsCols)
+  #{call}
+end
       JADE
     end
 
@@ -91,37 +68,22 @@ module JadeSql
     context 'a column renamed to dodge a jade keyword' do
       let(:reserved_app) do
         <<~JADE.strip
-          module App exposing (go)
+module App exposing (go)
 
-          import Encode
-          import Sql exposing (Expr, NoJoins, Pk, Table, column, no_joins, pk, table)
-          import Sql.Mutation exposing (Mutation, insert)
-
-
-          struct EntriesCols = { type_: Expr(String) }
+import Encode
+import Sql exposing (Expr, NoJoins, Pk, Table, column, no_joins, pk, table)
+import Sql.Mutation exposing (Mutation, insert)
 
 
-          struct MaybeEntriesCols = { type_: Expr(Maybe(String)) }
+#{jade_table('entries', { type_: 'String' })}
 
 
-          struct Entry = { type_: String }
+struct Entry = { type_: String }
 
 
-          def entries -> Table(EntriesCols, MaybeEntriesCols, Int, NoJoins)
-            table(
-              "entries",
-              "entries",
-              (a) -> { EntriesCols(column(a, "type")) },
-              (a) -> { MaybeEntriesCols(column(a, "type")) },
-              pk(["id"], (v) -> { [Encode.encode(v)] }),
-              no_joins,
-            )
-          end
-
-
-          def go -> Mutation(Int, EntriesCols)
-            insert(Entry("debit"), entries)
-          end
+def go -> Mutation(Int, EntriesCols)
+  insert(Entry("debit"), entries)
+end
         JADE
       end
 
@@ -133,42 +95,27 @@ module JadeSql
     context 'a generic helper wrapping insert' do
       let(:wrapped_app) do
         <<~JADE.strip
-          module App exposing (go)
+module App exposing (go)
 
-          import Encode
-          import Sql exposing (Expr, NoJoins, Pk, Table, column, no_joins, pk, table)
-          import Sql.Mutation exposing (Mutation, insert)
-
-
-          struct PatientsCols = { name: Expr(String) }
+import Encode
+import Sql exposing (Expr, NoJoins, Pk, Table, column, no_joins, pk, table)
+import Sql.Mutation exposing (Mutation, insert)
 
 
-          struct MaybePatientsCols = { name: Expr(Maybe(String)) }
+#{jade_table('patients', { name: 'String' })}
 
 
-          struct Patient = { nmae: String }
+struct Patient = { nmae: String }
 
 
-          def patients -> Table(PatientsCols, MaybePatientsCols, Int, NoJoins)
-            table(
-              "patients",
-              "patients",
-              (a) -> { PatientsCols(column(a, "name")) },
-              (a) -> { MaybePatientsCols(column(a, "name")) },
-              pk(["id"], (v) -> { [Encode.encode(v)] }),
-              no_joins,
-            )
-          end
+def save(v: a, t: Table(c, m, k, o)) -> Mutation(Int, c)
+  insert(v, t)
+end
 
 
-          def save(v: a, t: Table(c, m, k, o)) -> Mutation(Int, c)
-            insert(v, t)
-          end
-
-
-          def go -> Mutation(Int, PatientsCols)
-            save(Patient("Ada"), patients)
-          end
+def go -> Mutation(Int, PatientsCols)
+  save(Patient("Ada"), patients)
+end
         JADE
       end
 
@@ -182,89 +129,68 @@ module JadeSql
     context 'a struct whose Assignable is written by hand' do
       let(:polymorphic_app) do
         <<~JADE.strip
-          module App exposing (go)
+module App exposing (go)
 
-          import Encode
-          import Sql exposing (
-            Assignable,
-            Assignment,
-            Expr,
-            NoJoins,
-            Pk,
-            Table,
-            assign,
-            column,
-            no_joins,
-            pk,
-            table,
-          )
-          import Sql.Mutation exposing (Mutation, insert)
-
-
-          struct InvoicesCols = {
-            payer_type: Expr(String),
-            payer_id: Expr(Int)
-          }
+import Encode
+import Sql exposing (
+  Assignable,
+  Assignment,
+  Expr,
+  NoJoins,
+  Pk,
+  Table,
+  assign,
+  column,
+  no_joins,
+  pk,
+  table,
+)
+import Sql.Mutation exposing (Mutation, insert)
 
 
-          struct MaybeInvoicesCols = {
-            payer_type: Expr(Maybe(String)),
-            payer_id: Expr(Maybe(Int))
-          }
+#{jade_table('invoices', { payer_type: 'String', payer_id: 'Int' })}
 
 
-          type Payer
-            = Patient(Int)
-            | Company(Int)
+type Payer
+  = Patient(Int)
+  | Company(Int)
 
 
-          struct NewInvoice = { payer: Payer }
+struct NewInvoice = { payer: Payer }
 
 
-          implements Assignable(NewInvoice) with
-            to_assigns: invoice_assigns
-          end
+implements Assignable(NewInvoice) with
+  to_assigns: invoice_assigns
+end
 
 
-          def invoice_assigns(i: NewInvoice) -> List(Assignment)
-            [
-              assign("payer_type", payer_type(i.payer)),
-              assign("payer_id", payer_id(i.payer)),
-            ]
-          end
+def invoice_assigns(i: NewInvoice) -> List(Assignment)
+  [
+    assign("payer_type", payer_type(i.payer)),
+    assign("payer_id", payer_id(i.payer)),
+  ]
+end
 
 
-          def payer_type(p: Payer) -> String
-            case p
-            in Patient(_) then "Patient"
-            in Company(_) then "Company"
-            end
-          end
+def payer_type(p: Payer) -> String
+  case p
+  in Patient(_) then "Patient"
+  in Company(_) then "Company"
+  end
+end
 
 
-          def payer_id(p: Payer) -> Int
-            case p
-            in Patient(id) then id
-            in Company(id) then id
-            end
-          end
+def payer_id(p: Payer) -> Int
+  case p
+  in Patient(id) then id
+  in Company(id) then id
+  end
+end
 
 
-          def invoices -> Table(InvoicesCols, MaybeInvoicesCols, Int, NoJoins)
-            table(
-              "invoices",
-              "invoices",
-              (a) -> { InvoicesCols(column(a, "payer_type"), column(a, "payer_id")) },
-              (a) -> { MaybeInvoicesCols(column(a, "payer_type"), column(a, "payer_id")) },
-              pk(["id"], (v) -> { [Encode.encode(v)] }),
-              no_joins,
-            )
-          end
-
-
-          def go -> Mutation(Int, InvoicesCols)
-            insert(NewInvoice(Patient(7)), invoices)
-          end
+def go -> Mutation(Int, InvoicesCols)
+  insert(NewInvoice(Patient(7)), invoices)
+end
         JADE
       end
 

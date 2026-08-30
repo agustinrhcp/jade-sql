@@ -4,17 +4,20 @@
 #   jade_table('patients', { id: 'Int', name: 'String', balance: 'Maybe(Int)' })
 #
 # The column map gives each column's type as it appears in a row; the nullable
-# view is derived from it. `key: 'NoKey'` emits an unkeyed table, and `on:`
-# names an `on` record instead of `no_joins`.
+# view is derived from it. `key:` is the key's type, `NoKey` for a table with
+# no primary key. `pk:` and `joins:` take the expressions themselves, for the
+# tables the defaults do not fit — a composite key, an `on` record.
 module JadeTables
-  def jade_table(name, columns, key: 'Int', alias_: nil, on: nil)
+  DEFAULT_PK = 'pk(["id"], (v) -> { [Encode.encode(v)] })'.freeze
+
+  def jade_table(name, columns, key: 'Int', alias_: nil, pk: nil, joins: 'no_joins')
     klass = camel(name)
-    alias_ ||= name
+    pk ||= key == 'NoKey' ? 'unkeyed' : DEFAULT_PK
 
     [
       cols_struct("#{klass}Cols", columns) { |t| "Expr(#{t})" },
       cols_struct("Maybe#{klass}Cols", columns) { |t| "Expr(#{maybe(t)})" },
-      table_fn(name, klass, columns, key, alias_, on),
+      table_fn(name, klass, columns, key, alias_ || name, pk, joins),
     ].join("\n\n\n")
   end
 
@@ -40,22 +43,41 @@ module JadeTables
     end
   end
 
-  def table_fn(name, klass, columns, key, alias_, on)
-    reads = columns.keys.map { "column(a, #{it.to_s.inspect})" }.join(', ')
+  def table_fn(name, klass, columns, key, alias_, pk, joins)
+    reads = columns.keys.map { "column(a, #{column_name(it).inspect})" }
 
     <<~JADE.strip
-      def #{name} -> Table(#{klass}Cols, Maybe#{klass}Cols, #{key}, #{on || 'NoJoins'})
+      def #{name} -> Table(#{klass}Cols, Maybe#{klass}Cols, #{key}, #{joins_type(joins)})
         table(
           #{name.inspect},
           #{alias_.inspect},
-          (a) -> { #{klass}Cols(#{reads}) },
-          (a) -> { Maybe#{klass}Cols(#{reads}) },
-          #{key == 'NoKey' ? 'unkeyed' : "pk([\"id\"], (v) -> { [Encode.encode(v)] })"},
-          #{on ? "#{name}_on" : 'no_joins'},
+          (a) -> { #{constructor("#{klass}Cols", reads)} },
+          (a) -> { #{constructor("Maybe#{klass}Cols", reads)} },
+          #{pk},
+          #{joins},
         )
       end
     JADE
   end
+
+  # The formatter breaks a constructor call once it outgrows the line.
+  def constructor(klass, reads)
+    one_line = "#{klass}(#{reads.join(', ')})"
+
+    if one_line.length <= 60
+      one_line
+    else
+      "#{klass}(\n#{reads.map { "      #{it}," }.join("\n")}\n    )"
+    end
+  end
+
+  # A column whose name is a jade keyword gains a trailing underscore to be a
+  # field, the same escape `generate_schema` applies.
+  def column_name(field)
+    field.to_s.then { Jade::Lexer::KEYWORDS.include?(it.chomp('_')) ? it.chomp('_') : it }
+  end
+
+  def joins_type(joins) = joins == 'no_joins' ? 'NoJoins' : joins[/\A\w+/]
 
   def maybe(type) = type.start_with?('Maybe(') ? type : "Maybe(#{type})"
 

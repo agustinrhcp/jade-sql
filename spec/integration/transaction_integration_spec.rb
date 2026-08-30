@@ -55,16 +55,7 @@ struct NewPatient = {
 }
 
 
-struct PatientsCols = {
-  name: Expr(String),
-  balance: Expr(Int)
-}
-
-
-struct MaybePatientsCols = {
-  name: Expr(Maybe(String)),
-  balance: Expr(Maybe(Int))
-}
+#{jade_table('patients', { name: 'String', balance: 'Int' }, pk: 'patients_pk')}
 
 
 implements Assignable(NewPatient) with
@@ -79,18 +70,6 @@ end
 
 def patients_pk -> Pk(PatientsCols, Int)
   pk(["id"], (v) -> { [Encode.encode(v)] })
-end
-
-
-def patients -> Table(PatientsCols, MaybePatientsCols, Int, NoJoins)
-  table(
-    "patients",
-    "patients",
-    (a) -> { PatientsCols(column(a, "name"), column(a, "balance")) },
-    (a) -> { MaybePatientsCols(column(a, "name"), column(a, "balance")) },
-    patients_pk,
-    no_joins,
-  )
 end
 
 

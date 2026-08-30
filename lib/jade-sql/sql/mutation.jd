@@ -22,7 +22,7 @@ import Sql exposing (
   Renderable,
   Selector(..),
   SqlError,
-  Pk(..),
+  Pk,
   Table,
   TableRef(..),
   set_,

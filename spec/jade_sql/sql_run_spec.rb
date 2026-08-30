@@ -19,102 +19,110 @@ module Jade
 
     let(:source) do
       <<~JADE
-        module App exposing (
-          all_via_run,
-          count_via_execute,
-          find_via_run,
-          list_via_execute,
-          paul_via_run,
-        )
+module App exposing (
+  all_via_run,
+  count_via_execute,
+  find_via_run,
+  list_via_execute,
+  paul_via_run,
+)
 
-        import Sql exposing (Expr, Selector, Table, column, eq, table, to_expr)
-        import Sql.Query exposing (Q, fetch_many, fetch_one, field, from, select, where)
-        import Decode exposing (Value)
-        import Encode
-        import Sql exposing (
-          NoJoins(..),
-          Pk(..),
-          SqlError,
-          execute,
-          execute_raw,
-          fetch_many_raw,
-          fetch_one_raw,
-        )
-
-
-        struct Patient = {
-          id: Int,
-          name: String,
-          balance: Int
-        }
-
-
-        struct PatientsCols = {
-          id: Expr(Int),
-          name: Expr(String),
-          balance: Expr(Int)
-        }
+import Decode exposing (Value)
+import Encode
+import Sql exposing (
+  Expr,
+  NoJoins,
+  Pk,
+  Selector,
+  SqlError,
+  Table,
+  column,
+  eq,
+  execute,
+  execute_raw,
+  fetch_many_raw,
+  fetch_one_raw,
+  no_joins,
+  pk,
+  table,
+  to_expr,
+)
+import Sql.Query exposing (Q, fetch_many, fetch_one, field, from, select, where)
 
 
-        struct MaybePatientsCols = {
-          id: Expr(Maybe(Int)),
-          name: Expr(Maybe(String)),
-          balance: Expr(Maybe(Int))
-        }
+struct Patient = {
+  id: Int,
+  name: String,
+  balance: Int
+}
 
 
-        def patients_pk -> Pk(PatientsCols, Int)
-          Pk(["id"], (v) -> { [Encode.encode(v)] })
-        end
+struct PatientsCols = {
+  id: Expr(Int),
+  name: Expr(String),
+  balance: Expr(Int)
+}
 
 
-        def patients -> Table(PatientsCols, MaybePatientsCols, Int, NoJoins)
-          table(
-            "patients",
-            "patients",
-            (a) -> { PatientsCols(column(a, "id"), column(a, "name"), column(a, "balance")) },
-            (a) -> { MaybePatientsCols(column(a, "id"), column(a, "name"), column(a, "balance")) },
-            patients_pk,
-            NoJoins,
-          )
-        end
+struct MaybePatientsCols = {
+  id: Expr(Maybe(Int)),
+  name: Expr(Maybe(String)),
+  balance: Expr(Maybe(Int))
+}
 
 
-        def count_via_execute -> Task(Int, SqlError)
-          execute_raw(("SELECT COUNT(*) FROM patients", []))
-        end
+def patients_pk -> Pk(PatientsCols, Int)
+  pk(["id"], (v) -> { [Encode.encode(v)] })
+end
 
 
-        def list_via_execute -> Task(List(Patient), SqlError)
-          fetch_many_raw(("SELECT * FROM patients", []))
-        end
+def patients -> Table(PatientsCols, MaybePatientsCols, Int, NoJoins)
+  table(
+    "patients",
+    "patients",
+    (a) -> { PatientsCols(column(a, "id"), column(a, "name"), column(a, "balance")) },
+    (a) -> { MaybePatientsCols(column(a, "id"), column(a, "name"), column(a, "balance")) },
+    patients_pk,
+    no_joins,
+  )
+end
 
 
-        def find_via_run -> Task(Patient, SqlError)
-          fetch_one_raw(
-            ("SELECT * FROM patients WHERE name = ?", [Encode.encode("Paul")]),
-          )
-        end
+def count_via_execute -> Task(Int, SqlError)
+  execute_raw(("SELECT COUNT(*) FROM patients", []))
+end
 
 
-        def all_via_run -> Task(List(Patient), SqlError)
-          fetch_many_raw(("SELECT * FROM patients", []))
-        end
+def list_via_execute -> Task(List(Patient), SqlError)
+  fetch_many_raw(("SELECT * FROM patients", []))
+end
 
 
-        def paul_query -> Q(Selector(Patient))
-          p <- from(patients)
-          select(Patient(_, _, _))
-            |> field(p.id)
-            |> field(p.name)
-            |> field(p.balance)
-            |> where(p.name |> eq(to_expr("Paul")))
-        end
+def find_via_run -> Task(Patient, SqlError)
+  fetch_one_raw(
+    ("SELECT * FROM patients WHERE name = ?", [Encode.encode("Paul")]),
+  )
+end
 
 
-        def paul_via_run -> Task(Patient, SqlError)
-          paul_query |> fetch_one
-        end
+def all_via_run -> Task(List(Patient), SqlError)
+  fetch_many_raw(("SELECT * FROM patients", []))
+end
+
+
+def paul_query -> Q(Selector(Patient))
+  p <- from(patients)
+  select(Patient(_, _, _))
+    |> field(p.id)
+    |> field(p.name)
+    |> field(p.balance)
+    |> where(p.name |> eq(to_expr("Paul")))
+end
+
+
+def paul_via_run -> Task(Patient, SqlError)
+  paul_query |> fetch_one
+end
       JADE
     end
 
@@ -284,7 +292,18 @@ module Jade
         <<~JADE.strip
           module Wrong exposing (mismatched)
 
-          import Sql exposing (Expr, NoJoins(..), Pk(..), Selector, SqlError, Table, column, table)
+          import Sql exposing (
+            Expr,
+            NoJoins,
+            Pk,
+            Selector,
+            SqlError,
+            Table,
+            column,
+            no_joins,
+            pk,
+            table,
+          )
           import Sql.Query exposing (Q, fetch_one, field, from, select)
           import Encode
 
@@ -307,8 +326,8 @@ module Jade
               "p",
               (a) -> { PersonsCols(column(a, "id")) },
               (a) -> { MaybePersonsCols(column(a, "id")) },
-              Pk(["id"], (v) -> { [Encode.encode(v)] }),
-              NoJoins,
+              pk(["id"], (v) -> { [Encode.encode(v)] }),
+              no_joins,
             )
           end
 

@@ -265,14 +265,16 @@ module JadeSql
         "Expr",
         "Table",
         "Selector",
-        *("Pk(..)" if keyed.any?),
-        *("NoJoins(..)" if bare.any?),
+        *("Pk" if keyed.any?),
+        *("NoJoins" if bare.any?),
         *("NoKey" if unkeyed),
       ].sort
       fns = [
         "column",
         "table",
         *(%w[eq nullable] if joined.any?),
+        *("no_joins" if bare.any?),
+        *("pk" if keyed.any?),
         *("unkeyed" if unkeyed),
       ].sort
       sql_import = "import Sql exposing(#{(types + fns).join(', ')})"
@@ -376,7 +378,7 @@ module JadeSql
     end
 
     def emit_on_value(t)
-      return "NoJoins" if t.fks.empty?
+      return "no_joins" if t.fks.empty?
 
       t.fks
         .map { on_fn_name(t, it) }
@@ -416,7 +418,7 @@ module JadeSql
 
       <<~JADE.strip
         def #{t.name}_pk -> Pk(#{camel(t.name)}Cols, #{key_type(t)})
-          Pk([#{cols}], #{t.name}_pk_values)
+          pk([#{cols}], #{t.name}_pk_values)
         end
       JADE
     end

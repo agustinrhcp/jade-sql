@@ -69,7 +69,7 @@ def patients -> Table(PatientsCols, MaybePatientsCols)
 end
 
 def patients_pk -> Pk(PatientsCols, Int)
-  Pk(["id"], patients_pk_values)
+  pk(["id"], patients_pk_values)
 end
 ```
 

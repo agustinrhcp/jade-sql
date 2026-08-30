@@ -12,155 +12,157 @@ module Jade
 
     let(:source) do
       <<~JADE
-        module App exposing (
-          commit_two,
-          inner_only_rollback,
-          nested_commit,
-          nested_rollback,
-          rollback_on_err,
-          single_count,
-        )
+module App exposing (
+  commit_two,
+  inner_only_rollback,
+  nested_commit,
+  nested_rollback,
+  rollback_on_err,
+  single_count,
+)
 
-        import Sql exposing (
-          Assignable,
-          Assignment,
-          Expr,
-          NoJoins(..),
-          Pk(..),
-          SqlError,
-          Table,
-          assign,
-          column,
-          execute,
-          fetch_one_raw,
-          table,
-          transaction,
-        )
-        import Sql.Mutation exposing (insert)
-        import Encode
-
-
-        struct Patient = {
-          id: Int,
-          name: String,
-          balance: Int
-        }
+import Sql exposing (
+  Assignable,
+  Assignment,
+  Expr,
+  NoJoins,
+  Pk,
+  SqlError,
+  Table,
+  assign,
+  column,
+  execute,
+  fetch_one_raw,
+  no_joins,
+  pk,
+  table,
+  transaction,
+)
+import Sql.Mutation exposing (insert)
+import Encode
 
 
-        struct NewPatient = {
-          name: String,
-          balance: Int
-        }
+struct Patient = {
+  id: Int,
+  name: String,
+  balance: Int
+}
 
 
-        struct PatientsCols = {
-          name: Expr(String),
-          balance: Expr(Int)
-        }
+struct NewPatient = {
+  name: String,
+  balance: Int
+}
 
 
-        struct MaybePatientsCols = {
-          name: Expr(Maybe(String)),
-          balance: Expr(Maybe(Int))
-        }
+struct PatientsCols = {
+  name: Expr(String),
+  balance: Expr(Int)
+}
 
 
-        implements Assignable(NewPatient) with
-          to_assigns: new_patient_assigns
-        end
+struct MaybePatientsCols = {
+  name: Expr(Maybe(String)),
+  balance: Expr(Maybe(Int))
+}
 
 
-        def new_patient_assigns(p: NewPatient) -> List(Assignment)
-          [assign("name", p.name), assign("balance", p.balance)]
-        end
+implements Assignable(NewPatient) with
+  to_assigns: new_patient_assigns
+end
 
 
-        def patients_pk -> Pk(PatientsCols, Int)
-          Pk(["id"], (v) -> { [Encode.encode(v)] })
-        end
+def new_patient_assigns(p: NewPatient) -> List(Assignment)
+  [assign("name", p.name), assign("balance", p.balance)]
+end
 
 
-        def patients -> Table(PatientsCols, MaybePatientsCols, Int, NoJoins)
-          table(
-            "patients",
-            "patients",
-            (a) -> { PatientsCols(column(a, "name"), column(a, "balance")) },
-            (a) -> { MaybePatientsCols(column(a, "name"), column(a, "balance")) },
-            patients_pk,
-            NoJoins,
-          )
-        end
+def patients_pk -> Pk(PatientsCols, Int)
+  pk(["id"], (v) -> { [Encode.encode(v)] })
+end
 
 
-        def add(n: String, b: Int) -> Task(Int, SqlError)
-          insert(NewPatient(n, b), patients) |> execute
-        end
+def patients -> Table(PatientsCols, MaybePatientsCols, Int, NoJoins)
+  table(
+    "patients",
+    "patients",
+    (a) -> { PatientsCols(column(a, "name"), column(a, "balance")) },
+    (a) -> { MaybePatientsCols(column(a, "name"), column(a, "balance")) },
+    patients_pk,
+    no_joins,
+  )
+end
 
 
-        def find_missing -> Task(Patient, SqlError)
-          fetch_one_raw(
-            (
-              "SELECT id, name, balance FROM patients WHERE name = ?",
-              [Encode.encode("nope")],
-            ),
-          )
-        end
+def add(n: String, b: Int) -> Task(Int, SqlError)
+  insert(NewPatient(n, b), patients) |> execute
+end
 
 
-        def commit_two -> Task(Int, SqlError)
-          transaction(
-            add("A", 1) |> Task.and_then((_) -> { add("B", 2) }),
-          )
-        end
+def find_missing -> Task(Patient, SqlError)
+  fetch_one_raw(
+    (
+      "SELECT id, name, balance FROM patients WHERE name = ?",
+      [Encode.encode("nope")],
+    ),
+  )
+end
 
 
-        def rollback_on_err -> Task(Patient, SqlError)
-          transaction(
-            add("C", 3) |> Task.and_then((_) -> { find_missing }),
-          )
-        end
+def commit_two -> Task(Int, SqlError)
+  transaction(
+    add("A", 1) |> Task.and_then((_) -> { add("B", 2) }),
+  )
+end
 
 
-        def single_count -> Task(Int, SqlError)
-          transaction(add("solo", 9))
-        end
+def rollback_on_err -> Task(Patient, SqlError)
+  transaction(
+    add("C", 3) |> Task.and_then((_) -> { find_missing }),
+  )
+end
 
 
-        def nested_commit -> Task(Int, SqlError)
-          transaction(
-            add("outer", 1) |> Task.and_then((_) -> { transaction(add("inner", 2)) }),
-          )
-        end
+def single_count -> Task(Int, SqlError)
+  transaction(add("solo", 9))
+end
 
 
-        def nested_rollback -> Task(Patient, SqlError)
-          transaction(
-            add("outer", 1)
-              |> Task.and_then((_) -> { transaction(add("inner", 2)) })
-              |> Task.and_then((_) -> { find_missing }),
-          )
-        end
+def nested_commit -> Task(Int, SqlError)
+  transaction(
+    add("outer", 1) |> Task.and_then((_) -> { transaction(add("inner", 2)) }),
+  )
+end
 
 
-        def add_then_fail -> Task(Patient, SqlError)
-          add("inner", 2) |> Task.and_then((_) -> { find_missing })
-        end
+def nested_rollback -> Task(Patient, SqlError)
+  transaction(
+    add("outer", 1)
+      |> Task.and_then((_) -> { transaction(add("inner", 2)) })
+      |> Task.and_then((_) -> { find_missing }),
+  )
+end
 
 
-        def recover(t: Task(Patient, SqlError)) -> Task(Int, SqlError)
-          t
-            |> Task.map((_) -> { 0 })
-            |> Task.on_error((_) -> { Task.succeed(0) })
-        end
+def add_then_fail -> Task(Patient, SqlError)
+  add("inner", 2) |> Task.and_then((_) -> { find_missing })
+end
 
 
-        def inner_only_rollback -> Task(Int, SqlError)
-          transaction(
-            add("outer", 1)
-              |> Task.and_then((_) -> { recover(transaction(add_then_fail)) })
-              |> Task.and_then((_) -> { add("after", 3) }),
-          )
-        end
+def recover(t: Task(Patient, SqlError)) -> Task(Int, SqlError)
+  t
+    |> Task.map((_) -> { 0 })
+    |> Task.on_error((_) -> { Task.succeed(0) })
+end
+
+
+def inner_only_rollback -> Task(Int, SqlError)
+  transaction(
+    add("outer", 1)
+      |> Task.and_then((_) -> { recover(transaction(add_then_fail)) })
+      |> Task.and_then((_) -> { add("after", 3) }),
+  )
+end
       JADE
     end
 

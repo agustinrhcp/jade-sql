@@ -14,96 +14,98 @@ module Jade
 
     let(:source) do
       <<~JADE
-        module App exposing (add, rewrite)
+module App exposing (add, rewrite)
 
-        import Sql exposing (
-          Assignable,
-          Assignment,
-          Expr,
-          NoJoins(..),
-          Pk(..),
-          SqlError,
-          Table,
-          assign,
-          column,
-          execute,
-          table,
-        )
-        import Sql.Mutation exposing (insert, update_many)
-        import Encode
-        import Decode exposing (Value)
-
-
-        struct Patient = {
-          id: Int,
-          name: String,
-          balance: Int
-        }
+import Sql exposing (
+  Assignable,
+  Assignment,
+  Expr,
+  NoJoins,
+  Pk,
+  SqlError,
+  Table,
+  assign,
+  column,
+  execute,
+  no_joins,
+  pk,
+  table,
+)
+import Sql.Mutation exposing (insert, update_many)
+import Encode
+import Decode exposing (Value)
 
 
-        struct NewPatient = { name: String }
+struct Patient = {
+  id: Int,
+  name: String,
+  balance: Int
+}
 
 
-        struct PatientsCols = {
-          name: Expr(String),
-          balance: Expr(Int)
-        }
+struct NewPatient = { name: String }
 
 
-        struct MaybePatientsCols = {
-          name: Expr(Maybe(String)),
-          balance: Expr(Maybe(Int))
-        }
+struct PatientsCols = {
+  name: Expr(String),
+  balance: Expr(Int)
+}
 
 
-        implements Assignable(NewPatient) with
-          to_assigns: new_assigns
-        end
+struct MaybePatientsCols = {
+  name: Expr(Maybe(String)),
+  balance: Expr(Maybe(Int))
+}
 
 
-        def new_assigns(p: NewPatient) -> List(Assignment)
-          [assign("name", p.name)]
-        end
+implements Assignable(NewPatient) with
+  to_assigns: new_assigns
+end
 
 
-        implements Assignable(Patient) with
-          to_assigns: patient_assigns
-        end
+def new_assigns(p: NewPatient) -> List(Assignment)
+  [assign("name", p.name)]
+end
 
 
-        def patient_assigns(p: Patient) -> List(Assignment)
-          [assign("id", p.id), assign("name", p.name), assign("balance", p.balance)]
-        end
+implements Assignable(Patient) with
+  to_assigns: patient_assigns
+end
 
 
-        def patients_pk -> Pk(PatientsCols, Int)
-          Pk(["id"], (v) -> { [Encode.encode(v)] })
-        end
+def patient_assigns(p: Patient) -> List(Assignment)
+  [assign("id", p.id), assign("name", p.name), assign("balance", p.balance)]
+end
 
 
-        def patients -> Table(PatientsCols, MaybePatientsCols, Int, NoJoins)
-          table(
-            "patients",
-            "patients",
-            (a) -> { PatientsCols(column(a, "name"), column(a, "balance")) },
-            (a) -> { MaybePatientsCols(column(a, "name"), column(a, "balance")) },
-            patients_pk,
-            NoJoins,
-          )
-        end
+def patients_pk -> Pk(PatientsCols, Int)
+  pk(["id"], (v) -> { [Encode.encode(v)] })
+end
 
 
-        def add(name: String) -> Task(Int, SqlError)
-          insert(NewPatient(name), patients) |> execute
-        end
+def patients -> Table(PatientsCols, MaybePatientsCols, Int, NoJoins)
+  table(
+    "patients",
+    "patients",
+    (a) -> { PatientsCols(column(a, "name"), column(a, "balance")) },
+    (a) -> { MaybePatientsCols(column(a, "name"), column(a, "balance")) },
+    patients_pk,
+    no_joins,
+  )
+end
 
 
-        def rewrite(rows: List(Patient)) -> Task(Int, SqlError)
-          rows
-            |> List.map((p) -> { (p.id, p) })
-            |> update_many(patients)
-            |> execute
-        end
+def add(name: String) -> Task(Int, SqlError)
+  insert(NewPatient(name), patients) |> execute
+end
+
+
+def rewrite(rows: List(Patient)) -> Task(Int, SqlError)
+  rows
+    |> List.map((p) -> { (p.id, p) })
+    |> update_many(patients)
+    |> execute
+end
       JADE
     end
 

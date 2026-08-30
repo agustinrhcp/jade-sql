@@ -11,12 +11,14 @@ module Sql.Query exposing (
   order,
   order_desc,
   select,
+  fetch_many,
+  fetch_one,
   to_sql,
   where,
   filter,
 )
 
-import Sql exposing (Expr, Renderable, Selector(..), Table, TableRef(..))
+import Sql exposing (Expr, Renderable, Selector(..), SqlError, Table, TableRef(..))
 import Decode exposing (Value)
 
 
@@ -336,4 +338,19 @@ def to_sql(q: Q(Selector(a))) -> (String, List(Value))
       ++ offset_clause,
     q.result.params ++ join_ps ++ where_ps ++ group_ps ++ order_ps,
   )
+end
+
+
+# Runs the query and decodes the single row it selected. Errors with
+# `NotFound` on none and `NotUnique` on more than one, so "exactly one" is
+# checked rather than assumed.
+def fetch_one(q: Q(Selector(a))) -> Task(a, SqlError)
+  to_sql(q) |> Sql.fetch_one_raw
+end
+
+
+# Runs the query and decodes every row it selected. No rows is an empty list,
+# not an error.
+def fetch_many(q: Q(Selector(a))) -> Task(List(a), SqlError)
+  to_sql(q) |> Sql.fetch_many_raw
 end

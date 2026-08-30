@@ -30,8 +30,8 @@ module Jade
       <<~JADE
         module App exposing (load)
 
-        import Sql exposing (SqlError, fetch_many)
-        import Sql.Query exposing (Q, from)
+        import Sql exposing (SqlError)
+        import Sql.Query exposing (Q, fetch_many, from)
         import Schema exposing (JournalEntriesRow, journal_entries, journal_entries_row)
 
 

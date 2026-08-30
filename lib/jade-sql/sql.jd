@@ -29,9 +29,7 @@ module Sql exposing (
   eq,
   execute,
   execute_raw,
-  fetch_many,
   fetch_many_raw,
-  fetch_one,
   fetch_one_raw,
   gt,
   gte,
@@ -497,14 +495,8 @@ def execute(r: r) -> Task(Int, SqlError)
 end
 
 
-def fetch_one(r: r) -> Task(a, SqlError)
-  render(r) |> fetch_one_raw
-end
 
 
-def fetch_many(r: r) -> Task(List(a), SqlError)
-  render(r) |> fetch_many_raw
-end
 
 
 # Runs `task` inside a single DB transaction on the shared connection:

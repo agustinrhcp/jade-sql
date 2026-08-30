@@ -27,6 +27,7 @@ describe JadeSql::SchemaGenerator do
           PatientsRow(..),
           patients,
           patients_pk,
+          patients_row,
         )
       JADE
     end
@@ -42,7 +43,7 @@ describe JadeSql::SchemaGenerator do
     end
 
     it 'imports Sql' do
-      expect(generated).to include('import Sql exposing (Expr, NoJoins(..), Pk(..), Table, column, table)')
+      expect(generated).to include('import Sql exposing (Expr, NoJoins(..), Pk(..), Selector, Table, column, table)')
       expect(generated).to include('import Encode')
     end
 
@@ -326,7 +327,8 @@ describe JadeSql::SchemaGenerator do
       entries = m[1].split(',').map { |e| e.strip.sub(/,\z/, '') }.reject(&:empty?)
       expect(entries).to eql %w[
         MaybeOrdersCols MaybePersonsCols OrdersCols OrdersRow(..)
-        PersonsCols PersonsRow(..) orders orders_pk persons persons_pk
+        PersonsCols PersonsRow(..) orders orders_pk orders_row
+        persons persons_pk persons_row
       ]
     end
 

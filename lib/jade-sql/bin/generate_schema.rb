@@ -241,7 +241,7 @@ module JadeSql
     def emit_table(t)
       [emit_strict_cols(t), emit_maybe_cols(t), emit_row(t), *emit_on(t), *emit_on_fns(t), emit_table_fn(t)]
         .then { keyed?(t) ? it + [emit_pk_fn(t), emit_pk_values_fn(t)] : it }
-        .then { reserved_cols?(t) ? it + [emit_row_projector(t)] : it }
+        .then { it + [emit_row_projector(t)] }
     end
 
     def keyed?(t)
@@ -253,12 +253,11 @@ module JadeSql
     end
 
     def emit_header(tables, module_name)
-      projectored = tables.select { |t| reserved_cols?(t) }
       keyed = tables.select { |t| keyed?(t) }
 
       names = tables
         .flat_map { |t| ["#{camel(t.name)}Cols", "Maybe#{camel(t.name)}Cols", "#{camel(t.name)}Row(..)", *("#{camel(t.name)}On(..)" if t.fks.any?), t.name] }
-      names += projectored.map { |t| "#{t.name}_row" }
+      names += tables.map { |t| "#{t.name}_row" }
       names += keyed.map { |t| "#{t.name}_pk" }
       names += (@enums || {}).values.map { "#{camel(it.name)}(..)" }
       exposed = names.sort.join(", ")
@@ -270,7 +269,7 @@ module JadeSql
       types = [
         "Expr",
         "Table",
-        *("Selector" if projectored.any?),
+        "Selector",
         *("Pk(..)" if keyed.any?),
         *("NoJoins(..)" if bare.any?),
         *("NoKey" if unkeyed),
@@ -282,7 +281,7 @@ module JadeSql
         *("unkeyed" if unkeyed),
       ].sort
       sql_import = "import Sql exposing(#{(types + fns).join(', ')})"
-      query_import = projectored.any? ? ["import Sql.Query exposing(Q, field_as, select)"] : []
+      query_import = ["import Sql.Query exposing(Q, field_as, select)"]
       encode_import = keyed.any? ? ["import Decode", "import Encode"] : []
       imports = [sql_import, *query_import, *encode_import, *extra_imports_for(tables)]
 

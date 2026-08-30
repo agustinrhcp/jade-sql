@@ -668,11 +668,24 @@ module Jade
     describe 'inner join via bind chain' do
       let(:source) do
         <<~JADE
-module App exposing (persons_with_orders)
+module App exposing (filtered_sql, persons_with_orders)
 
-import Sql exposing (Expr, NoJoins, Pk, Table, column, eq, no_joins, pk, table)
+import Decode exposing (Value)
 import Encode
-import Sql.Query exposing (Q, from, join)
+import Sql exposing (
+  Expr,
+  NoJoins,
+  Pk,
+  Selector,
+  Table,
+  column,
+  eq,
+  no_joins,
+  pk,
+  table,
+  to_expr,
+)
+import Sql.Query exposing (Q, field, filter, from, join, select, to_sql)
 
 
 #{jade_table('persons', { id: 'Int' }, alias_: 'p')}
@@ -685,7 +698,40 @@ def persons_with_orders -> Q(OrdersCols)
   p <- from(persons)
   join(orders, (o) -> { p.id |> eq(o.person_id) })
 end
+
+
+struct Order = { id: Int }
+
+
+def filtered_sql -> String
+  filtered
+    |> to_sql
+    |> sql_of
+end
+
+
+def filtered -> Q(Selector(Order))
+  o <- persons_with_orders |> filter((c) -> { c.id |> eq(to_expr(7)) })
+
+  select(Order(_)) |> field(o.id)
+end
+
+
+def sql_of(p: (String, List(Value))) -> String
+  case p
+  in (sql, _) then sql
+  end
+end
         JADE
+      end
+
+      it 'adds a predicate without repeating the query it filters' do
+        test_compiler.require('app', source)
+
+        expect(App.filtered_sql).to eql(
+          'SELECT o.id FROM persons p ' \
+            'INNER JOIN orders o ON p.id = o.person_id WHERE o.id = ?',
+        )
       end
 
       it 'records the inner join with predicate' do

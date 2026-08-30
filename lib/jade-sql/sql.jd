@@ -139,14 +139,6 @@ struct Pk(c, k) = {
 type NoKey = NoKey
 
 
-# The `Pk` such a table is built with. Reaching for it means giving up
-# `update` and `delete`, which take a key; write to the table with
-# `update_all`/`delete_all`, which take a predicate:
-#
-#   delete_all(events, (c) -> { c.recorded_at |> lt(to_expr(cutoff)) })
-#
-# The generator passes this for you. You need it by hand only when writing a
-# table function yourself.
 # The primary key of a table: its key columns in DDL order, and how to spread
 # a key value across them.
 #
@@ -156,6 +148,14 @@ def pk(key_cols: List(String), values: k -> List(Value)) -> Pk(c, k)
 end
 
 
+# The `Pk` of a table with no primary key. Reaching for it means giving up
+# `update` and `delete`, which take a key; write to the table with
+# `update_all`/`delete_all`, which take a predicate:
+#
+#   delete_all(events, (c) -> { c.recorded_at |> lt(to_expr(cutoff)) })
+#
+# The generator passes this for you. You need it by hand only when writing a
+# table function yourself.
 def unkeyed -> Pk(c, NoKey)
   Pk([], (v) -> { [] })
 end

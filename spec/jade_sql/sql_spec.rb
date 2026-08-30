@@ -623,69 +623,23 @@ module Jade
     describe 'inner join via bind chain' do
       let(:source) do
         <<~JADE
-          module App exposing (persons_with_orders)
+module App exposing (persons_with_orders)
 
-          import Sql exposing (Expr, NoJoins, Pk, Table, column, eq, no_joins, pk, table)
-          import Encode
-          import Sql.Query exposing (Q, from, join)
-
-
-          struct PersonsCols = { id: Expr(Int) }
+import Sql exposing (Expr, NoJoins, Pk, Table, column, eq, no_joins, pk, table)
+import Encode
+import Sql.Query exposing (Q, from, join)
 
 
-          struct MaybePersonsCols = { id: Expr(Maybe(Int)) }
+#{jade_table('persons', { id: 'Int' }, alias_: 'p')}
 
 
-          struct OrdersCols = {
-            id: Expr(Int),
-            person_id: Expr(Int)
-          }
+#{jade_table('orders', { id: 'Int', person_id: 'Int' }, alias_: 'o')}
 
 
-          struct MaybeOrdersCols = {
-            id: Expr(Maybe(Int)),
-            person_id: Expr(Maybe(Int))
-          }
-
-
-          def persons_pk -> Pk(PersonsCols, Int)
-            pk(["id"], (v) -> { [Encode.encode(v)] })
-          end
-
-
-          def persons -> Table(PersonsCols, MaybePersonsCols, Int, NoJoins)
-            table(
-              "persons",
-              "p",
-              (a) -> { PersonsCols(column(a, "id")) },
-              (a) -> { MaybePersonsCols(column(a, "id")) },
-              persons_pk,
-              no_joins,
-            )
-          end
-
-
-          def orders_pk -> Pk(OrdersCols, Int)
-            pk(["id"], (v) -> { [Encode.encode(v)] })
-          end
-
-
-          def orders -> Table(OrdersCols, MaybeOrdersCols, Int, NoJoins)
-            table(
-              "orders",
-              "o",
-              (a) -> { OrdersCols(column(a, "id"), column(a, "person_id")) },
-              (a) -> { MaybeOrdersCols(column(a, "id"), column(a, "person_id")) },
-              orders_pk,
-              no_joins,
-            )
-          end
-
-
-          def persons_with_orders -> Q(OrdersCols)
-            p <- from(persons)
-            join(orders, (o) -> { p.id |> eq(o.person_id) })
-          end
+def persons_with_orders -> Q(OrdersCols)
+  p <- from(persons)
+  join(orders, (o) -> { p.id |> eq(o.person_id) })
+end
         JADE
       end
 

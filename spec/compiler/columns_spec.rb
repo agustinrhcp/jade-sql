@@ -39,6 +39,7 @@ end
     let(:good_fields) { "  name: String,\n  balance: Maybe(Int)" }
     let(:bad_fields) { "  nmae: String,\n  balance: Maybe(Int)" }
     let(:mistyped_fields) { "  name: Int,\n  balance: Maybe(Int)" }
+    let(:no_name_fields) { "  id: Int,\n  balance: Maybe(Int)" }
 
     it 'accepts a struct whose fields are all columns of the table' do
       expect { test_compiler.require('app', app(good_fields, 'insert(Patient("Ada", Just(1)), patients)')) }
@@ -63,6 +64,91 @@ end
     it 'checks update the same way, past the key argument' do
       expect { test_compiler.require('app', app(bad_fields, 'update(Patient("Ada", Just(1)), patients, 1)')) }
         .to raise_error(/nmae has no column/)
+    end
+
+    it 'names the required column the struct leaves for Postgres to reject' do
+      expect { test_compiler.require('app', app(no_name_fields, 'insert(Patient(1, Just(1)), patients)')) }
+        .to raise_error(/Patient does not write `name`, which PatientsCols requires/)
+    end
+
+    it 'leaves update alone, since the row it writes to already has them' do
+      expect { test_compiler.require('app', app(no_name_fields, 'update(Patient(1, Just(1)), patients, 1)')) }
+        .not_to raise_error
+    end
+
+    context 'a table whose timestamps the database will not fill' do
+      def stamps_app(call)
+        <<~JADE.strip
+module App exposing (go)
+
+import Clock exposing (Instant)
+import Encode
+import Sql exposing (Expr, NoJoins, Pk, Table, column, no_joins, pk, table)
+import Sql.Mutation exposing (Mutation, insert, stamped)
+
+
+#{jade_table(
+  'patients',
+  { id: 'Int', name: 'String', created_at: 'Instant', updated_at: 'Instant' },
+  pk: 'patients_pk',
+)}
+
+
+struct Patient = { name: String }
+
+
+def patients_pk -> Pk(PatientsCols, Int)
+  pk(["id"], (v) -> { [Encode.encode(v)] })
+end
+
+
+def go -> Mutation(Int, PatientsCols)
+  #{call}
+end
+        JADE
+      end
+
+      it 'points at stamped rather than asking for two fields nobody writes' do
+        expect { test_compiler.require('app', stamps_app('insert(Patient("Ada"), patients)')) }
+          .to raise_error(/does not write `created_at` and `updated_at`/)
+      end
+
+      it 'takes stamped as writing them' do
+        expect { test_compiler.require('app', stamps_app('insert(Patient("Ada") |> stamped, patients)')) }
+          .not_to raise_error
+      end
+    end
+
+    context 'a table the database can fill on its own' do
+      let(:no_required_app) do
+        <<~JADE.strip
+module App exposing (go)
+
+import Encode
+import Sql exposing (Expr, NoJoins, NoRequiredCols, Pk, Table, column, no_joins, pk, table)
+import Sql.Mutation exposing (Mutation, insert)
+
+
+#{jade_table('events', { id: 'Int', note: 'Maybe(String)' }, pk: 'events_pk')}
+
+
+struct Event = { note: Maybe(String) }
+
+
+def events_pk -> Pk(EventsCols, Int)
+  pk(["id"], (v) -> { [Encode.encode(v)] })
+end
+
+
+def go -> Mutation(Int, EventsCols)
+  insert(Event(Nothing), events)
+end
+        JADE
+      end
+
+      it 'requires nothing, since NoRequiredCols names no columns' do
+        expect { test_compiler.require('app', no_required_app) }.not_to raise_error
+      end
     end
 
     context 'a column renamed to dodge a jade keyword' do

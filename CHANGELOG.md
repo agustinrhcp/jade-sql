@@ -15,6 +15,10 @@ and one migration is better than three.
   identity or sequence behind them. `r` is phantom, so `table(...)` takes no
   new argument.
 
+- Inserting a struct that leaves a required column unwritten is a compile
+  error, naming the columns rather than letting Postgres reject the row at
+  run time. `update` is untouched — the row it writes to already has them.
+
 - `Sql.Mutation.stamped` wraps a value with `created_at`/`updated_at`, so the
   timestamps are written by the same argument the required-columns check
   reads: `insert(NewPatient("Ada") |> stamped, patients)`. `timestamped` still

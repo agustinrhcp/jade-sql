@@ -280,7 +280,15 @@ module JadeSql
     end
 
     def emit_table(t)
-      [emit_strict_cols(t), emit_maybe_cols(t), emit_row(t), *emit_on(t), *emit_on_fns(t), emit_table_fn(t)]
+      [
+        emit_strict_cols(t),
+        emit_maybe_cols(t),
+        *emit_required_cols(t),
+        emit_row(t),
+        *emit_on(t),
+        *emit_on_fns(t),
+        emit_table_fn(t),
+      ]
         .then { keyed?(t) ? it + [emit_pk_fn(t), emit_pk_values_fn(t)] : it }
         .then { it + [emit_row_projector(t)] }
     end
@@ -297,7 +305,16 @@ module JadeSql
       keyed = tables.select { |t| keyed?(t) }
 
       names = tables
-        .flat_map { |t| ["#{camel(t.name)}Cols", "Maybe#{camel(t.name)}Cols", "#{camel(t.name)}Row(..)", *("#{camel(t.name)}On(..)" if t.fks.any?), t.name] }
+        .flat_map do |t|
+          [
+            "#{camel(t.name)}Cols",
+            "Maybe#{camel(t.name)}Cols",
+            *("Required#{camel(t.name)}Cols" if required_columns(t).any?),
+            "#{camel(t.name)}Row(..)",
+            *("#{camel(t.name)}On(..)" if t.fks.any?),
+            t.name,
+          ]
+        end
       names += tables.map { |t| "#{t.name}_row" }
       names += keyed.map { |t| "#{t.name}_pk" }
       names += (@enums || {}).values.map { "#{camel(it.name)}(..)" }
@@ -314,6 +331,7 @@ module JadeSql
         *("Pk" if keyed.any?),
         *("NoJoins" if bare.any?),
         *("NoKey" if unkeyed),
+        *("NoRequiredCols" if tables.any? { required_columns(it).empty? }),
       ].sort
       fns = [
         "column",
@@ -361,6 +379,27 @@ module JadeSql
       "struct Maybe#{camel(t.name)}Cols = {\n#{fields}\n}"
     end
 
+    # The columns an insert has to write: NOT NULL, with nothing on the
+    # database side to fill them in.
+    def required_columns(t)
+      t.columns.reject { it.nullable || it.defaulted }
+    end
+
+    def emit_required_cols(t)
+      required_columns(t).then do |cols|
+        next [] if cols.empty?
+
+        cols
+          .map { "  #{field_name(it.name)}: Expr(#{it.jade_type})" }
+          .join(",\n")
+          .then { ["struct Required#{camel(t.name)}Cols = {\n#{it}\n}"] }
+      end
+    end
+
+    def required_type(t)
+      required_columns(t).any? ? "Required#{camel(t.name)}Cols" : 'NoRequiredCols'
+    end
+
     def emit_row(t)
       fields = t.columns
         .map { |c| "  #{field_name(c.name)}: #{c.nullable ? "Maybe(#{c.jade_type})" : c.jade_type}" }
@@ -383,7 +422,7 @@ module JadeSql
       maybe_fields = t.columns.map { |c| "column(a, #{c.name.inspect})" }.join(", ")
 
       <<~JADE.strip
-        def #{t.name} -> Table(#{camel(t.name)}Cols, Maybe#{camel(t.name)}Cols, #{key_type(t)}, #{on_type(t)})
+        def #{t.name} -> Table(#{camel(t.name)}Cols, Maybe#{camel(t.name)}Cols, #{key_type(t)}, #{on_type(t)}, #{required_type(t)})
           table(
             #{t.name.inspect},
             #{t.name.inspect},

@@ -14,7 +14,7 @@ module Jade
 
     let(:source) do
       <<~JADE
-module App exposing (add_plain, add_stamped, touch)
+module App exposing (add_plain, add_stamped, add_stamped_value, touch)
 
 import Sql exposing (
   Assignable,
@@ -31,7 +31,7 @@ import Sql exposing (
   pk,
   table,
 )
-import Sql.Mutation exposing (insert, timestamped, update)
+import Sql.Mutation exposing (insert, stamped, timestamped, update)
 import Encode
 import Decode exposing (Value)
 
@@ -80,6 +80,11 @@ def add_stamped(name: String) -> Task(Int, SqlError)
 end
 
 
+def add_stamped_value(name: String) -> Task(Int, SqlError)
+  insert(NewPatient(name) |> stamped, patients) |> execute
+end
+
+
 def add_plain(name: String) -> Task(Int, SqlError)
   insert(NewPatient(name), patients) |> execute
 end
@@ -101,6 +106,14 @@ end
       row = conn.select_one("SELECT created_at, updated_at FROM patients WHERE name = 'Paul'")
       expect(row["created_at"]).not_to be_nil
       expect(row["updated_at"]).not_to be_nil
+      expect(row["created_at"]).to eq row["updated_at"]
+    end
+
+    it 'fills them from the value too, which is where the check can see them' do
+      expect(App::Internal.add_stamped_value('Ada').run).to be_ok(1)
+
+      row = conn.select_one("SELECT name, created_at, updated_at FROM patients WHERE name = 'Ada'")
+      expect(row["created_at"]).not_to be_nil
       expect(row["created_at"]).to eq row["updated_at"]
     end
 

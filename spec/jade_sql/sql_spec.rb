@@ -654,6 +654,7 @@ import Encode
 import Sql exposing (
   Expr,
   NoJoins,
+  NoRequiredCols,
   Pk,
   Selector,
   Table,
@@ -775,7 +776,18 @@ end
         <<~JADE
 module App exposing (persons_with_optional_orders)
 
-import Sql exposing (Expr, NoJoins, Pk, Table, column, eq, no_joins, pk, table)
+import Sql exposing (
+  Expr,
+  NoJoins,
+  NoRequiredCols,
+  Pk,
+  Table,
+  column,
+  eq,
+  no_joins,
+  pk,
+  table,
+)
 import Encode
 import Sql.Query exposing (Q, from, left_join)
 
@@ -819,7 +831,19 @@ end
         <<~JADE
 module App exposing (persons_with_companies)
 
-import Sql exposing (Expr, NoJoins, Pk, Table, column, eq, no_joins, nullable, pk, table)
+import Sql exposing (
+  Expr,
+  NoJoins,
+  NoRequiredCols,
+  Pk,
+  Table,
+  column,
+  eq,
+  no_joins,
+  nullable,
+  pk,
+  table,
+)
 import Encode
 import Sql.Query exposing (Q, from, join)
 
@@ -1786,6 +1810,7 @@ import Encode
 import Sql exposing (
   Expr,
   NoJoins,
+  NoRequiredCols,
   Pk,
   Table,
   column,

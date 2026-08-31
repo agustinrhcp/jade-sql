@@ -25,6 +25,7 @@ describe JadeSql::SchemaGenerator do
           MaybePatientsCols,
           PatientsCols,
           PatientsRow(..),
+          RequiredPatientsCols,
           patients,
           patients_pk,
           patients_row,
@@ -74,7 +75,7 @@ describe JadeSql::SchemaGenerator do
 
     it 'emits a table function with alias = table name and its key' do
       expect(generated).to include(<<~FN.strip)
-        def patients -> Table(PatientsCols, MaybePatientsCols, Int, NoJoins)
+        def patients -> Table(PatientsCols, MaybePatientsCols, Int, NoJoins, RequiredPatientsCols)
           table(
             "patients",
             "patients",
@@ -224,7 +225,7 @@ describe JadeSql::SchemaGenerator do
     end
 
     it 'hands the record to the table' do
-      expect(generated).to include('def patients -> Table(PatientsCols, MaybePatientsCols, Uuid, PatientsOn)')
+      expect(generated).to include('def patients -> Table(PatientsCols, MaybePatientsCols, Uuid, PatientsOn, RequiredPatientsCols)')
       expect(generated).to include('PatientsOn(patients_on_phone),')
     end
   end
@@ -268,7 +269,7 @@ describe JadeSql::SchemaGenerator do
     end
 
     it 'keys the table by NoKey and passes unkeyed' do
-      expect(generated).to include('def events -> Table(EventsCols, MaybeEventsCols, NoKey, NoJoins)')
+      expect(generated).to include('def events -> Table(EventsCols, MaybeEventsCols, NoKey, NoJoins, RequiredEventsCols)')
       expect(generated).to include('unkeyed,')
     end
 
@@ -290,7 +291,7 @@ describe JadeSql::SchemaGenerator do
     end
 
     it 'is generated like any other table' do
-      expect(generated).to include('def schema_migrations -> Table(SchemaMigrationsCols, MaybeSchemaMigrationsCols, String, NoJoins)')
+      expect(generated).to include('def schema_migrations -> Table(SchemaMigrationsCols, MaybeSchemaMigrationsCols, String, NoJoins, RequiredSchemaMigrationsCols)')
       expect(generated).to include('["version"]')
     end
   end
@@ -327,8 +328,8 @@ describe JadeSql::SchemaGenerator do
       entries = m[1].split(',').map { |e| e.strip.sub(/,\z/, '') }.reject(&:empty?)
       expect(entries).to eql %w[
         MaybeOrdersCols MaybePersonsCols OrdersCols OrdersRow(..)
-        PersonsCols PersonsRow(..) orders orders_pk orders_row
-        persons persons_pk persons_row
+        PersonsCols PersonsRow(..) RequiredOrdersCols RequiredPersonsCols
+        orders orders_pk orders_row persons persons_pk persons_row
       ]
     end
 
@@ -606,6 +607,53 @@ describe JadeSql::SchemaGenerator do
 
     it 'covers inline defaults, identity, and the sequence set afterwards' do
       expect(defaulted).to eql(%w[id code state])
+    end
+  end
+
+  context 'the columns an insert has to write' do
+    let(:sql) do
+      <<~SQL
+        CREATE TABLE public.patients (
+            id bigint NOT NULL,
+            name character varying NOT NULL,
+            state character varying DEFAULT 'new' NOT NULL,
+            balance integer,
+            created_at timestamp without time zone NOT NULL,
+            updated_at timestamp without time zone NOT NULL
+        );
+
+        ALTER TABLE ONLY public.patients
+            ALTER COLUMN id SET DEFAULT nextval('public.patients_id_seq'::regclass);
+      SQL
+    end
+
+    it 'skips what the database fills in, and nothing else' do
+      expect(generated).to include(<<~STRUCT.strip)
+        struct RequiredPatientsCols = {
+          name: Expr(String),
+          created_at: Expr(Clock.Instant),
+          updated_at: Expr(Clock.Instant)
+        }
+      STRUCT
+    end
+  end
+
+  context 'a table an insert can leave entirely to the database' do
+    let(:sql) do
+      <<~SQL
+        CREATE TABLE public.events (
+            id bigint NOT NULL,
+            note text
+        );
+
+        ALTER TABLE ONLY public.events
+            ALTER COLUMN id SET DEFAULT nextval('public.events_id_seq'::regclass);
+      SQL
+    end
+
+    it 'has no struct to name, so the table is typed NoRequiredCols' do
+      expect(generated).not_to include('RequiredEventsCols')
+      expect(generated).to include('NoJoins, NoRequiredCols)')
     end
   end
 end

@@ -7,17 +7,22 @@
 # view is derived from it. `key:` is the key's type, `NoKey` for a table with
 # no primary key. `pk:` and `joins:` take the expressions themselves, for the
 # tables the defaults do not fit — a composite key, an `on` record.
+#
+# `required:` names the columns an insert has to write, defaulting to the
+# columns that are neither nullable nor `id`.
 module JadeTables
   DEFAULT_PK = 'pk(["id"], (v) -> { [Encode.encode(v)] })'.freeze
 
-  def jade_table(name, columns, key: 'Int', alias_: nil, pk: nil, joins: 'no_joins')
+  def jade_table(name, columns, key: 'Int', alias_: nil, pk: nil, joins: 'no_joins', required: nil)
     klass = camel(name)
     pk ||= key == 'NoKey' ? 'unkeyed' : DEFAULT_PK
+    required ||= columns.keys.reject { it.to_s == 'id' || columns[it].start_with?('Maybe(') }
 
     [
       cols_struct("#{klass}Cols", columns) { |t| "Expr(#{t})" },
       cols_struct("Maybe#{klass}Cols", columns) { |t| "Expr(#{maybe(t)})" },
-      table_fn(name, klass, columns, key, alias_ || name, pk, joins),
+      *(cols_struct("Required#{klass}Cols", columns.slice(*required)) { |t| "Expr(#{t})" } if required.any?),
+      table_fn(name, klass, columns, key, alias_ || name, pk, joins, required),
     ].join("\n\n\n")
   end
 
@@ -43,11 +48,11 @@ module JadeTables
     end
   end
 
-  def table_fn(name, klass, columns, key, alias_, pk, joins)
+  def table_fn(name, klass, columns, key, alias_, pk, joins, required)
     reads = columns.keys.map { "column(a, #{column_name(it).inspect})" }
 
     <<~JADE.strip
-      def #{name} -> Table(#{klass}Cols, Maybe#{klass}Cols, #{key}, #{joins_type(joins)})
+      def #{name} -> #{signature(klass, key, joins, required)}
         table(
           #{name.inspect},
           #{alias_.inspect},
@@ -58,6 +63,17 @@ module JadeTables
         )
       end
     JADE
+  end
+
+  # The formatter leaves a type annotation on one line however long it runs.
+  def signature(klass, key, joins, required)
+    [
+      "#{klass}Cols",
+      "Maybe#{klass}Cols",
+      key,
+      joins_type(joins),
+      required.any? ? "Required#{klass}Cols" : 'NoRequiredCols',
+    ].join(', ').then { "Table(#{it})" }
   end
 
   # The formatter breaks a constructor call once it outgrows the line.

@@ -44,6 +44,7 @@ module Sql exposing (
   lte,
   maybe_columns,
   NoJoins,
+  NoRequiredCols,
   neg,
   neq,
   not_,
@@ -82,13 +83,15 @@ struct Selector(a) = {
 
 # A table, as `structure.sql` declares it. `c` is its strict column struct
 # (`Expr(String)` for a NOT NULL text column), `m` the same columns lifted into
-# `Maybe` for left-join projections, `k` the type of its primary key, and `o` a
-# record of one join predicate per foreign key it declares.
+# `Maybe` for left-join projections, `k` the type of its primary key, `o` a
+# record of one join predicate per foreign key it declares, and `r` a struct of
+# the columns an insert has to write — the ones the database will not fill in
+# for you.
 #
 # `schema.jd` generates one of these per table, so you name the table rather
 # than build it: `from(patients)`, `insert(row, patients)`. Reach for `table`
 # yourself only for something the generator does not see.
-struct Table(c, m, k, o) = {
+struct Table(c, m, k, o, r) = {
   name: String,
   alias_: String,
   cols: String -> c,
@@ -104,6 +107,12 @@ struct Table(c, m, k, o) = {
 #
 #   from(patients) |> join(events, (e) -> { p.id |> eq(e.patient_id) })
 type NoJoins = NoJoinsOnly
+
+
+# The `r` of a table an insert can leave entirely to the database — every
+# column is nullable, or has a default, or is filled by its sequence. There is
+# no struct of required columns to name, so there is nothing to write.
+type NoRequiredCols = NoRequiredColsOnly
 
 
 # The `on` you hand `table` for such a table.
@@ -442,22 +451,22 @@ def table(
   maybe_cols: String -> m,
   pk_: Pk(c, k),
   on_: o,
-) -> Table(c, m, k, o)
+) -> Table(c, m, k, o, r)
   Table(name, alias_, cols, maybe_cols, pk_, on_)
 end
 
 
-def columns(t: Table(c, m, k, o), alias_: String) -> c
+def columns(t: Table(c, m, k, o, r), alias_: String) -> c
   alias_ |> t.cols
 end
 
 
-def maybe_columns(t: Table(c, m, k, o), alias_: String) -> m
+def maybe_columns(t: Table(c, m, k, o, r), alias_: String) -> m
   alias_ |> t.maybe_cols
 end
 
 
-def aliased(t: Table(c, m, k, o), alias_: String) -> Table(c, m, k, o)
+def aliased(t: Table(c, m, k, o, r), alias_: String) -> Table(c, m, k, o, r)
   Table(t.name, alias_, t.cols, t.maybe_cols, t.pk, t.on)
 end
 

@@ -108,7 +108,7 @@ import Sql.Mutation exposing (Mutation, insert)
 struct Patient = { nmae: String }
 
 
-def save(v: a, t: Table(c, m, k, o)) -> Mutation(Int, c)
+def save(v: a, t: Table(c, m, k, o, r)) -> Mutation(Int, c)
   insert(v, t)
 end
 

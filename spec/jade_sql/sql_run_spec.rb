@@ -272,6 +272,7 @@ module Wrong exposing (mismatched)
 import Sql exposing (
   Expr,
   NoJoins,
+  NoRequiredCols,
   Pk,
   Selector,
   SqlError,

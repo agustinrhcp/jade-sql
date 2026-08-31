@@ -9,6 +9,18 @@ and one migration is better than three.
 
 ### Added
 
+- `Table(c, m, k, o)` becomes `Table(c, m, k, o, r)`, where `r` is a struct of
+  the columns an insert has to write, or `NoRequiredCols` for a table that has
+  none. The generator works out which those are: NOT NULL, with no DEFAULT,
+  identity or sequence behind them. `r` is phantom, so `table(...)` takes no
+  new argument.
+
+- `Sql.Mutation.stamped` wraps a value with `created_at`/`updated_at`, so the
+  timestamps are written by the same argument the required-columns check
+  reads: `insert(NewPatient("Ada") |> stamped, patients)`. `timestamped` still
+  stamps a built `Mutation`, but a NOT NULL timestamp column is required of
+  the value, and a pipe further down the chain cannot answer for it.
+
 - `neq`, `not_`, `like` and `ilike`.
 
 - `Sql.transaction` nests. It becomes a savepoint of whichever transaction is

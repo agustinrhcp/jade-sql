@@ -7,7 +7,9 @@ module Sql.Mutation exposing (
   delete_all,
   insert,
   insert_all,
+  Stamped,
   returning,
+  stamped,
   timestamped,
   to_sql,
   update,
@@ -17,6 +19,7 @@ module Sql.Mutation exposing (
 )
 
 import Sql exposing (
+  Assignable,
   Assignment(..),
   Expr(..),
   Renderable,
@@ -50,7 +53,7 @@ struct Mutation(ret, c) = {
 }
 
 
-def insert(value: a, t: Table(c, m, k, o)) -> Mutation(Int, c)
+def insert(value: a, t: Table(c, m, k, o, r)) -> Mutation(Int, c)
   Mutation(
     InsertK,
     TableRef(t.name, t.alias_),
@@ -63,7 +66,7 @@ def insert(value: a, t: Table(c, m, k, o)) -> Mutation(Int, c)
 end
 
 
-def insert_all(values: List(a), t: Table(c, m, k, o)) -> Mutation(Int, c)
+def insert_all(values: List(a), t: Table(c, m, k, o, r)) -> Mutation(Int, c)
   Mutation(
     InsertK,
     TableRef(t.name, t.alias_),
@@ -76,7 +79,7 @@ def insert_all(values: List(a), t: Table(c, m, k, o)) -> Mutation(Int, c)
 end
 
 
-def update(value: a, t: Table(c, m, k, o), key: k) -> Mutation(Int, c)
+def update(value: a, t: Table(c, m, k, o, r), key: k) -> Mutation(Int, c)
   Mutation(
     UpdateK,
     TableRef(t.name, t.alias_),
@@ -89,7 +92,7 @@ def update(value: a, t: Table(c, m, k, o), key: k) -> Mutation(Int, c)
 end
 
 
-def delete(t: Table(c, m, k, o), key: k) -> Mutation(Int, c)
+def delete(t: Table(c, m, k, o, r), key: k) -> Mutation(Int, c)
   Mutation(
     DeleteK,
     TableRef(t.name, t.alias_),
@@ -116,7 +119,7 @@ end
 
 
 def update_all(
-  t: Table(c, m, k, o),
+  t: Table(c, m, k, o, r),
   pred_fn: c -> Expr(Bool),
   build: c -> List(Assignment),
 ) -> Mutation(Int, c)
@@ -135,7 +138,7 @@ def update_all(
 end
 
 
-def update_many(rows_: List((k, a)), t: Table(c, m, k, o)) -> Mutation(Int, c)
+def update_many(rows_: List((k, a)), t: Table(c, m, k, o, r)) -> Mutation(Int, c)
   rows = rows_ |> List.map((r) -> { keyed_assigns(t.pk, r) })
 
   Mutation(
@@ -218,7 +221,7 @@ def pk_join(pk_columns: List(String)) -> Expr(Bool)
 end
 
 
-def delete_all(t: Table(c, m, k, o), pred_fn: c -> Expr(Bool)) -> Mutation(Int, c)
+def delete_all(t: Table(c, m, k, o, r), pred_fn: c -> Expr(Bool)) -> Mutation(Int, c)
   cols_ = t.alias_ |> t.cols
   pred = cols_ |> pred_fn
 
@@ -268,6 +271,29 @@ end
 
 def append_update_stamps(row: List(Assignment)) -> List(Assignment)
   row ++ [now_assignment("updated_at")]
+end
+
+
+# A value plus the timestamps `created_at` and `updated_at`, filled with the
+# app clock at execute time. A table that declares those columns NOT NULL
+# requires them of the value being written, and this is what supplies them:
+#
+#   insert(NewPatient("Ada") |> stamped, patients)
+#
+# The struct being wrapped keeps its own `Assignable`; the stamps are appended
+# to whatever it writes.
+struct Stamped(a) = { value: a }
+
+
+def stamped(value: a) -> Stamped(a)
+  Stamped(value)
+end
+
+
+implements Assignable(Stamped(a)) with
+  to_assigns: (s) -> {
+    to_assigns(s.value) ++ [now_assignment("created_at"), now_assignment("updated_at")]
+  },
 end
 
 

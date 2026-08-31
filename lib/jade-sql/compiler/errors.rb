@@ -23,6 +23,40 @@ module JadeSql
         def candidates = @columns
       end
 
+      class MissingColumns < Jade::Error
+        STAMPS = %w[created_at updated_at].freeze
+
+        def initialize(entry, span, struct:, table:, missing:)
+          @struct = struct
+          @table = table
+          @missing = missing
+          super(entry:, span:)
+        end
+
+        def message
+          "#{@struct} does not write #{list(@missing)}, " \
+            "which #{@table} requires"
+        end
+
+        def label
+          "missing #{list(@missing)}"
+        end
+
+        def notes
+          return [] unless (@missing - STAMPS).empty?
+
+          [Jade::Diagnostics::Annotation[:help, 'pipe the value through `stamped`']]
+        end
+
+        private
+
+        def list(names)
+          names.map { "`#{it}`" }.then do |quoted|
+            quoted.length == 1 ? quoted.first : "#{quoted[..-2].join(', ')} and #{quoted.last}"
+          end
+        end
+      end
+
       class ColumnTypeMismatch < Jade::Error
         def initialize(entry, span, struct:, field:, table:, column:, expected:, actual:)
           @struct = struct

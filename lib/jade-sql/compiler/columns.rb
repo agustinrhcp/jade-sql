@@ -12,24 +12,32 @@ module JadeSql
       EXPR = 'Sql.Expr'
       LIST = 'List.List'
       ASSIGNABLE = 'Sql.Assignable'
+      STAMPED = 'Sql.Mutation.Stamped'
+      STAMPS = %w[created_at updated_at].freeze
 
-      # Where the written value is, where the table is, and whether the value
-      # arrives wrapped in a list.
-      Target = Data.define(:value_at, :table_at, :wrapper)
+      # Where the written value is, where the table is, whether the value
+      # arrives wrapped in a list, and whether the row is being created —
+      # only then does a column the database cannot fill have to be written.
+      Target = Data.define(:value_at, :table_at, :wrapper, :creates)
 
       TARGETS = {
-        'Sql.Mutation.insert' => Target[0, 1, :bare],
-        'Sql.Mutation.insert_all' => Target[0, 1, :list],
-        'Sql.Mutation.update' => Target[0, 1, :bare],
+        'Sql.Mutation.insert' => Target[0, 1, :bare, true],
+        'Sql.Mutation.insert_all' => Target[0, 1, :list, true],
+        'Sql.Mutation.update' => Target[0, 1, :bare, false],
       }.freeze
 
       def watches = TARGETS.keys
 
       def check(ctx)
-        TARGETS
-          .fetch(ctx.name)
-          .then { [unwrap(ctx.arg_types[it.value_at], it.wrapper), cols_of(ctx.arg_types[it.table_at])] }
-          .then { |(value, cols)| written?(value, ctx.registry) ? [] : compare(value, cols, ctx) }
+        TARGETS.fetch(ctx.name).then do |target|
+          table = ctx.arg_types[target.table_at]
+          value, stamps = unstamp(unwrap(ctx.arg_types[target.value_at], target.wrapper))
+
+          next [] if written?(value, ctx.registry)
+
+          compare(value, cols_of(table), ctx) +
+            (target.creates ? missing(value, stamps, table, ctx) : [])
+        end
       end
 
       private
@@ -51,6 +59,48 @@ module JadeSql
           registry.implementations[[ASSIGNABLE, name]]
 
         else nil
+        end
+      end
+
+      # `r` names the columns the database will not fill in, so a value that
+      # writes none of them produces a row Postgres rejects. `stamped` writes
+      # two of them without them being fields, which is why it is carried
+      # alongside the value's own.
+      def missing(value, stamps, table, ctx)
+        case [fields_of(value, ctx.registry), columns_of(required_of(table), ctx.registry)]
+        in [Array => fields, Hash => required]
+          required.keys - fields.map { Compiler.column_name(it.first) } - stamps
+
+        else []
+        end
+          .then do |absent|
+            next [] if absent.empty?
+
+            [Errors::MissingColumns.new(
+              ctx.entry_name, ctx.span,
+              struct: name_of(value), table: name_of(cols_of(table)), missing: absent,
+            )]
+          end
+      end
+
+      # `Table(c, m, k, o, r)` — the required columns are its last argument.
+      def required_of(table)
+        case table
+        in Type::Application(constructor: Type::Constructor(name: TABLE), args: [*, required])
+          required
+
+        else nil
+        end
+      end
+
+      # `stamped` writes `created_at` and `updated_at` on a value that has no
+      # such fields, so it answers for them without appearing among them.
+      def unstamp(value)
+        case value
+        in Type::Application(constructor: Type::Constructor(name: STAMPED), args: [inner])
+          [inner, STAMPS]
+
+        else [value, []]
         end
       end
 

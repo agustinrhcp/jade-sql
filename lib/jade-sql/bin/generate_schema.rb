@@ -46,6 +46,7 @@ module JadeSql
       /\Adate\b/ => "Calendar.Date",
       /\Atimestamp\b/ => "Clock.Instant",
       /\Auuid\b/ => "Uuid",
+      /\A(?:big|small)?serial\b/ => "Int",
     }.freeze
 
     EXTRA_IMPORTS = {
@@ -59,7 +60,11 @@ module JadeSql
     # Column names that collide with Jade keywords get a trailing underscore
     # in the struct field; the SQL column reference keeps the real name.
     Table = Data.define(:name, :columns, :pk_columns, :fks)
-    Column = Data.define(:name, :jade_type, :nullable)
+    # `defaulted` is what the database fills in when an INSERT leaves the
+    # column out — a DEFAULT clause, an identity or serial sequence. Not the
+    # same question as `nullable`: a NOT NULL column with a default is still
+    # optional to write.
+    Column = Data.define(:name, :jade_type, :nullable, :defaulted)
 
     def generate(sql, tables: nil, columns: nil, module_name: 'Schema')
       @enums = parse_enums(sql).to_h { [it.name, it] }
@@ -67,8 +72,10 @@ module JadeSql
       bodies = select_tables(bodies, tables) if tables
       pks = parse_pks(sql)
       fks = parse_fks(sql)
+      defaults = parse_alter_defaults(sql)
       parsed = bodies
         .map { |name, body| Table[name, parse_columns(body, name), pks[name] || [], fks[name]] }
+        .map { |t| t.with(columns: apply_defaults(t.columns, defaults[t.name] || [])) }
         .then { |ts| ts.map { |t| t.with(fks: relations(t, ts)) } }
       parsed = select_columns(parsed, columns) if columns
       format(emit(parsed, module_name))
@@ -140,14 +147,18 @@ module JadeSql
         .map { |line| parse_column(line, table_name) }
     end
 
+    IDENTITY = /\bGENERATED\s+\w+\s+AS\s+IDENTITY\b/i
+    SERIAL = /\A(?:big|small)?serial\b/i
+
+    # Modifiers can come in either order (`NOT NULL DEFAULT 0` and
+    # `DEFAULT 0 NOT NULL` are both valid), so each is looked for anywhere in
+    # the definition rather than anchored to the end.
     def parse_column(line, table_name)
-      m = line.match(/\A"?(\w+)"?\s+(.+?)(\s+NOT\s+NULL)?\s*\z/i)
+      m = line.match(/\A"?(\w+)"?\s+(.+)\z/m)
       raise "Cannot parse column: #{line.inspect}" unless m
 
-      name, type_part, not_null = m[1], m[2].strip, !m[3].nil?
-
-      # Strip trailing modifiers we don't care about (DEFAULT ..., COLLATE ...).
-      type_part = type_part.sub(/\s+DEFAULT\s+.+\z/i, '').sub(/\s+COLLATE\s+.+\z/i, '').strip
+      name, rest = m[1], m[2].strip
+      type_part = strip_modifiers(rest)
 
       jade_type = enum_type(type_part) || TYPE_MAP
         .find { |sql_pat, _| sql_pat.match?(type_part.downcase) }
@@ -155,7 +166,42 @@ module JadeSql
 
       raise "Unknown SQL type for #{table_name}.#{name}: #{type_part.inspect}" unless jade_type
 
-      Column[name, jade_type, !not_null]
+      Column[
+        name,
+        jade_type,
+        !rest.match?(/\bNOT\s+NULL\b/i),
+        rest.match?(/\bDEFAULT\b/i) || rest.match?(IDENTITY) || type_part.match?(SERIAL),
+      ]
+    end
+
+    def strip_modifiers(rest)
+      rest
+        .sub(/\s+DEFAULT\s+.+\z/i, '')
+        .sub(/\s+GENERATED\s+.+\z/i, '')
+        .sub(/\s+COLLATE\s+.+\z/i, '')
+        .sub(/\s*\bNOT\s+NULL\b/i, '')
+        .strip
+    end
+
+    # A Rails structure.sql gives a serial column its default in a separate
+    # statement, after the CREATE TABLE:
+    #
+    #   ALTER TABLE ONLY public.patients
+    #     ALTER COLUMN id SET DEFAULT nextval(...);
+    ALTER_DEFAULT = /
+      ALTER\ TABLE\s+(?:ONLY\s+)?(?:\w+\.)?"?(\w+)"?\s+
+      ALTER\ COLUMN\s+"?(\w+)"?\s+SET\ DEFAULT
+    /imx
+
+    def parse_alter_defaults(sql)
+      sql
+        .scan(ALTER_DEFAULT)
+        .group_by(&:first)
+        .transform_values { |pairs| pairs.map(&:last) }
+    end
+
+    def apply_defaults(columns, defaulted)
+      columns.map { it.defaulted ? it : it.with(defaulted: defaulted.include?(it.name)) }
     end
 
     Enum = Data.define(:name, :labels)

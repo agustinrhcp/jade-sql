@@ -9,15 +9,17 @@ namespace :jade do
     columns     = parse_columns_env(ENV['COLUMNS'])
     module_name = ENV['MODULE'] || 'Schema'
 
-    FileUtils.mkdir_p(File.dirname(output))
-    File.write(
-      output,
-      JadeSql::SchemaGenerator.generate(
-        File.read(input), tables:, columns:, module_name:
-      ),
-    )
+    JadeSql::SchemaGenerator
+      .generate(File.read(input), tables:, columns:, module_name:)
+      .map { |name, source| write_module(output, module_name, name, source) }
+      .then { puts "wrote #{it.join(', ')}" }
+  end
 
-    puts "wrote #{output}"
+  def write_module(output, root_module, name, source)
+    JadeSql::SchemaGenerator
+      .module_path(root_module, name, output)
+      .tap { FileUtils.mkdir_p(File.dirname(it)) }
+      .tap { File.write(it, source) }
   end
 
   # COLUMNS="patients:id,age;visits:id,seen_on" — tables separated by `;`,

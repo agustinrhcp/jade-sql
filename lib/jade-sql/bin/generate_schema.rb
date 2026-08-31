@@ -78,7 +78,9 @@ module JadeSql
         .map { |t| t.with(columns: apply_defaults(t.columns, defaults[t.name] || [])) }
         .then { |ts| ts.map { |t| t.with(fks: relations(t, ts)) } }
       parsed = select_columns(parsed, columns) if columns
-      format(emit(parsed, module_name))
+
+      enum_modules(module_name)
+        .merge(module_name => format(emit(parsed, module_name)))
     end
 
     # Run jade-fmt over the emitted source so the written schema.jd matches
@@ -98,7 +100,25 @@ module JadeSql
         end
     end
 
+    # Where a generated module goes, relative to where its root was written.
+    # jade reads the module name off the path, so `Schema.InvoiceStatus` has
+    # to sit next to `schema.jd` as `schema/invoice_status.jd`.
+    def module_path(root_module, module_name, root_path)
+      module_name
+        .delete_prefix(root_module)
+        .split('.')
+        .reject(&:empty?)
+        .map { snake_case(it) }
+        .then { it.empty? ? root_path : "#{File.join(root_path.sub(/\.jd\z/, ''), *it)}.jd" }
+    end
+
     private
+
+    def snake_case(name)
+      name
+        .gsub(/([a-z\d])([A-Z])/, '\\1_\\2')
+        .downcase
+    end
 
     # Returns [[name, body], ...] without parsing columns, so the whitelist
     # can be applied before type-mapping — an unsupported type in a table the
@@ -232,7 +252,6 @@ module JadeSql
     def emit(tables, module_name)
       [
         emit_header(tables, module_name),
-        *emit_enums,
         *tables.flat_map { |t| emit_table(t) },
       ].join("\n\n") + "\n"
     end
@@ -323,7 +342,6 @@ module JadeSql
         end
       names += tables.map { |t| "#{t.name}_row" }
       names += keyed.map { |t| "#{t.name}_pk" }
-      names += (@enums || {}).values.map { "#{camel(it.name)}(..)" }
       exposed = names.sort.join(", ")
 
       joined = tables.select { it.fks.any? }
@@ -349,15 +367,34 @@ module JadeSql
         *("unkeyed" if unkeyed),
       ].sort
       sql_import = "import Sql exposing(#{(types + fns).join(', ')})"
+      enum_imports = enum_imports_for(tables, module_name)
       query_import = ["import Sql.Query exposing(Select, field_as, select)"]
       encode_import = keyed.any? ? ["import Decode", "import Encode"] : []
-      imports = [sql_import, *query_import, *encode_import, *extra_imports_for(tables)]
+      imports = [
+        sql_import,
+        *query_import,
+        *encode_import,
+        *extra_imports_for(tables),
+        *enum_imports,
+      ]
 
       <<~JADE.strip
         module #{module_name} exposing(#{exposed})
 
         #{imports.join("\n")}
       JADE
+    end
+
+    # Aliased to the module's own last segment, so a column reads
+    # `Expr(InvoiceStatus.InvoiceStatus)` rather than the whole path.
+    def enum_imports_for(tables, module_name)
+      tables
+        .flat_map { |t| t.columns.map(&:jade_type) }
+        .filter_map { it[/\A(\w+)\./, 1] }
+        .uniq
+        .select { |mod| (@enums || {}).keys.any? { camel(it) == mod } }
+        .sort
+        .map { "import #{module_name}.#{it} as #{it}" }
     end
 
     def extra_imports_for(tables)
@@ -592,16 +629,39 @@ module JadeSql
     end
 
     # A column typed by a CREATE TYPE enum, with or without its schema prefix.
+    # Qualified, since the enum lives in a module of its own.
     def enum_type(type_part)
       type_part
         .sub(/\A\w+\./, "")
-        .then { @enums&.key?(it) ? camel(it) : nil }
+        .then { @enums&.key?(it) ? "#{camel(it)}.#{enum_type_name(it)}" : nil }
     end
 
-    def emit_enums
-      (@enums || {})
-        .values
-        .map { |e| "type #{camel(e.name)}\n  = #{e.labels.map { camel(it) }.join("\n  | ")}" }
+    # A postgres enum belongs to the schema, not to a table — two tables can
+    # share one, and its labels are bare constructors, so two enums with a
+    # `pending` label cannot sit in one module. Each gets its own, named after
+    # the SQL type, and so does the type inside it: `InvoiceStatus.InvoiceStatus`
+    # is a mouthful, but every shorter name is a guess at where the SQL name
+    # divides. `jade.json` is where that gets said.
+    def enum_modules(module_name)
+      (@enums || {}).values.to_h do |e|
+        ["#{module_name}.#{camel(e.name)}", format(emit_enum_module(module_name, e))]
+      end
+    end
+
+    def emit_enum_module(module_name, enum)
+      enum_type_name(enum.name).then do |type_name|
+        <<~JADE
+          module #{module_name}.#{camel(enum.name)} exposing (#{type_name}(..))
+
+
+          type #{type_name}
+            = #{enum.labels.map { camel(it) }.join("\n  | ")}
+        JADE
+      end
+    end
+
+    def enum_type_name(sql_name)
+      camel(sql_name)
     end
 
     def camel(snake)

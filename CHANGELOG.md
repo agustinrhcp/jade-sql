@@ -9,6 +9,10 @@ and one migration is better than three.
 
 ### Changed
 
+- `Renderable` / `render` is `ToSql` / `to_sql`, which is what every module
+  already called its own implementation of it. Two words for one operation,
+  and the interface's was the one nobody typed.
+
 - `now` is `db_now`. It renders `now()` for Postgres to evaluate, while
   `timestamped` and `stamped` write the app's clock — one word for two clocks
   in one library was a coin flip at every call site.

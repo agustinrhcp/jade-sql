@@ -4,7 +4,7 @@ module Sql exposing (
   Expr(..),
   NoKey,
   Pk,
-  Renderable,
+  ToSql,
   Selector(..),
   SqlError(..),
   Table,
@@ -54,7 +54,6 @@ module Sql exposing (
   no_joins,
   pk,
   unkeyed,
-  render,
   set_,
   strip_alias,
   sum,
@@ -208,8 +207,10 @@ implements Assignable(List(Assignment)) with
 end
 
 
-interface Renderable(r) with
-  render : r -> (String, List(Value))
+# Anything that can be handed to the database: a query, a write. The pair is
+# the statement and its parameters, in the order the statement binds them.
+interface ToSql(r) with
+  to_sql : r -> (String, List(Value))
 end
 
 
@@ -560,7 +561,7 @@ end
 
 
 def execute(r: r) -> Task(Int, SqlError)
-  render(r) |> execute_raw
+  to_sql(r) |> execute_raw
 end
 
 

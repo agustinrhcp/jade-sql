@@ -41,7 +41,7 @@ import Sql exposing (
   pk,
   table,
 )
-import Sql.Mutation exposing (insert)
+import Sql.Write exposing (insert)
 import Decimal exposing (Decimal, coefficient, exponent)
 import Encode
 

@@ -9,6 +9,11 @@ and one migration is better than three.
 
 ### Changed
 
+- `Sql.Mutation` is `Sql.Write`, and `Mutation(ret, c)` is `Write(ret, c)`.
+  The value is a description of a write not yet performed — immutable, in a
+  language whose pitch is that nothing mutates — and the old name also
+  collided with `Mutations::` in any app carrying a GraphQL layer.
+
 - `Q(a)` is `Query(a)`. Every query function in an application carries the
   type in its signature, and a one-letter name is the one thing a reader
   cannot look up.

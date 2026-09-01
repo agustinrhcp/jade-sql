@@ -1325,7 +1325,7 @@ end
       end
     end
 
-    describe 'codec-driven mutations' do
+    describe 'codec-driven writes' do
       let(:source) do
         <<~JADE
 module App exposing (
@@ -1364,8 +1364,8 @@ import Sql exposing (
   to_expr,
 )
 import Sql.Query exposing (Query, field, select)
-import Sql.Mutation exposing (
-  Mutation,
+import Sql.Write exposing (
+  Write,
   delete,
   delete_all,
   insert,
@@ -1523,7 +1523,7 @@ def update_many_balances -> (String, List(Value))
     (1, Patient(1, "Ada", 10)),
     (2, Patient(2, "Grace", 20)),
   ]
-    |> Sql.Mutation.update_many(patients)
+    |> Sql.Write.update_many(patients)
     |> to_sql
 end
 
@@ -1689,7 +1689,7 @@ import Sql exposing (
   table,
 )
 import Encode
-import Sql.Mutation exposing (to_sql, update)
+import Sql.Write exposing (to_sql, update)
 import Decode exposing (Value)
 
 
@@ -1770,7 +1770,7 @@ import Sql exposing (
   table,
   unkeyed,
 )
-import Sql.Mutation exposing (Mutation, update)
+import Sql.Write exposing (Write, update)
 
 
 #{jade_table('events', { payload: 'String' }, key: 'NoKey')}
@@ -1789,7 +1789,7 @@ def patch_assigns(p: Patch) -> List(Assignment)
 end
 
 
-def touch -> Mutation(Int, EventsCols)
+def touch -> Write(Int, EventsCols)
   update(Patch("x"), events, 42)
 end
         JADE

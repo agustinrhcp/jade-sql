@@ -1,5 +1,5 @@
-module Sql.Mutation exposing (
-  Mutation,
+module Sql.Write exposing (
+  Write,
   delete,
   execute,
   fetch_many,
@@ -36,14 +36,14 @@ import Decode exposing (Value)
 import Encode
 
 
-type MutationKind
+type WriteKind
   = InsertK
   | UpdateK
   | DeleteK
 
 
-struct Mutation(ret, c) = {
-  kind: MutationKind,
+struct Write(ret, c) = {
+  kind: WriteKind,
   table: TableRef,
   cols: c,
   rows: List(List(Assignment)),
@@ -53,8 +53,8 @@ struct Mutation(ret, c) = {
 }
 
 
-def insert(value: a, t: Table(c, m, k, o, r)) -> Mutation(Int, c)
-  Mutation(
+def insert(value: a, t: Table(c, m, k, o, r)) -> Write(Int, c)
+  Write(
     InsertK,
     TableRef(t.name, t.alias_),
     t.alias_ |> t.cols,
@@ -66,8 +66,8 @@ def insert(value: a, t: Table(c, m, k, o, r)) -> Mutation(Int, c)
 end
 
 
-def insert_all(values: List(a), t: Table(c, m, k, o, r)) -> Mutation(Int, c)
-  Mutation(
+def insert_all(values: List(a), t: Table(c, m, k, o, r)) -> Write(Int, c)
+  Write(
     InsertK,
     TableRef(t.name, t.alias_),
     t.alias_ |> t.cols,
@@ -79,8 +79,8 @@ def insert_all(values: List(a), t: Table(c, m, k, o, r)) -> Mutation(Int, c)
 end
 
 
-def update(value: a, t: Table(c, m, k, o, r), key: k) -> Mutation(Int, c)
-  Mutation(
+def update(value: a, t: Table(c, m, k, o, r), key: k) -> Write(Int, c)
+  Write(
     UpdateK,
     TableRef(t.name, t.alias_),
     t.alias_ |> t.cols,
@@ -92,8 +92,8 @@ def update(value: a, t: Table(c, m, k, o, r), key: k) -> Mutation(Int, c)
 end
 
 
-def delete(t: Table(c, m, k, o, r), key: k) -> Mutation(Int, c)
-  Mutation(
+def delete(t: Table(c, m, k, o, r), key: k) -> Write(Int, c)
+  Write(
     DeleteK,
     TableRef(t.name, t.alias_),
     t.alias_ |> t.cols,
@@ -105,8 +105,8 @@ def delete(t: Table(c, m, k, o, r), key: k) -> Mutation(Int, c)
 end
 
 
-def filter(m: Mutation(ret, c), build: c -> Expr(Bool)) -> Mutation(ret, c)
-  Mutation(
+def filter(m: Write(ret, c), build: c -> Expr(Bool)) -> Write(ret, c)
+  Write(
     m.kind,
     m.table,
     m.cols,
@@ -122,11 +122,11 @@ def update_all(
   t: Table(c, m, k, o, r),
   pred_fn: c -> Expr(Bool),
   build: c -> List(Assignment),
-) -> Mutation(Int, c)
+) -> Write(Int, c)
   cols_ = t.alias_ |> t.cols
   pred = cols_ |> pred_fn
 
-  Mutation(
+  Write(
     UpdateK,
     TableRef(t.name, t.alias_),
     cols_,
@@ -138,10 +138,10 @@ def update_all(
 end
 
 
-def update_many(rows_: List((k, a)), t: Table(c, m, k, o, r)) -> Mutation(Int, c)
+def update_many(rows_: List((k, a)), t: Table(c, m, k, o, r)) -> Write(Int, c)
   rows = rows_ |> List.map((r) -> { keyed_assigns(t.pk, r) })
 
-  Mutation(
+  Write(
     UpdateK,
     TableRef(t.name, t.alias_),
     t.alias_ |> t.cols,
@@ -221,11 +221,11 @@ def pk_join(pk_columns: List(String)) -> Expr(Bool)
 end
 
 
-def delete_all(t: Table(c, m, k, o, r), pred_fn: c -> Expr(Bool)) -> Mutation(Int, c)
+def delete_all(t: Table(c, m, k, o, r), pred_fn: c -> Expr(Bool)) -> Write(Int, c)
   cols_ = t.alias_ |> t.cols
   pred = cols_ |> pred_fn
 
-  Mutation(
+  Write(
     DeleteK,
     TableRef(t.name, t.alias_),
     cols_,
@@ -237,8 +237,8 @@ def delete_all(t: Table(c, m, k, o, r), pred_fn: c -> Expr(Bool)) -> Mutation(In
 end
 
 
-def returning(m: Mutation(a, c), build: c -> Query(Selector(b))) -> Mutation(b, c)
-  Mutation(
+def returning(m: Write(a, c), build: c -> Query(Selector(b))) -> Write(b, c)
+  Write(
     m.kind,
     m.table,
     m.cols,
@@ -255,7 +255,7 @@ end
 # The "$JADE_SQL_NOW$" token carries no param; the runtime swaps it for a
 # single UTC timestamp literal per statement (so created_at == updated_at).
 # A plain `insert`/`update` without this stays timestamp-free.
-def timestamped(m: Mutation(ret, c)) -> Mutation(ret, c)
+def timestamped(m: Write(ret, c)) -> Write(ret, c)
   case m.kind
   in InsertK then with_rows(m, List.map(m.rows, append_insert_stamps))
   in UpdateK then with_rows(m, List.map(m.rows, append_update_stamps))
@@ -302,7 +302,7 @@ def now_assignment(col: String) -> Assignment
 end
 
 
-def with_rows(m: Mutation(ret, c), rows: List(List(Assignment))) -> Mutation(ret, c)
+def with_rows(m: Write(ret, c), rows: List(List(Assignment))) -> Write(ret, c)
   { m | rows: rows }
 end
 
@@ -376,7 +376,7 @@ end
 # A FROM'd UPDATE needs the target aliased: json_populate_recordset gives
 # the source every column the table has, so a bare `id = jade_src.id` is
 # ambiguous.
-def target_ref(m: Mutation(ret, c)) -> String
+def target_ref(m: Write(ret, c)) -> String
   case m.from_
   in Nothing then m.table.name
   in Just(_) then m.table.name ++ " AS jade_tgt"
@@ -417,7 +417,7 @@ def strip_table_alias(sql: String, alias_: String) -> String
 end
 
 
-def render_insert(m: Mutation(ret, c)) -> (String, List(Value))
+def render_insert(m: Write(ret, c)) -> (String, List(Value))
   cols_str = insert_cols_str(m.rows)
   values_str = m.rows
     |> List.map(render_row)
@@ -435,14 +435,14 @@ def render_insert(m: Mutation(ret, c)) -> (String, List(Value))
 end
 
 
-def render_update(m: Mutation(ret, c)) -> (String, List(Value))
+def render_update(m: Write(ret, c)) -> (String, List(Value))
   sets = set_sqls_for(m.rows)
 
   List.empty?(sets) ? render_no_op_update(m) : render_update_set(m, sets)
 end
 
 
-def render_no_op_update(m: Mutation(ret, c)) -> (String, List(Value))
+def render_no_op_update(m: Write(ret, c)) -> (String, List(Value))
   where = strip_table_alias(where_sql(m.wheres), m.table.alias_)
   cols = List.empty?(m.returning_selector.columns_sql)
     ? "1"
@@ -457,7 +457,7 @@ end
 
 
 def render_update_set(
-  m: Mutation(ret, c),
+  m: Write(ret, c),
   sets: List(String),
 ) -> (String, List(Value))
   set_clause = strip_table_alias(
@@ -486,7 +486,7 @@ end
 
 
 
-def render_delete(m: Mutation(ret, c)) -> (String, List(Value))
+def render_delete(m: Write(ret, c)) -> (String, List(Value))
   where = strip_table_alias(where_sql(m.wheres), m.table.alias_)
   returning_ = strip_table_alias(returning_clause(m.returning_selector), m.table.alias_)
   sql = "DELETE FROM "
@@ -498,7 +498,7 @@ def render_delete(m: Mutation(ret, c)) -> (String, List(Value))
 end
 
 
-def to_sql(m: Mutation(ret, c)) -> (String, List(Value))
+def to_sql(m: Write(ret, c)) -> (String, List(Value))
   case m.kind
   in InsertK then render_insert(m)
   in UpdateK then render_update(m)
@@ -507,28 +507,28 @@ def to_sql(m: Mutation(ret, c)) -> (String, List(Value))
 end
 
 
-implements ToSql(Mutation(ret, c)) with
+implements ToSql(Write(ret, c)) with
   to_sql: to_sql
 end
 
 
 # The number of rows the statement affected. Any `RETURNING` clause is
 # rendered and discarded.
-def execute(m: Mutation(ret, c)) -> Task(Int, SqlError)
+def execute(m: Write(ret, c)) -> Task(Int, SqlError)
   to_sql(m) |> Sql.execute_raw
 end
 
 
-# Decodes the single row a `returning` mutation gives back — the id of an
-# insert, the new state of an update. A mutation with no `returning` selects
+# Decodes the single row a `returning` write gives back — the id of an
+# insert, the new state of an update. A write with no `returning` selects
 # nothing, so this errors with `NotFound`.
-def fetch_one(m: Mutation(ret, c)) -> Task(ret, SqlError)
+def fetch_one(m: Write(ret, c)) -> Task(ret, SqlError)
   to_sql(m) |> Sql.fetch_one_raw
 end
 
 
 # The same for a write that returns many rows, as `insert_all` and
 # `update_all` do.
-def fetch_many(m: Mutation(ret, c)) -> Task(List(ret), SqlError)
+def fetch_many(m: Write(ret, c)) -> Task(List(ret), SqlError)
   to_sql(m) |> Sql.fetch_many_raw
 end

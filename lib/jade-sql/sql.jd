@@ -226,7 +226,7 @@ end
 
 # The database's clock, as `now()` in the statement — evaluated by Postgres
 # when the query runs, at the start of the enclosing transaction. Not the
-# app's clock: `Sql.Mutation.timestamped` and `stamped` use that one, so two
+# app's clock: `Sql.Write.timestamped` and `stamped` use that one, so two
 # rows written by one request share an instant this would not give them.
 #
 #   where(s.expires_at |> gt(db_now))

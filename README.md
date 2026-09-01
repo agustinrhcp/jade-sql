@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/agustinrhcp/jade-sql/actions/workflows/ci.yml/badge.svg)](https://github.com/agustinrhcp/jade-sql/actions/workflows/ci.yml)
 
-Type-safe SQL for Jade. Builds queries and mutations from a generated
+Type-safe SQL for Jade. Builds queries and writes from a generated
 schema, renders them to `(String, List(Value))`, and runs them against
 ActiveRecord via a Task port that auto-decodes rows into typed Jade
 structs.
@@ -65,6 +65,6 @@ that decodes each row into `Visit`.
 
 - [Building SQL](docs/building.md) — generate a schema, build queries
   (joins, sorting/grouping, pagination, aggregates, arrays, JSONB) and
-  mutations (insert/update/delete, RETURNING, timestamps, UUIDs).
-- [Running queries and mutations](docs/running.md) — `fetch_*` / `execute`,
+  writes (insert/update/delete, RETURNING, timestamps, UUIDs).
+- [Running queries and writes](docs/running.md) — `fetch_*` / `execute`,
   transactions, and testing without a database.

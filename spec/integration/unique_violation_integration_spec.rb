@@ -42,7 +42,7 @@ import Sql exposing (
   table,
 )
 import Encode
-import Sql.Mutation exposing (insert)
+import Sql.Write exposing (insert)
 
 
 struct Account = { email: String }

@@ -14,7 +14,7 @@ module App exposing (go)
 
 import Encode
 import Sql exposing (Expr, NoJoins, Pk, Table, column, no_joins, pk, table)
-import Sql.Mutation exposing (Mutation, insert, insert_all, update)
+import Sql.Write exposing (Write, insert, insert_all, update)
 
 
 #{jade_table('patients', { id: 'Int', name: 'String', balance: 'Maybe(Int)' }, pk: 'patients_pk')}
@@ -30,7 +30,7 @@ def patients_pk -> Pk(PatientsCols, Int)
 end
 
 
-def go -> Mutation(Int, PatientsCols)
+def go -> Write(Int, PatientsCols)
   #{call}
 end
       JADE
@@ -84,7 +84,7 @@ module App exposing (go)
 import Clock exposing (Instant)
 import Encode
 import Sql exposing (Expr, NoJoins, Pk, Table, column, no_joins, pk, table)
-import Sql.Mutation exposing (Mutation, insert, stamped)
+import Sql.Write exposing (Write, insert, stamped)
 
 
 #{jade_table(
@@ -102,7 +102,7 @@ def patients_pk -> Pk(PatientsCols, Int)
 end
 
 
-def go -> Mutation(Int, PatientsCols)
+def go -> Write(Int, PatientsCols)
   #{call}
 end
         JADE
@@ -126,7 +126,7 @@ module App exposing (go)
 
 import Encode
 import Sql exposing (Expr, NoJoins, NoRequiredCols, Pk, Table, column, no_joins, pk, table)
-import Sql.Mutation exposing (Mutation, insert)
+import Sql.Write exposing (Write, insert)
 
 
 #{jade_table('events', { id: 'Int', note: 'Maybe(String)' }, pk: 'events_pk')}
@@ -140,7 +140,7 @@ def events_pk -> Pk(EventsCols, Int)
 end
 
 
-def go -> Mutation(Int, EventsCols)
+def go -> Write(Int, EventsCols)
   insert(Event(Nothing), events)
 end
         JADE
@@ -158,7 +158,7 @@ module App exposing (go)
 
 import Encode
 import Sql exposing (Expr, NoJoins, Pk, Table, column, no_joins, pk, table)
-import Sql.Mutation exposing (Mutation, insert)
+import Sql.Write exposing (Write, insert)
 
 
 #{jade_table('entries', { type_: 'String' })}
@@ -167,7 +167,7 @@ import Sql.Mutation exposing (Mutation, insert)
 struct Entry = { type_: String }
 
 
-def go -> Mutation(Int, EntriesCols)
+def go -> Write(Int, EntriesCols)
   insert(Entry("debit"), entries)
 end
         JADE
@@ -185,7 +185,7 @@ module App exposing (go)
 
 import Encode
 import Sql exposing (Expr, NoJoins, Pk, Table, column, no_joins, pk, table)
-import Sql.Mutation exposing (Mutation, insert)
+import Sql.Write exposing (Write, insert)
 
 
 #{jade_table('patients', { name: 'String' })}
@@ -194,12 +194,12 @@ import Sql.Mutation exposing (Mutation, insert)
 struct Patient = { nmae: String }
 
 
-def save(v: a, t: Table(c, m, k, o, r)) -> Mutation(Int, c)
+def save(v: a, t: Table(c, m, k, o, r)) -> Write(Int, c)
   insert(v, t)
 end
 
 
-def go -> Mutation(Int, PatientsCols)
+def go -> Write(Int, PatientsCols)
   save(Patient("Ada"), patients)
 end
         JADE
@@ -231,7 +231,7 @@ import Sql exposing (
   pk,
   table,
 )
-import Sql.Mutation exposing (Mutation, insert)
+import Sql.Write exposing (Write, insert)
 
 
 #{jade_table('invoices', { payer_type: 'String', payer_id: 'Int' })}
@@ -274,7 +274,7 @@ def payer_id(p: Payer) -> Int
 end
 
 
-def go -> Mutation(Int, InvoicesCols)
+def go -> Write(Int, InvoicesCols)
   insert(NewInvoice(Patient(7)), invoices)
 end
         JADE

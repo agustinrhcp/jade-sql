@@ -3,7 +3,7 @@
 `Sql.Query` and `Sql.Mutation` each run what they build: `fetch_one` /
 `fetch_many` for reads, `execute` for writes. They live in the builder
 modules rather than in `Sql` because that is where the row type is known —
-a `Q(Selector(Patient))` fetches a `Patient` and nothing else.
+a `Query(Selector(Patient))` fetches a `Patient` and nothing else.
 
 `Sql` keeps the `*_raw` siblings, which take a `(String, List(Value))` pair
 and cannot know what they return:
@@ -38,7 +38,7 @@ Each runner is typed against what its module builds, so the row type the
 query was written to produce is the one it hands back:
 
 ```jade
-Sql.Query.fetch_one    : Q(Selector(a))   -> Task(a, SqlError)
+Sql.Query.fetch_one    : Query(Selector(a))   -> Task(a, SqlError)
 Sql.Mutation.fetch_one : Mutation(ret, c) -> Task(ret, SqlError)
 ```
 

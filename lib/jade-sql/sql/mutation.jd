@@ -31,7 +31,7 @@ import Sql exposing (
   set_,
   to_assigns,
 )
-import Sql.Query exposing (Q)
+import Sql.Query exposing (Query)
 import Decode exposing (Value)
 import Encode
 
@@ -237,7 +237,7 @@ def delete_all(t: Table(c, m, k, o, r), pred_fn: c -> Expr(Bool)) -> Mutation(In
 end
 
 
-def returning(m: Mutation(a, c), build: c -> Q(Selector(b))) -> Mutation(b, c)
+def returning(m: Mutation(a, c), build: c -> Query(Selector(b))) -> Mutation(b, c)
   Mutation(
     m.kind,
     m.table,

@@ -34,12 +34,12 @@ load Gem.find_files('jade-sql/tasks.rake').first
 ## At a glance
 
 Generate a typed schema from `db/structure.sql`, then build a query against
-it. The result is a `Q` you render with `to_sql` or run with `fetch_*`; rows
+it. The result is a `Query` you render with `to_sql` or run with `fetch_*`; rows
 decode straight into your struct.
 
 ```jade
 import Sql exposing (Selector, eq, to_expr)
-import Sql.Query exposing (Q, field, from, join, select, where)
+import Sql.Query exposing (Query, field, from, join, select, where)
 import Schema exposing (patients, appointments)
 
 struct Visit = {
@@ -47,7 +47,7 @@ struct Visit = {
   reason: String
 }
 
-def scheduled_visits -> Q(Selector(Visit))
+def scheduled_visits -> Query(Selector(Visit))
   p <- from(patients)
   a <- join(appointments, (a) -> { p.id |> eq(a.patient_id) })
 

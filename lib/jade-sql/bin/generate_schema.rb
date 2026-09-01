@@ -342,7 +342,7 @@ module JadeSql
         *("unkeyed" if unkeyed),
       ].sort
       sql_import = "import Sql exposing(#{(types + fns).join(', ')})"
-      query_import = ["import Sql.Query exposing(Q, field_as, select)"]
+      query_import = ["import Sql.Query exposing(Query, field_as, select)"]
       encode_import = keyed.any? ? ["import Decode", "import Encode"] : []
       imports = [sql_import, *query_import, *encode_import, *extra_imports_for(tables)]
 
@@ -542,7 +542,7 @@ module JadeSql
         .join("\n")
 
       <<~JADE.strip
-        def #{t.name}_row(c: #{klass}Cols) -> Q(Selector(#{klass}Row))
+        def #{t.name}_row(c: #{klass}Cols) -> Query(Selector(#{klass}Row))
           select(#{klass}Row(#{holes}))
         #{projections}
         end

@@ -31,11 +31,11 @@ module Jade
         module App exposing (load)
 
         import Sql exposing (SqlError)
-        import Sql.Query exposing (Q, fetch_many, from)
+        import Sql.Query exposing (Query, fetch_many, from)
         import Schema exposing (JournalEntriesRow, journal_entries, journal_entries_row)
 
 
-        def rows -> Q(Sql.Selector(JournalEntriesRow))
+        def rows -> Query(Sql.Selector(JournalEntriesRow))
           c <- from(journal_entries)
           journal_entries_row(c)
         end

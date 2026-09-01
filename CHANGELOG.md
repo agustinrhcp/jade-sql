@@ -9,6 +9,11 @@ and one migration is better than three.
 
 ### Changed
 
+- `MaybePatientsCols` is `PatientsLeftCols`, and `maybe_columns` is
+  `left_columns`. Putting the modifier first split every table's vocabulary in
+  two — sixty tables gave a block of `Maybe*` sorting away from the tables
+  they belong to. The generated exposure list now reads down the table names.
+
 - `Renderable` / `render` is `ToSql` / `to_sql`, which is what every module
   already called its own implementation of it. Two words for one operation,
   and the interface's was the one nobody typed.

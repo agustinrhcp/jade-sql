@@ -120,7 +120,7 @@ end
 
 def left_join(t: Table(c, m, k, o, r), on_: c -> Expr(Bool)) -> Q(m)
   cols_strict = t.alias_ |> t.cols
-  cols_maybe = t.alias_ |> t.maybe_cols
+  cols_maybe = t.alias_ |> t.left_cols
   pred = cols_strict |> on_
 
   Q(

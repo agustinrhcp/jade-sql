@@ -808,7 +808,7 @@ def orders_pk -> Pk(OrdersCols, Int)
 end
 
 
-def persons_with_optional_orders -> Q(MaybeOrdersCols)
+def persons_with_optional_orders -> Q(OrdersLeftCols)
   p <- from(persons)
   left_join(orders, (o) -> { p.id |> eq(o.person_id) })
 end

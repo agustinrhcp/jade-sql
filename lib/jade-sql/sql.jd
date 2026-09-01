@@ -42,7 +42,7 @@ module Sql exposing (
   like,
   lt,
   lte,
-  maybe_columns,
+  left_columns,
   NoJoins,
   NoRequiredCols,
   neg,
@@ -94,7 +94,7 @@ struct Table(c, m, k, o, r) = {
   name: String,
   alias_: String,
   cols: String -> c,
-  maybe_cols: String -> m,
+  left_cols: String -> m,
   pk: Pk(c, k),
   on: o
 }
@@ -461,11 +461,11 @@ def table(
   name: String,
   alias_: String,
   cols: String -> c,
-  maybe_cols: String -> m,
+  left_cols: String -> m,
   pk_: Pk(c, k),
   on_: o,
 ) -> Table(c, m, k, o, r)
-  Table(name, alias_, cols, maybe_cols, pk_, on_)
+  Table(name, alias_, cols, left_cols, pk_, on_)
 end
 
 
@@ -474,13 +474,13 @@ def columns(t: Table(c, m, k, o, r), alias_: String) -> c
 end
 
 
-def maybe_columns(t: Table(c, m, k, o, r), alias_: String) -> m
-  alias_ |> t.maybe_cols
+def left_columns(t: Table(c, m, k, o, r), alias_: String) -> m
+  alias_ |> t.left_cols
 end
 
 
 def aliased(t: Table(c, m, k, o, r), alias_: String) -> Table(c, m, k, o, r)
-  Table(t.name, alias_, t.cols, t.maybe_cols, t.pk, t.on)
+  Table(t.name, alias_, t.cols, t.left_cols, t.pk, t.on)
 end
 
 

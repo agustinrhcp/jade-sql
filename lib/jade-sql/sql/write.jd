@@ -27,7 +27,7 @@ import Sql exposing (
   Pk,
   Table,
   TableRef(..),
-  set_,
+  set,
   to_assigns,
 )
 import Sql.Query exposing (Query)

@@ -7,18 +7,18 @@ require 'jade/tasks/rspec'
 require 'jade-sql'
 
 module Jade
-  describe 'Sql.in_' do
+  describe 'Sql.any_of' do
     include_context 'with test compiler'
 
     let(:source) do
       <<~JADE
         module App exposing (in_some_ids)
 
-        import Sql exposing (Expr, column, in_)
+        import Sql exposing (Expr, any_of, column)
 
 
         def in_some_ids(ids: List(Int)) -> Expr(Bool)
-          column("p", "id") |> in_(ids)
+          column("p", "id") |> any_of(ids)
         end
       JADE
     end

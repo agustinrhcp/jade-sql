@@ -47,7 +47,7 @@ import Sql exposing (
   table,
   to_expr,
 )
-import Sql.Query exposing (Q, fetch_many, fetch_one, field, from, select, where)
+import Sql.Query exposing (Query, fetch_many, fetch_one, field, from, select, where)
 
 
 struct Patient = {
@@ -87,7 +87,7 @@ def all_via_run -> Task(List(Patient), SqlError)
 end
 
 
-def paul_query -> Q(Selector(Patient))
+def paul_query -> Query(Selector(Patient))
   p <- from(patients)
   select(Patient(_, _, _))
     |> field(p.id)
@@ -172,10 +172,10 @@ end
       end
     end
 
-    describe 'fetch_one via ToSql (Q)' do
-      it 'renders the Q via to_sql and decodes the row' do
+    describe 'fetch_one via ToSql (Query)' do
+      it 'renders the Query via to_sql and decodes the row' do
         all_calls_to(JadeSql::Runtime.port_execute_one) do |t, sql, _params|
-          # Verify Q.to_sql rendered the query the way we expect.
+          # Verify Query.to_sql rendered the query the way we expect.
           expect(sql).to include('SELECT patients.id, patients.name, patients.balance')
           expect(sql).to include('FROM patients patients')
           expect(sql).to include('WHERE patients.name = ?')
@@ -282,7 +282,7 @@ import Sql exposing (
   pk,
   table,
 )
-import Sql.Query exposing (Q, fetch_one, field, from, select)
+import Sql.Query exposing (Query, fetch_one, field, from, select)
 import Encode
 
 
@@ -295,7 +295,7 @@ struct Person = { id: Int }
 struct Order = { id: Int }
 
 
-def everyone -> Q(Selector(Person))
+def everyone -> Query(Selector(Person))
   p <- from(persons)
   select(Person(_)) |> field(p.id)
 end

@@ -9,6 +9,10 @@ and one migration is better than three.
 
 ### Changed
 
+- `Q(a)` is `Query(a)`. Every query function in an application carries the
+  type in its signature, and a one-letter name is the one thing a reader
+  cannot look up.
+
 - `MaybePatientsCols` is `PatientsLeftCols`, and `maybe_columns` is
   `left_columns`. Putting the modifier first split every table's vocabulary in
   two — sixty tables gave a block of `Maybe*` sorting away from the tables

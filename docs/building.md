@@ -125,7 +125,7 @@ emits a `<table>_row` projector that aliases every column to its field name
 (`SELECT … AS type_`), so reads round-trip without hand-written SQL:
 
 ```jade
-def entries -> Q(Selector(JournalEntriesRow))
+def entries -> Query(Selector(JournalEntriesRow))
   c <- from(journal_entries)
   journal_entries_row(c)
 end
@@ -140,7 +140,7 @@ makes a `COUNT(*)` land in a `visits` field).
 
 ```jade
 import Sql exposing (Selector, eq, to_expr)
-import Sql.Query exposing (Q, field, from, join, select, where)
+import Sql.Query exposing (Query, field, from, join, select, where)
 import Schema exposing (patients, appointments)
 
 struct Visit = {
@@ -148,7 +148,7 @@ struct Visit = {
   reason: String
 }
 
-def scheduled_visits -> Q(Selector(Visit))
+def scheduled_visits -> Query(Selector(Visit))
   p <- from(patients)
   a <- join(appointments, (a) -> { p.id |> eq(a.patient_id) })
 
@@ -198,7 +198,7 @@ struct VisitCount = {
   visits: Int
 }
 
-def visit_counts -> Q(Selector(VisitCount))
+def visit_counts -> Query(Selector(VisitCount))
   p <- from(patients)
   a <- join(appointments, (a) -> { p.id |> eq(a.patient_id) })
 
@@ -227,7 +227,7 @@ returned `List(Value)` is unaffected:
 ```jade
 import Sql.Query exposing(limit, offset)
 
-def page(n: Int) -> Q(Selector(Visit))
+def page(n: Int) -> Query(Selector(Visit))
   scheduled_visits
     |> limit(20)
     |> offset(n * 20)
@@ -475,10 +475,10 @@ appointments
 
 `returning` is the mutation-side counterpart to `select` for queries.
 It takes a closure that receives the table's column accessors and
-builds a Q-wrapped selector projecting them into a target type. The
-Q wrapper is just to share the same `select`/`field` builders as
+builds a Query-wrapped selector projecting them into a target type. The
+Query wrapper is just to share the same `select`/`field` builders as
 queries — `returning` extracts the inner `Selector` and discards the
-empty Q state.
+empty Query state.
 
 ```jade
 import Sql exposing(Selector)
@@ -499,7 +499,7 @@ np
 
 Bonus: the projector can be defined once and shared between SELECT
 queries and RETURNING — both contexts now take the same `cols ->
-Q(Selector(target))` shape, so a single `def patient_projector(p)`
+Query(Selector(target))` shape, so a single `def patient_projector(p)`
 works for `from(patients) |> patient_projector` (query) and
 `... |> returning(patient_projector)` (RETURNING).
 

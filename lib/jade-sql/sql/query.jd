@@ -1,5 +1,5 @@
 module Sql.Query exposing (
-  Q,
+  Query,
   field,
   field_as,
   from,
@@ -53,7 +53,7 @@ struct GroupTerm = {
 }
 
 
-struct Q(a) = {
+struct Query(a) = {
   tables: List(TableRef),
   joins: List(Join),
   wheres: List(Expr(Bool)),
@@ -65,15 +65,15 @@ struct Q(a) = {
 }
 
 
-implements Chainable(Q(a)) with
+implements Chainable(Query(a)) with
   and_then: q_and_then
 end
 
 
-def q_and_then(q: Q(a), fn: a -> Q(b)) -> Q(b)
+def q_and_then(q: Query(a), fn: a -> Query(b)) -> Query(b)
   next_ = q.result |> fn
 
-  Q(
+  Query(
     q.tables ++ next_.tables,
     q.joins ++ next_.joins,
     q.wheres ++ next_.wheres,
@@ -94,18 +94,18 @@ def merge_paging(prev: Maybe(Int), next_: Maybe(Int)) -> Maybe(Int)
 end
 
 
-def from(t: Table(c, m, k, o, r)) -> Q(c)
+def from(t: Table(c, m, k, o, r)) -> Query(c)
   cols_ = t.alias_ |> t.cols
 
-  Q([TableRef(t.name, t.alias_)], [], [], [], [], Nothing, Nothing, cols_)
+  Query([TableRef(t.name, t.alias_)], [], [], [], [], Nothing, Nothing, cols_)
 end
 
 
-def join(t: Table(c, m, k, o, r), on_: c -> Expr(Bool)) -> Q(c)
+def join(t: Table(c, m, k, o, r), on_: c -> Expr(Bool)) -> Query(c)
   cols_ = t.alias_ |> t.cols
   pred = cols_ |> on_
 
-  Q(
+  Query(
     [],
     [Join(InnerJ, t.name, t.alias_, pred)],
     [],
@@ -118,12 +118,12 @@ def join(t: Table(c, m, k, o, r), on_: c -> Expr(Bool)) -> Q(c)
 end
 
 
-def left_join(t: Table(c, m, k, o, r), on_: c -> Expr(Bool)) -> Q(m)
+def left_join(t: Table(c, m, k, o, r), on_: c -> Expr(Bool)) -> Query(m)
   cols_strict = t.alias_ |> t.cols
   cols_maybe = t.alias_ |> t.left_cols
   pred = cols_strict |> on_
 
-  Q(
+  Query(
     [],
     [Join(LeftJ, t.name, t.alias_, pred)],
     [],
@@ -136,8 +136,8 @@ def left_join(t: Table(c, m, k, o, r), on_: c -> Expr(Bool)) -> Q(m)
 end
 
 
-def where(q: Q(a), predicate: Expr(Bool)) -> Q(a)
-  Q(
+def where(q: Query(a), predicate: Expr(Bool)) -> Query(a)
+  Query(
     q.tables,
     q.joins,
     q.wheres ++ [predicate],
@@ -150,13 +150,13 @@ def where(q: Q(a), predicate: Expr(Bool)) -> Q(a)
 end
 
 
-def filter(q: Q(a), build: a -> Expr(Bool)) -> Q(a)
+def filter(q: Query(a), build: a -> Expr(Bool)) -> Query(a)
   where(q, build(q.result))
 end
 
 
-def group(q: Q(a), e: Expr(b)) -> Q(a)
-  Q(
+def group(q: Query(a), e: Expr(b)) -> Query(a)
+  Query(
     q.tables,
     q.joins,
     q.wheres,
@@ -169,8 +169,8 @@ def group(q: Q(a), e: Expr(b)) -> Q(a)
 end
 
 
-def order(q: Q(a), e: Expr(b)) -> Q(a)
-  Q(
+def order(q: Query(a), e: Expr(b)) -> Query(a)
+  Query(
     q.tables,
     q.joins,
     q.wheres,
@@ -183,8 +183,8 @@ def order(q: Q(a), e: Expr(b)) -> Q(a)
 end
 
 
-def order_desc(q: Q(a), e: Expr(b)) -> Q(a)
-  Q(
+def order_desc(q: Query(a), e: Expr(b)) -> Query(a)
+  Query(
     q.tables,
     q.joins,
     q.wheres,
@@ -197,8 +197,8 @@ def order_desc(q: Q(a), e: Expr(b)) -> Q(a)
 end
 
 
-def limit(q: Q(a), n: Int) -> Q(a)
-  Q(
+def limit(q: Query(a), n: Int) -> Query(a)
+  Query(
     q.tables,
     q.joins,
     q.wheres,
@@ -211,8 +211,8 @@ def limit(q: Q(a), n: Int) -> Q(a)
 end
 
 
-def offset(q: Q(a), n: Int) -> Q(a)
-  Q(
+def offset(q: Query(a), n: Int) -> Query(a)
+  Query(
     q.tables,
     q.joins,
     q.wheres,
@@ -225,13 +225,13 @@ def offset(q: Q(a), n: Int) -> Q(a)
 end
 
 
-def select(make: a -> b) -> Q(Selector(a -> b))
-  Q([], [], [], [], [], Nothing, Nothing, Selector([], []))
+def select(make: a -> b) -> Query(Selector(a -> b))
+  Query([], [], [], [], [], Nothing, Nothing, Selector([], []))
 end
 
 
-def field(qs: Q(Selector(a -> b)), e: Expr(a)) -> Q(Selector(b))
-  Q(
+def field(qs: Query(Selector(a -> b)), e: Expr(a)) -> Query(Selector(b))
+  Query(
     qs.tables,
     qs.joins,
     qs.wheres,
@@ -244,8 +244,8 @@ def field(qs: Q(Selector(a -> b)), e: Expr(a)) -> Q(Selector(b))
 end
 
 
-def field_as(qs: Q(Selector(a -> b)), e: Expr(a), name: String) -> Q(Selector(b))
-  Q(
+def field_as(qs: Query(Selector(a -> b)), e: Expr(a), name: String) -> Query(Selector(b))
+  Query(
     qs.tables,
     qs.joins,
     qs.wheres,
@@ -298,12 +298,12 @@ def render_int_clause(keyword: String, m: Maybe(Int)) -> String
 end
 
 
-implements ToSql(Q(Selector(a))) with
+implements ToSql(Query(Selector(a))) with
   to_sql: to_sql
 end
 
 
-def to_sql(q: Q(Selector(a))) -> (String, List(Value))
+def to_sql(q: Query(Selector(a))) -> (String, List(Value))
   select_clause = "SELECT " ++ String.join(q.result.columns_sql, ", ")
   from_clause = render_from(q.tables)
   joins_clause = q.joins
@@ -342,13 +342,13 @@ end
 # Runs the query and decodes the single row it selected. Errors with
 # `NotFound` on none and `TooManyRows` on more than one, so "exactly one" is
 # checked rather than assumed.
-def fetch_one(q: Q(Selector(a))) -> Task(a, SqlError)
+def fetch_one(q: Query(Selector(a))) -> Task(a, SqlError)
   to_sql(q) |> Sql.fetch_one_raw
 end
 
 
 # Runs the query and decodes every row it selected. No rows is an empty list,
 # not an error.
-def fetch_many(q: Q(Selector(a))) -> Task(List(a), SqlError)
+def fetch_many(q: Query(Selector(a))) -> Task(List(a), SqlError)
   to_sql(q) |> Sql.fetch_many_raw
 end

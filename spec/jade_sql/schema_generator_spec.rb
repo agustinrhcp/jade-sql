@@ -444,9 +444,13 @@ describe JadeSql::SchemaGenerator do
     end
 
     it 'emits a row projector that aliases each column to its field name' do
-      expect(generated).to include('def journal_entries_row(c: JournalEntriesCols)')
+      expect(generated).to include(<<~FN.strip)
+        def journal_entries_row(
+          c: JournalEntriesCols,
+        ) -> Query(Selector(JournalEntriesRow))
+      FN
       expect(generated).to include('field_as(c.type_, "type_")')
-      expect(generated).to include('import Sql.Query exposing (Q, field_as, select)')
+      expect(generated).to include('import Sql.Query exposing (Query, field_as, select)')
     end
 
     it 'produces a schema that compiles' do

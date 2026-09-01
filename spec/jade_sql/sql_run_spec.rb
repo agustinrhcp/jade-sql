@@ -129,12 +129,12 @@ end
         expect(App::Internal.find_via_run.run).to be_err(look_like("Sql::NotFound"))
       end
 
-      it 'surfaces a NotUnique from port_execute_one' do
+      it 'surfaces a TooManyRows from port_execute_one' do
         all_calls_to(JadeSql::Runtime.port_execute_one) do |t, _sql, _params|
-          t.err(JadeSql::SqlErrors.not_unique)
+          t.err(JadeSql::SqlErrors.too_many_rows)
         end
 
-        expect(App::Internal.find_via_run.run).to be_err(look_like("Sql::NotUnique"))
+        expect(App::Internal.find_via_run.run).to be_err(look_like("Sql::TooManyRows"))
       end
     end
 
@@ -211,12 +211,12 @@ end
         expect(App.find_via_run).to eql ["err", ["NotFound"]]
       end
 
-      it 'exposes ["err", ["NotUnique"]] for a NotUnique from port_execute_one' do
+      it 'exposes ["err", ["TooManyRows"]] for a TooManyRows from port_execute_one' do
         all_calls_to(JadeSql::Runtime.port_execute_one) do |t, _sql, _params|
-          t.err(JadeSql::SqlErrors.not_unique)
+          t.err(JadeSql::SqlErrors.too_many_rows)
         end
 
-        expect(App.find_via_run).to eql ["err", ["NotUnique"]]
+        expect(App.find_via_run).to eql ["err", ["TooManyRows"]]
       end
 
       it 'App.fn! returns the value on success' do
@@ -246,9 +246,9 @@ end
         .to raise_error(Sql::Errors::NotFound)
     end
 
-    it 'raises Sql::Errors::NotUnique for ["NotUnique"]' do
-      expect { Sql.raise_typed!(["NotUnique"]) }
-        .to raise_error(Sql::Errors::NotUnique)
+    it 'raises Sql::Errors::TooManyRows for ["TooManyRows"]' do
+      expect { Sql.raise_typed!(["TooManyRows"]) }
+        .to raise_error(Sql::Errors::TooManyRows)
     end
 
     it 'falls back to Sql::Errors::Error for an unknown type' do
@@ -256,10 +256,10 @@ end
         .to raise_error(Sql::Errors::Error, "x")
     end
 
-    it 'DbError, NotFound, NotUnique are all subclasses of Sql::Errors::Error' do
+    it 'DbError, NotFound, TooManyRows are all subclasses of Sql::Errors::Error' do
       expect(Sql::Errors::DbError.ancestors).to include(Sql::Errors::Error)
       expect(Sql::Errors::NotFound.ancestors).to include(Sql::Errors::Error)
-      expect(Sql::Errors::NotUnique.ancestors).to include(Sql::Errors::Error)
+      expect(Sql::Errors::TooManyRows.ancestors).to include(Sql::Errors::Error)
     end
 
     describe 'a query hands back the row type it was built for' do

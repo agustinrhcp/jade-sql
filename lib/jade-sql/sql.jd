@@ -471,14 +471,13 @@ def aliased(t: Table(c, m, k, o, r), alias_: String) -> Table(c, m, k, o, r)
 end
 
 
-# `NotUnique` is a read-side failure (fetch_one saw more than one row).
-# `Conflict` is a write-side unique-index violation, carrying the violated
-# constraint name so callers route it to a field error without string-matching.
+# `UniqueViolation` carries the violated constraint name, so a caller routes
+# it to a field error without matching on the database's message text.
 type SqlError
   = DbError(String)
   | NotFound
-  | NotUnique
-  | Conflict(String)
+  | TooManyRows
+  | UniqueViolation(String)
 
 
 implements Encodable(SqlError) with
@@ -490,8 +489,8 @@ def encode_sql_error(e: SqlError) -> Value
   case e
   in DbError(msg) then Encode.variant("DbError", [Encode.string(msg)])
   in NotFound then Encode.variant("NotFound", [])
-  in NotUnique then Encode.variant("NotUnique", [])
-  in Conflict(name) then Encode.variant("Conflict", [Encode.string(name)])
+  in TooManyRows then Encode.variant("TooManyRows", [])
+  in UniqueViolation(name) then Encode.variant("UniqueViolation", [Encode.string(name)])
   end
 end
 
@@ -505,8 +504,8 @@ def sql_error_decoder -> Decoder(SqlError)
   Decode.type_
     |> Decode.variant("DbError", db_error_decoder)
     |> Decode.variant("NotFound", Decode.succeed(NotFound))
-    |> Decode.variant("NotUnique", Decode.succeed(NotUnique))
-    |> Decode.variant("Conflict", conflict_decoder)
+    |> Decode.variant("TooManyRows", Decode.succeed(TooManyRows))
+    |> Decode.variant("UniqueViolation", unique_violation_decoder)
 end
 
 
@@ -515,8 +514,8 @@ def db_error_decoder -> Decoder(SqlError)
 end
 
 
-def conflict_decoder -> Decoder(SqlError)
-  Decode.index(1, Decode.string) |> Decode.map(Conflict)
+def unique_violation_decoder -> Decoder(SqlError)
+  Decode.index(1, Decode.string) |> Decode.map(UniqueViolation)
 end
 
 

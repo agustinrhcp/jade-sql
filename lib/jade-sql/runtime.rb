@@ -13,7 +13,7 @@ module JadeSql
       conn = ::ActiveRecord::Base.connection
       t.ok(conn.exec_update(adapt_sql(fill_now(sql), conn), "Jade", typed_params(params, conn)))
     rescue ::ActiveRecord::RecordNotUnique => e
-      t.err(JadeSql::SqlErrors.conflict(constraint_name(e)))
+      t.err(JadeSql::SqlErrors.unique_violation(constraint_name(e)))
     rescue ::ActiveRecord::StatementInvalid => e
       t.err(JadeSql::SqlErrors.db_error(e.message))
     end
@@ -24,10 +24,10 @@ module JadeSql
       case rows.length
       when 0 then t.err(JadeSql::SqlErrors.not_found)
       when 1 then t.ok(coerce_row(rows.first))
-      else        t.err(JadeSql::SqlErrors.not_unique)
+      else        t.err(JadeSql::SqlErrors.too_many_rows)
       end
     rescue ::ActiveRecord::RecordNotUnique => e
-      t.err(JadeSql::SqlErrors.conflict(constraint_name(e)))
+      t.err(JadeSql::SqlErrors.unique_violation(constraint_name(e)))
     rescue ::ActiveRecord::StatementInvalid => e
       t.err(JadeSql::SqlErrors.db_error(e.message))
     end
@@ -37,7 +37,7 @@ module JadeSql
       rows = conn.exec_query(adapt_sql(fill_now(sql), conn), "Jade", typed_params(params, conn)).to_a
       t.ok(rows.map { |row| coerce_row(row) })
     rescue ::ActiveRecord::RecordNotUnique => e
-      t.err(JadeSql::SqlErrors.conflict(constraint_name(e)))
+      t.err(JadeSql::SqlErrors.unique_violation(constraint_name(e)))
     rescue ::ActiveRecord::StatementInvalid => e
       t.err(JadeSql::SqlErrors.db_error(e.message))
     end

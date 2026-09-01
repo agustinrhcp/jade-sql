@@ -58,8 +58,8 @@ at the boundary.
 `SqlError` variants:
 - `DbError(String)` — AR `StatementInvalid` message
 - `NotFound` — `fetch_one` with zero rows
-- `NotUnique` — `fetch_one` with more than one row
-- `Conflict(String)` — a write hit a unique index; the `String` is the
+- `TooManyRows` — `fetch_one` with more than one row
+- `UniqueViolation(String)` — a write hit a unique index; the `String` is the
   violated constraint name (e.g. `users_email_key`), so you can route it to a
   field error instead of string-matching a `DbError` message
 

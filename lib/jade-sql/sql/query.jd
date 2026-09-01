@@ -340,7 +340,7 @@ end
 
 
 # Runs the query and decodes the single row it selected. Errors with
-# `NotFound` on none and `NotUnique` on more than one, so "exactly one" is
+# `NotFound` on none and `TooManyRows` on more than one, so "exactly one" is
 # checked rather than assumed.
 def fetch_one(q: Q(Selector(a))) -> Task(a, SqlError)
   to_sql(q) |> Sql.fetch_one_raw

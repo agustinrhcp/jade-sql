@@ -9,6 +9,10 @@ and one migration is better than three.
 
 ### Changed
 
+- `cast` is `unsafe_cast`. In Ecto, `cast/3` is the changeset function that
+  converts and validates untrusted input; here it converts nothing and checks
+  nothing, and a wrong one fails at decode time.
+
 - `SqlError`'s `NotUnique` is `TooManyRows` and `Conflict` is
   `UniqueViolation`. The two were the wrong way round for anyone arriving from
   Rails or Ecto, where `RecordNotUnique` and `unique_constraint` are both the

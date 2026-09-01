@@ -263,9 +263,9 @@ For predicates that lift a non-null column into the nullable side,
 p.id |> nullable |> eq(a.patient_id)  # Expr(Int) → Expr(Maybe(Int))
 ```
 
-### Phantom-type rewrap with `cast`
+### Phantom-type rewrap with `unsafe_cast`
 
-`cast(e: Expr(a)) -> Expr(b)` widens a column's phantom type — useful
+`unsafe_cast(e: Expr(a)) -> Expr(b)` widens a column's phantom type — useful
 for projecting a `VARCHAR` column into a typed enum field whose
 `Decodable(b)` instance does the actual parsing at row decode:
 
@@ -276,12 +276,12 @@ struct Appointment = { id: Int, status: Status, ... }
 # "scheduled" / "completed" into the variants.
 select(Appointment(_, _, ...))
   |> field(a.id)
-  |> field(a.status |> cast)   # Expr(String) → Expr(Status)
+  |> field(a.status |> unsafe_cast)   # Expr(String) → Expr(Status)
 ```
 
 Same shape as `nullable` — pure phantom-type rewrap, no runtime
 transformation. The runtime decoder (`Decodable(Status)`) is what
-actually converts the column value; `cast` just teaches the SQL
+actually converts the column value; `unsafe_cast` just teaches the SQL
 builder that the projection is intended. If `Decodable(b)` can't
 parse the column's actual values, the failure surfaces at row
 decode time, not at type check.

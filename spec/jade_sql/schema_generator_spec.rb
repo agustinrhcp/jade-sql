@@ -22,8 +22,8 @@ describe JadeSql::SchemaGenerator do
     it 'emits the module header' do
       expect(generated).to include(<<~JADE.strip)
         module Schema exposing (
-          MaybePatientsCols,
           PatientsCols,
+          PatientsLeftCols,
           PatientsRow(..),
           RequiredPatientsCols,
           patients,
@@ -65,7 +65,7 @@ describe JadeSql::SchemaGenerator do
 
     it 'emits a maybe struct: every field wrapped in Maybe' do
       expect(generated).to include(<<~STRUCT.strip)
-        struct MaybePatientsCols = {
+        struct PatientsLeftCols = {
           id: Expr(Maybe(Int)),
           name: Expr(Maybe(String)),
           balance: Expr(Maybe(Int))
@@ -75,12 +75,12 @@ describe JadeSql::SchemaGenerator do
 
     it 'emits a table function with alias = table name and its key' do
       expect(generated).to include(<<~FN.strip)
-        def patients -> Table(PatientsCols, MaybePatientsCols, Int, NoJoins, RequiredPatientsCols)
+        def patients -> Table(PatientsCols, PatientsLeftCols, Int, NoJoins, RequiredPatientsCols)
           table(
             "patients",
             "patients",
             (a) -> { PatientsCols(column(a, "id"), column(a, "name"), column(a, "balance")) },
-            (a) -> { MaybePatientsCols(column(a, "id"), column(a, "name"), column(a, "balance")) },
+            (a) -> { PatientsLeftCols(column(a, "id"), column(a, "name"), column(a, "balance")) },
             patients_pk,
             no_joins,
           )
@@ -225,7 +225,7 @@ describe JadeSql::SchemaGenerator do
     end
 
     it 'hands the record to the table' do
-      expect(generated).to include('def patients -> Table(PatientsCols, MaybePatientsCols, Uuid, PatientsOn, RequiredPatientsCols)')
+      expect(generated).to include('def patients -> Table(PatientsCols, PatientsLeftCols, Uuid, PatientsOn, RequiredPatientsCols)')
       expect(generated).to include('PatientsOn(patients_on_phone),')
     end
   end
@@ -269,7 +269,7 @@ describe JadeSql::SchemaGenerator do
     end
 
     it 'keys the table by NoKey and passes unkeyed' do
-      expect(generated).to include('def events -> Table(EventsCols, MaybeEventsCols, NoKey, NoJoins, RequiredEventsCols)')
+      expect(generated).to include('def events -> Table(EventsCols, EventsLeftCols, NoKey, NoJoins, RequiredEventsCols)')
       expect(generated).to include('unkeyed,')
     end
 
@@ -291,7 +291,7 @@ describe JadeSql::SchemaGenerator do
     end
 
     it 'is generated like any other table' do
-      expect(generated).to include('def schema_migrations -> Table(SchemaMigrationsCols, MaybeSchemaMigrationsCols, String, NoJoins, RequiredSchemaMigrationsCols)')
+      expect(generated).to include('def schema_migrations -> Table(SchemaMigrationsCols, SchemaMigrationsLeftCols, String, NoJoins, RequiredSchemaMigrationsCols)')
       expect(generated).to include('["version"]')
     end
   end
@@ -327,8 +327,8 @@ describe JadeSql::SchemaGenerator do
       expect(m).not_to be_nil
       entries = m[1].split(',').map { |e| e.strip.sub(/,\z/, '') }.reject(&:empty?)
       expect(entries).to eql %w[
-        MaybeOrdersCols MaybePersonsCols OrdersCols OrdersRow(..)
-        PersonsCols PersonsRow(..) RequiredOrdersCols RequiredPersonsCols
+        OrdersCols OrdersLeftCols OrdersRow(..) PersonsCols PersonsLeftCols
+        PersonsRow(..) RequiredOrdersCols RequiredPersonsCols
         orders orders_pk orders_row persons persons_pk persons_row
       ]
     end

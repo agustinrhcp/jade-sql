@@ -61,10 +61,10 @@ For each table, the generator emits:
 
 ```jade
 struct PatientsCols      = { id: Expr(Int), name: Expr(String), ... }
-struct MaybePatientsCols = { id: Expr(Maybe(Int)), name: Expr(Maybe(String)), ... }
+struct PatientsLeftCols = { id: Expr(Maybe(Int)), name: Expr(Maybe(String)), ... }
 struct PatientsRow       = { id: Int, name: String, ... }
 
-def patients -> Table(PatientsCols, MaybePatientsCols)
+def patients -> Table(PatientsCols, PatientsLeftCols)
   table("patients", "patients", ..., ["id"])
 end
 
@@ -253,7 +253,7 @@ c <- patients |> aliased("c") |> join((c) -> { p.id |> eq(c.parent_id) })
 ```jade
 p <- from(patients)
 a <- left_join(appointments, (a) -> { p.id |> eq(a.patient_id) })
-# `a` is MaybeAppointmentsCols; field types are Expr(Maybe(String)) etc.
+# `a` is AppointmentsLeftCols; field types are Expr(Maybe(String)) etc.
 ```
 
 For predicates that lift a non-null column into the nullable side,

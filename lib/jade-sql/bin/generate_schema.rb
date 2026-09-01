@@ -282,7 +282,7 @@ module JadeSql
     def emit_table(t)
       [
         emit_strict_cols(t),
-        emit_maybe_cols(t),
+        emit_left_cols(t),
         *emit_required_cols(t),
         emit_row(t),
         *emit_on(t),
@@ -308,7 +308,7 @@ module JadeSql
         .flat_map do |t|
           [
             "#{camel(t.name)}Cols",
-            "Maybe#{camel(t.name)}Cols",
+            "#{camel(t.name)}LeftCols",
             *("Required#{camel(t.name)}Cols" if required_columns(t).any?),
             "#{camel(t.name)}Row(..)",
             *("#{camel(t.name)}On(..)" if t.fks.any?),
@@ -371,12 +371,12 @@ module JadeSql
       "struct #{camel(t.name)}Cols = {\n#{fields}\n}"
     end
 
-    def emit_maybe_cols(t)
+    def emit_left_cols(t)
       fields = t.columns
         .map { |c| "  #{field_name(c.name)}: Expr(Maybe(#{c.jade_type}))" }
         .join(",\n")
 
-      "struct Maybe#{camel(t.name)}Cols = {\n#{fields}\n}"
+      "struct #{camel(t.name)}LeftCols = {\n#{fields}\n}"
     end
 
     # The columns an insert has to write: NOT NULL, with nothing on the
@@ -422,12 +422,12 @@ module JadeSql
       maybe_fields = t.columns.map { |c| "column(a, #{c.name.inspect})" }.join(", ")
 
       <<~JADE.strip
-        def #{t.name} -> Table(#{camel(t.name)}Cols, Maybe#{camel(t.name)}Cols, #{key_type(t)}, #{on_type(t)}, #{required_type(t)})
+        def #{t.name} -> Table(#{camel(t.name)}Cols, #{camel(t.name)}LeftCols, #{key_type(t)}, #{on_type(t)}, #{required_type(t)})
           table(
             #{t.name.inspect},
             #{t.name.inspect},
             (a) -> { #{camel(t.name)}Cols(#{strict_fields}) },
-            (a) -> { Maybe#{camel(t.name)}Cols(#{maybe_fields}) },
+            (a) -> { #{camel(t.name)}LeftCols(#{maybe_fields}) },
             #{keyed?(t) ? "#{t.name}_pk" : "unkeyed"},
             #{emit_on_value(t)},
           )

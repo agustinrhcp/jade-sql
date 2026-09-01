@@ -20,7 +20,7 @@ module JadeTables
 
     [
       cols_struct("#{klass}Cols", columns) { |t| "Expr(#{t})" },
-      cols_struct("Maybe#{klass}Cols", columns) { |t| "Expr(#{maybe(t)})" },
+      cols_struct("#{klass}LeftCols", columns) { |t| "Expr(#{maybe(t)})" },
       *(cols_struct("Required#{klass}Cols", columns.slice(*required)) { |t| "Expr(#{t})" } if required.any?),
       table_fn(name, klass, columns, key, alias_ || name, pk, joins, required),
     ].join("\n\n\n")
@@ -57,7 +57,7 @@ module JadeTables
           #{name.inspect},
           #{alias_.inspect},
           (a) -> { #{constructor("#{klass}Cols", reads)} },
-          (a) -> { #{constructor("Maybe#{klass}Cols", reads)} },
+          (a) -> { #{constructor("#{klass}LeftCols", reads)} },
           #{pk},
           #{joins},
         )
@@ -69,7 +69,7 @@ module JadeTables
   def signature(klass, key, joins, required)
     [
       "#{klass}Cols",
-      "Maybe#{klass}Cols",
+      "#{klass}LeftCols",
       key,
       joins_type(joins),
       required.any? ? "Required#{klass}Cols" : 'NoRequiredCols',

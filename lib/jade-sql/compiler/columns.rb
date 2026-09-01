@@ -63,7 +63,7 @@ module JadeSql
       end
 
       # `r` names the columns the database will not fill in, so a value that
-      # writes none of them produces a row Postgres rejects. `stamped` writes
+      # writes none of them produces a row Postgres rejects. `timestamped` writes
       # two of them without them being fields, which is why it is carried
       # alongside the value's own.
       def missing(value, stamps, table, ctx)
@@ -93,7 +93,7 @@ module JadeSql
         end
       end
 
-      # `stamped` writes `created_at` and `updated_at` on a value that has no
+      # `timestamped` writes `created_at` and `updated_at` on a value that has no
       # such fields, so it answers for them without appearing among them.
       def unstamp(value)
         case value

@@ -14,7 +14,7 @@ module Jade
 
     let(:source) do
       <<~JADE
-module App exposing (add_plain, add_stamped, add_stamped_value, touch)
+module App exposing (add_plain, add_stamped, backdate, touch)
 
 import Sql exposing (
   Assignable,
@@ -31,7 +31,9 @@ import Sql exposing (
   pk,
   table,
 )
-import Sql.Write exposing (insert, stamped, timestamped, update)
+import Sql.Write exposing (insert, timestamped, update)
+import Clock exposing (Instant)
+import Clock
 import Encode
 import Decode exposing (Value)
 
@@ -74,14 +76,7 @@ end
 
 
 def add_stamped(name: String) -> Task(Int, SqlError)
-  insert(NewPatient(name), patients)
-    |> timestamped
-    |> execute
-end
-
-
-def add_stamped_value(name: String) -> Task(Int, SqlError)
-  insert(NewPatient(name) |> stamped, patients) |> execute
+  insert(NewPatient(name) |> timestamped, patients) |> execute
 end
 
 
@@ -90,10 +85,32 @@ def add_plain(name: String) -> Task(Int, SqlError)
 end
 
 
-def touch(id: Int, name: String) -> Task(Int, SqlError)
-  update(Patient(id, name), patients, id)
-    |> timestamped
+struct Backdated = {
+  name: String,
+  created_at: Instant
+}
+
+
+implements Assignable(Backdated) with
+  to_assigns: backdated_assigns
+end
+
+
+def backdated_assigns(b: Backdated) -> List(Assignment)
+  [assign("name", b.name), assign("created_at", b.created_at)]
+end
+
+
+def backdate(id: Int, name: String, at_millis: Int) -> Task(Int, SqlError)
+  Clock.epoch
+    |> Clock.add(Clock.millis(at_millis))
+    |> (at) -> { update(Backdated(name, at) |> timestamped, patients, id) }
     |> execute
+end
+
+
+def touch(id: Int, name: String) -> Task(Int, SqlError)
+  update(Patient(id, name) |> timestamped, patients, id) |> execute
 end
       JADE
     end
@@ -109,20 +126,24 @@ end
       expect(row["created_at"]).to eq row["updated_at"]
     end
 
-    it 'fills them from the value too, which is where the check can see them' do
-      expect(App::Internal.add_stamped_value('Ada').run).to be_ok(1)
-
-      row = conn.select_one("SELECT name, created_at, updated_at FROM patients WHERE name = 'Ada'")
-      expect(row["created_at"]).not_to be_nil
-      expect(row["created_at"]).to eq row["updated_at"]
-    end
-
     it 'leaves timestamps untouched on a plain insert' do
       App::Internal.add_plain('Frank').run
 
       row = conn.select_one("SELECT created_at, updated_at FROM patients WHERE name = 'Frank'")
       expect(row["created_at"]).to be_nil
       expect(row["updated_at"]).to be_nil
+    end
+
+    it 'keeps a created_at the caller wrote, dropping only the one it added' do
+      App::Internal.add_plain('Zoe').run
+      id = conn.select_value("SELECT id FROM patients WHERE name = 'Zoe'")
+      at = Time.utc(2020, 1, 2, 3, 4, 5)
+
+      expect(App::Internal.backdate(id, 'Zoe', at.to_i * 1000).run).to be_ok(1)
+
+      row = conn.select_one("SELECT created_at, updated_at FROM patients WHERE id = #{id}")
+      expect(row["created_at"].to_i).to eq at.to_i
+      expect(row["updated_at"]).not_to be_nil
     end
 
     it 'sets only updated_at on a timestamped update' do

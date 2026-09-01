@@ -48,7 +48,7 @@ module Sql exposing (
   neg,
   neq,
   not_,
-  now,
+  db_now,
   or,
   nullable,
   no_joins,
@@ -223,9 +223,13 @@ def to_expr(value: a) -> Expr(a)
 end
 
 
-# The DB clock (Postgres `now()`), for `where(col |> gt(now))`-style
-# comparisons. This is the transaction timestamp, not the app clock.
-def now -> Expr(Instant)
+# The database's clock, as `now()` in the statement — evaluated by Postgres
+# when the query runs, at the start of the enclosing transaction. Not the
+# app's clock: `Sql.Mutation.timestamped` and `stamped` use that one, so two
+# rows written by one request share an instant this would not give them.
+#
+#   where(s.expires_at |> gt(db_now))
+def db_now -> Expr(Instant)
   Expr("now()", [])
 end
 

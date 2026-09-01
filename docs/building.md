@@ -170,16 +170,16 @@ Notes:
 
 `eq`, `gt`, `gte`, `lt`, `lte` compare two `Expr(a)` and yield `Expr(Bool)`;
 `is_null` / `is_not_null` take one; `and` joins two; `in_` matches a list.
-`now` is the DB clock (`now()`), for time comparisons:
+`db_now` is the database clock (`now()`), for time comparisons:
 
 ```jade
-import Sql exposing (column, gt, now, to_expr)
+import Sql exposing (column, db_now, gt, to_expr)
 
 a.starts_at |> gte(to_expr(cutoff))          # a.starts_at >= ?
-column("s", "expires_at") |> gt(now)         # s.expires_at > now()
+column("s", "expires_at") |> gt(db_now)      # s.expires_at > now()
 ```
 
-`now` is `Expr(Instant)` — the *DB* transaction clock, not the app clock.
+`db_now` is `Expr(Instant)` — the *DB* transaction clock, not the app clock.
 It's the right tool for `WHERE` filters; for `created_at`/`updated_at` use
 `Sql.Mutation.timestamped` (below), which uses the app clock like Rails.
 

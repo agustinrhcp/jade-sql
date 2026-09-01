@@ -541,17 +541,25 @@ sparse_changes
 ### Timestamps
 
 `insert`/`update` emit only the columns you set — they don't auto-fill
-`created_at` / `updated_at`. Opt in per-write with `timestamped`, which
-works like ActiveRecord: `created_at` + `updated_at` on insert, `updated_at`
-only on update.
+`created_at` / `updated_at`. Opt in per-write with `timestamped`, which wraps
+the **value** being written and works like ActiveRecord: `created_at` +
+`updated_at` on insert, `updated_at` only on update.
 
 ```jade
 import Sql.Write exposing (insert, timestamped, update)
 
-new_patient |> insert(patients) |> timestamped |> execute   -- both set
-patient     |> update(patients) |> timestamped |> execute   -- updated_at only
-new_import  |> insert(patients) |> execute                  -- no timestamps
+insert(new_patient |> timestamped, patients) |> execute   -- both set
+update(patch |> timestamped, patients, id) |> execute     -- updated_at only
+insert(new_import, patients) |> execute                   -- no timestamps
 ```
+
+It wraps the value rather than the built write so the required-columns check
+sees it: a table declaring the timestamps NOT NULL demands them of the value,
+and a pipe further down the chain could not answer for that.
+
+`update` drops the `created_at` the wrapper added, not any `created_at` you
+assigned yourself — the wrapper writes a clock token the runtime substitutes,
+so the two are distinguishable and a backdating update still lands.
 
 It's opt-in on purpose — backfills, imports, and `touch: false`-style writes
 just omit it (and can set the columns explicitly). The value is the **app

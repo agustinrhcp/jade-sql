@@ -28,8 +28,8 @@ and one migration is better than three.
   and the interface's was the one nobody typed.
 
 - `now` is `db_now`. It renders `now()` for Postgres to evaluate, while
-  `timestamped` and `stamped` write the app's clock — one word for two clocks
-  in one library was a coin flip at every call site.
+  `timestamped` writes the app's clock — one word for two clocks in one
+  library was a coin flip at every call site.
 
 - `cast` is `unsafe_cast`. In Ecto, `cast/3` is the changeset function that
   converts and validates untrusted input; here it converts nothing and checks
@@ -54,11 +54,10 @@ and one migration is better than three.
   error, naming the columns rather than letting Postgres reject the row at
   run time. `update` is untouched — the row it writes to already has them.
 
-- `Sql.Mutation.stamped` wraps a value with `created_at`/`updated_at`, so the
-  timestamps are written by the same argument the required-columns check
-  reads: `insert(NewPatient("Ada") |> stamped, patients)`. `timestamped` still
-  stamps a built `Mutation`, but a NOT NULL timestamp column is required of
-  the value, and a pipe further down the chain cannot answer for it.
+- `timestamped` wraps the value being written rather than the built write, so
+  the required-columns check can see it: `insert(NewPatient("Ada") |>
+  timestamped, patients)`. `update` writes only `updated_at`, dropping the
+  `created_at` the wrapper added while keeping one the caller assigned.
 
 - `neq`, `not_`, `like` and `ilike`.
 
@@ -72,7 +71,7 @@ and one migration is better than three.
   table's key or check it against the table it belongs to. `Pk` is phantom in
   the column struct, which is the referent a foreign key needs — an FK
   references a key, not a bare column.
-- `Sql.Query.filter` and `Sql.Mutation.filter` take a predicate as a function
+- `Sql.Query.filter` and `Sql.Write.filter` take a predicate as a function
   of the columns rather than a built one, which is what a caller that has not
   bound the columns needs.
 - `Sql.strip_alias` is exposed: given a column accessor it recovers the column
@@ -89,11 +88,12 @@ and one migration is better than three.
 ### Breaking
 
 - `Sql.fetch_one` and `Sql.fetch_many` are gone. They were polymorphic over
-  anything `Renderable` with an **unconstrained result type**, so a
-  `Q(Selector(Patient))` could be fetched as a `Task(Order, SqlError)` and it
-  compiled. `Sql.Query.fetch_one` / `fetch_many` and `Sql.Mutation.fetch_one` /
-  `fetch_many` / `execute` replace them, each typed against what its module
-  builds. `Sql.execute` stays — its result is `Int`, so it had nothing to lose.
+  anything `ToSql` with an **unconstrained result type**, so a
+  `Query(Selector(Patient))` could be fetched as a `Task(Order, SqlError)`
+  and it compiled. `Sql.Query.fetch_one` / `fetch_many` and
+  `Sql.Write.fetch_one` / `fetch_many` / `execute` replace them, each typed
+  against what its module builds. `Sql.execute` stays — its result is `Int`,
+  so it had nothing to lose.
   The `*_raw` forms keep the free result type, which is honest: nothing about a
   hand-written string says what it returns.
 

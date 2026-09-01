@@ -84,7 +84,7 @@ module App exposing (go)
 import Clock exposing (Instant)
 import Encode
 import Sql exposing (Expr, NoJoins, Pk, Table, column, no_joins, pk, table)
-import Sql.Write exposing (Write, insert, stamped)
+import Sql.Write exposing (Write, insert, timestamped)
 
 
 #{jade_table(
@@ -108,13 +108,13 @@ end
         JADE
       end
 
-      it 'points at stamped rather than asking for two fields nobody writes' do
+      it 'points at timestamped rather than asking for two fields nobody writes' do
         expect { test_compiler.require('app', stamps_app('insert(Patient("Ada"), patients)')) }
           .to raise_error(/does not write `created_at` and `updated_at`/)
       end
 
-      it 'takes stamped as writing them' do
-        expect { test_compiler.require('app', stamps_app('insert(Patient("Ada") |> stamped, patients)')) }
+      it 'takes timestamped as writing them' do
+        expect { test_compiler.require('app', stamps_app('insert(Patient("Ada") |> timestamped, patients)')) }
           .not_to raise_error
       end
     end

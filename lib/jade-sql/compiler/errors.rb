@@ -45,7 +45,7 @@ module JadeSql
         def notes
           return [] unless (@missing - STAMPS).empty?
 
-          [Jade::Diagnostics::Annotation[:help, 'pipe the value through `stamped`']]
+          [Jade::Diagnostics::Annotation[:help, 'pipe the value through `timestamped`']]
         end
 
         private

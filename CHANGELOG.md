@@ -9,6 +9,10 @@ and one migration is better than three.
 
 ### Changed
 
+- `now` is `db_now`. It renders `now()` for Postgres to evaluate, while
+  `timestamped` and `stamped` write the app's clock — one word for two clocks
+  in one library was a coin flip at every call site.
+
 - `cast` is `unsafe_cast`. In Ecto, `cast/3` is the changeset function that
   converts and validates untrusted input; here it converts nothing and checks
   nothing, and a wrong one fails at decode time.

@@ -124,11 +124,11 @@ module Jade
         test_compiler.require('app', <<~JADE)
           module App exposing (after_now, at_least, at_most, cheap)
 
-          import Sql exposing (Expr, column, gt, gte, lt, lte, now, to_expr)
+          import Sql exposing (Expr, column, db_now, gt, gte, lt, lte, to_expr)
 
 
           def after_now -> Expr(Bool)
-            column("s", "expires_at") |> gt(now)
+            column("s", "expires_at") |> gt(db_now)
           end
 
 

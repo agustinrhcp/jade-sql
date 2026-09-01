@@ -18,7 +18,7 @@ module Sql.Query exposing (
   filter,
 )
 
-import Sql exposing (Expr, Renderable, Selector(..), SqlError, Table, TableRef(..))
+import Sql exposing (Expr, Selector(..), SqlError, Table, TableRef(..), ToSql)
 import Decode exposing (Value)
 
 
@@ -298,8 +298,8 @@ def render_int_clause(keyword: String, m: Maybe(Int)) -> String
 end
 
 
-implements Renderable(Q(Selector(a))) with
-  render: to_sql
+implements ToSql(Q(Selector(a))) with
+  to_sql: to_sql
 end
 
 

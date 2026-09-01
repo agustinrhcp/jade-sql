@@ -105,7 +105,7 @@ end
 
     before { test_compiler.require('app', source) }
 
-    describe "execute (alias for run_count over Renderable)" do
+    describe "execute (alias for run_count over ToSql)" do
       it 'returns the affected count from the port' do
         all_calls_to(JadeSql::Runtime.port_execute_count) { |t, _sql, _params| t.ok(7) }
 
@@ -172,7 +172,7 @@ end
       end
     end
 
-    describe 'fetch_one via Renderable (Q)' do
+    describe 'fetch_one via ToSql (Q)' do
       it 'renders the Q via to_sql and decodes the row' do
         all_calls_to(JadeSql::Runtime.port_execute_one) do |t, sql, _params|
           # Verify Q.to_sql rendered the query the way we expect.

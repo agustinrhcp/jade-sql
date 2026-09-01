@@ -22,7 +22,7 @@ import Sql exposing (
   Assignable,
   Assignment(..),
   Expr(..),
-  Renderable,
+  ToSql,
   Selector(..),
   SqlError,
   Pk,
@@ -507,8 +507,8 @@ def to_sql(m: Mutation(ret, c)) -> (String, List(Value))
 end
 
 
-implements Renderable(Mutation(ret, c)) with
-  render: to_sql
+implements ToSql(Mutation(ret, c)) with
+  to_sql: to_sql
 end
 
 

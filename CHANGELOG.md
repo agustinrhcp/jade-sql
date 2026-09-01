@@ -7,6 +7,15 @@ Requires `jade-lang ~> 0.9.0`.
 Held unreleased on purpose: the accessor work and policies are breaking too,
 and one migration is better than three.
 
+### Changed
+
+- `SqlError`'s `NotUnique` is `TooManyRows` and `Conflict` is
+  `UniqueViolation`. The two were the wrong way round for anyone arriving from
+  Rails or Ecto, where `RecordNotUnique` and `unique_constraint` are both the
+  write-side index violation — here `NotUnique` was `fetch_one` seeing more
+  than one row. `NotFound` and `TooManyRows` now read as the pair `fetch_one`
+  returns.
+
 ### Added
 
 - `Table(c, m, k, o)` becomes `Table(c, m, k, o, r)`, where `r` is a struct of

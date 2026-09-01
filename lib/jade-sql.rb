@@ -13,12 +13,12 @@ require_relative 'jade-sql/uuid_runtime'
 module JadeSql
   module SqlErrors
     NOT_FOUND  = ["NotFound"].freeze
-    NOT_UNIQUE = ["NotUnique"].freeze
+    TOO_MANY_ROWS = ["TooManyRows"].freeze
 
     def self.db_error(msg)  = ["DbError", msg]
     def self.not_found      = NOT_FOUND
-    def self.not_unique     = NOT_UNIQUE
-    def self.conflict(name) = ["Conflict", name]
+    def self.too_many_rows     = TOO_MANY_ROWS
+    def self.unique_violation(name) = ["UniqueViolation", name]
   end
 end
 
@@ -27,14 +27,14 @@ module Sql
     class Error < StandardError; end
     class DbError   < Error; end
     class NotFound  < Error; end
-    class NotUnique < Error; end
-    class Conflict  < Error; end
+    class TooManyRows < Error; end
+    class UniqueViolation  < Error; end
 
     BY_TAG = {
       "DbError"   => DbError,
       "NotFound"  => NotFound,
-      "NotUnique" => NotUnique,
-      "Conflict"  => Conflict,
+      "TooManyRows" => TooManyRows,
+      "UniqueViolation"  => UniqueViolation,
     }.freeze
   end
 

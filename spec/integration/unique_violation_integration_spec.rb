@@ -6,7 +6,7 @@ require 'jade-sql'
 require 'jade-sql/runtime'
 
 module Jade
-  describe 'INSERT unique-violation -> Sql.Conflict against Postgres', :integration do
+  describe 'INSERT unique-violation -> Sql.UniqueViolation against Postgres', :integration do
     include_context 'with test compiler'
     include_context 'with database'
 
@@ -74,9 +74,9 @@ end
 
     after { conn.execute("DROP TABLE IF EXISTS accounts") }
 
-    it 'returns Conflict carrying the violated constraint name' do
+    it 'returns UniqueViolation carrying the violated constraint name' do
       expect(App::Internal.add('dup@x.com').run)
-        .to be_err(look_like("Sql::Conflict", "accounts_email_key"))
+        .to be_err(look_like("Sql::UniqueViolation", "accounts_email_key"))
     end
 
     it 'leaves a non-conflicting insert as Ok' do

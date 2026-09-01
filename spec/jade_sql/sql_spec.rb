@@ -292,16 +292,16 @@ module Jade
       end
     end
 
-    describe 'cast' do
+    describe 'unsafe_cast' do
       it 'rewraps the phantom type without touching sql or params' do
         test_compiler.require('app', <<~JADE)
           module App exposing (recast)
 
-          import Sql exposing (Expr, cast, column)
+          import Sql exposing (Expr, column, unsafe_cast)
 
 
           def recast -> Expr(Bool)
-            column("p", "kind") |> cast
+            column("p", "kind") |> unsafe_cast
           end
         JADE
 

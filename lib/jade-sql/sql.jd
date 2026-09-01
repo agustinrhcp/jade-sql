@@ -20,7 +20,7 @@ module Sql exposing (
   array_overlaps,
   array_remove,
   assign,
-  cast,
+  unsafe_cast,
   coalesce,
   column,
   columns,
@@ -277,7 +277,15 @@ def nullable(e: Expr(a)) -> Expr(Maybe(a))
 end
 
 
-def cast(e: Expr(a)) -> Expr(b)
+# Re-labels what a column expression claims to hold, without touching the SQL
+# or the value. Nothing converts, and nothing checks: if the database returns
+# something the new type cannot decode, the failure lands at decode time.
+#
+# Reach for it where the schema is less specific than the code, and the code
+# is right — a `text` column the application only ever writes enum labels to:
+#
+#   select(Visit(_)) |> field(v.status |> unsafe_cast)
+def unsafe_cast(e: Expr(a)) -> Expr(b)
   Expr(e.sql, e.params)
 end
 

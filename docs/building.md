@@ -1,7 +1,7 @@
 # Building SQL
 
 Generate a typed schema from your database, then build queries and
-mutations against it. To run what you build, see [running.md](running.md).
+writes against it. To run what you build, see [running.md](running.md).
 
 ## Generate `schema.jd` from `db/structure.sql`
 
@@ -181,7 +181,7 @@ column("s", "expires_at") |> gt(db_now)      # s.expires_at > now()
 
 `db_now` is `Expr(Instant)` — the *DB* transaction clock, not the app clock.
 It's the right tool for `WHERE` filters; for `created_at`/`updated_at` use
-`Sql.Mutation.timestamped` (below), which uses the app clock like Rails.
+`Sql.Write.timestamped` (below), which uses the app clock like Rails.
 
 ### Sorting and grouping
 
@@ -347,7 +347,7 @@ end
 on empty). Filter untagged rows with
 `array_length(column("a", "tags")) |> eq(to_expr(0))`.
 
-Mutation ops for partial array updates:
+Write ops for partial array updates:
 
 | Function                                                            | SQL                          |
 |---------------------------------------------------------------------|------------------------------|
@@ -397,7 +397,7 @@ end
 The `@?` operator requires `jsonpath` on the right; the param binds as
 text and gets cast at the SQL level.
 
-## Build mutations
+## Build writes
 
 One interface says which columns a value writes:
 
@@ -450,10 +450,10 @@ spreads it across its columns as `structure.sql` declares them.
 (e.g. `"visit_no + ?"` for increments) use the `Assignment(...)`
 constructor directly.
 
-Then the mutation API works on values directly:
+Then the write API works on values directly:
 
 ```jade
-import Sql.Mutation exposing(insert, update, delete, insert_all, update_all, delete_all, to_sql)
+import Sql.Write exposing(insert, update, delete, insert_all, update_all, delete_all, to_sql)
 
 p |> insert(patients) |> to_sql        # INSERT INTO patients (name, mrn) VALUES (?, ?)
 p |> update(patients) |> to_sql        # UPDATE patients SET name = ?, mrn = ? WHERE id = ?
@@ -473,7 +473,7 @@ appointments
 
 ### RETURNING
 
-`returning` is the mutation-side counterpart to `select` for queries.
+`returning` is the write-side counterpart to `select` for queries.
 It takes a closure that receives the table's column accessors and
 builds a Query-wrapped selector projecting them into a target type. The
 Query wrapper is just to share the same `select`/`field` builders as
@@ -483,7 +483,7 @@ empty Query state.
 ```jade
 import Sql exposing(Selector)
 import Sql.Query exposing(select, field)
-import Sql.Mutation exposing(insert, returning, to_sql)
+import Sql.Write exposing(insert, returning, to_sql)
 
 # INSERT INTO patients (name, mrn) VALUES (?, ?) RETURNING id, name, mrn
 np
@@ -503,7 +503,7 @@ Query(Selector(target))` shape, so a single `def patient_projector(p)`
 works for `from(patients) |> patient_projector` (query) and
 `... |> returning(patient_projector)` (RETURNING).
 
-Combined with `Sql.Mutation.fetch_one`, the inserted row decodes into the
+Combined with `Sql.Write.fetch_one`, the inserted row decodes into the
 target struct:
 
 ```jade
@@ -518,7 +518,7 @@ def create(np: NewPatient) -> Task(Patient, SqlError)
 end
 ```
 
-`filter` narrows a query or a mutation you have already built. Where
+`filter` narrows a query or a write you have already built. Where
 `where` takes a predicate, `filter` takes a *function* of the columns, so a
 caller that has not bound them can still add one — enough to write a
 tenancy wrapper that scopes a keyed write, rather than funnelling every
@@ -546,7 +546,7 @@ works like ActiveRecord: `created_at` + `updated_at` on insert, `updated_at`
 only on update.
 
 ```jade
-import Sql.Mutation exposing (insert, timestamped, update)
+import Sql.Write exposing (insert, timestamped, update)
 
 new_patient |> insert(patients) |> timestamped |> execute   -- both set
 patient     |> update(patients) |> timestamped |> execute   -- updated_at only

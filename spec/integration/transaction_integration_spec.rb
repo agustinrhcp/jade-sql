@@ -38,7 +38,7 @@ import Sql exposing (
   table,
   transaction,
 )
-import Sql.Mutation exposing (insert)
+import Sql.Write exposing (insert)
 import Encode
 
 

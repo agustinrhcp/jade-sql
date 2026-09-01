@@ -1,6 +1,6 @@
-# Running queries and mutations
+# Running queries and writes
 
-`Sql.Query` and `Sql.Mutation` each run what they build: `fetch_one` /
+`Sql.Query` and `Sql.Write` each run what they build: `fetch_one` /
 `fetch_many` for reads, `execute` for writes. They live in the builder
 modules rather than in `Sql` because that is where the row type is known —
 a `Query(Selector(Patient))` fetches a `Patient` and nothing else.
@@ -11,7 +11,7 @@ and cannot know what they return:
 ```jade
 import Sql exposing (SqlError, execute_raw)
 import Sql.Query exposing (fetch_many, fetch_one)
-import Sql.Mutation exposing (execute)
+import Sql.Write exposing (execute)
 
 # Affected count for INSERT/UPDATE/DELETE
 def reschedule(a: Appointment) -> Task(Int, SqlError)
@@ -39,10 +39,10 @@ query was written to produce is the one it hands back:
 
 ```jade
 Sql.Query.fetch_one    : Query(Selector(a))   -> Task(a, SqlError)
-Sql.Mutation.fetch_one : Mutation(ret, c) -> Task(ret, SqlError)
+Sql.Write.fetch_one : Write(ret, c) -> Task(ret, SqlError)
 ```
 
-A mutation only has a row type once `returning` gives it one, which is what
+A write only has a row type once `returning` gives it one, which is what
 makes fetching from one meaningful.
 
 For raw SQL, skip the builders: `fetch_one_raw` / `fetch_many_raw` /

@@ -4,7 +4,7 @@ Gem::Specification.new do |s|
   s.name        = 'jade-sql'
   s.version     = JadeSql::VERSION
   s.summary     = 'Type-safe SQL extension for Jade'
-  s.description = 'Query and mutation builders, schema generation from ' \
+  s.description = 'Query and write builders, schema generation from ' \
     'db/structure.sql, and an ActiveRecord-backed runtime for the Jade ' \
     'language. Renders typed queries to (String, List(Value)) and decodes ' \
     'rows into Jade structs.'

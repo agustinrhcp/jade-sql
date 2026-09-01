@@ -12,7 +12,7 @@ module JadeSql
       EXPR = 'Sql.Expr'
       LIST = 'List.List'
       ASSIGNABLE = 'Sql.Assignable'
-      STAMPED = 'Sql.Mutation.Stamped'
+      STAMPED = 'Sql.Write.Stamped'
       STAMPS = %w[created_at updated_at].freeze
 
       # Where the written value is, where the table is, whether the value
@@ -21,9 +21,9 @@ module JadeSql
       Target = Data.define(:value_at, :table_at, :wrapper, :creates)
 
       TARGETS = {
-        'Sql.Mutation.insert' => Target[0, 1, :bare, true],
-        'Sql.Mutation.insert_all' => Target[0, 1, :list, true],
-        'Sql.Mutation.update' => Target[0, 1, :bare, false],
+        'Sql.Write.insert' => Target[0, 1, :bare, true],
+        'Sql.Write.insert_all' => Target[0, 1, :list, true],
+        'Sql.Write.update' => Target[0, 1, :bare, false],
       }.freeze
 
       def watches = TARGETS.keys

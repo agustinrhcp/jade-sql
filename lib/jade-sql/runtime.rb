@@ -189,7 +189,7 @@ module JadeSql
       ""
     end
 
-    # Sql.Mutation.timestamped emits "$JADE_SQL_NOW$" where created_at /
+    # Sql.Write.timestamped emits "$JADE_SQL_NOW$" where created_at /
     # updated_at go. Swap it for one UTC timestamp literal per statement,
     # computed here — the app clock, so it moves with travel_to/Timecop
     # (unlike DB now()). The token lives in SQL we generate, never in a

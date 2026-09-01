@@ -6,7 +6,7 @@ require 'jade-sql'
 require 'jade-sql/runtime'
 
 module Jade
-  describe 'Sql.Mutation.timestamped against Postgres', :integration do
+  describe 'Sql.Write.timestamped against Postgres', :integration do
     include_context 'with test compiler'
     include_context 'with database'
 
@@ -31,7 +31,7 @@ import Sql exposing (
   pk,
   table,
 )
-import Sql.Mutation exposing (insert, stamped, timestamped, update)
+import Sql.Write exposing (insert, stamped, timestamped, update)
 import Encode
 import Decode exposing (Value)
 

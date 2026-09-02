@@ -7,6 +7,26 @@ Requires `jade-lang ~> 0.9.0`.
 Held unreleased on purpose: the accessor work and policies are breaking too,
 and one migration is better than three.
 
+### Added
+
+- **`jade-sql schema --check`, and `rake jade:schema:check`.** The generator
+  reads `db/structure.sql` and nothing else, so a schema that was not
+  regenerated after a migration describes a database that no longer exists,
+  and every type built on it is wrong in a way no compiler can see. The check
+  regenerates in memory, compares, and names the tables that differ:
+
+  ```
+  schema.jd no longer matches the database:
+
+    in the database, missing here: visits
+    different: patients
+
+  Regenerate it with `jade-sql schema`.
+  ```
+
+  It reports and stops there. Writing the migration that would close the gap
+  needs the schema declared in jade, which is a separate piece of work.
+
 ### Changed
 
 - Every operator takes the value on the right rather than an `Expr`, matching

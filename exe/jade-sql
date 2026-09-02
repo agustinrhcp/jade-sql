@@ -9,12 +9,14 @@ def run_schema(args)
   require 'fileutils'
   require 'jade-sql'
   require 'jade-sql/bin/generate_schema'
+  require 'jade-sql/schema_drift'
 
   opts = {
     input: 'db/structure.sql',
     output: 'app/jade/schema.jd',
     module_name: 'Schema',
     tables: nil,
+    check: false,
   }
 
   OptionParser.new do |o|
@@ -25,6 +27,7 @@ def run_schema(args)
       opts[:tables] = it.split(',').map(&:strip).reject(&:empty?)
     }
     o.on('-m', '--module NAME', 'module name (default: Schema)') { opts[:module_name] = it }
+    o.on('-c', '--check', 'report drift and exit non-zero, writing nothing') { opts[:check] = true }
   end.parse!(args)
 
   generated = JadeSql::SchemaGenerator.generate(
@@ -33,9 +36,26 @@ def run_schema(args)
     module_name: opts[:module_name],
   )
 
+  return check(generated, opts[:output]) if opts[:check]
+
   FileUtils.mkdir_p(File.dirname(opts[:output]))
   File.write(opts[:output], generated)
   puts "wrote #{opts[:output]}"
+end
+
+# For CI: the database moved, the schema did not, and every type built on
+# it is now describing a table that is not there.
+def check(generated, output)
+  unless File.exist?(output)
+    warn "#{output} does not exist. Generate it with `jade-sql schema`."
+    exit 1
+  end
+
+  report = JadeSql::SchemaDrift.between(generated, File.read(output))
+  return puts("#{output} matches the database.") unless report.any?
+
+  warn report.to_s
+  exit 1
 end
 
 HELP = <<~USAGE
@@ -45,6 +65,7 @@ HELP = <<~USAGE
 
   Commands:
     schema     Generate schema.jd from a SQL structure dump
+               (`--check` reports drift instead of writing)
     version    Print the version
     help       Show this message
 

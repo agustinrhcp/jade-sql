@@ -24,12 +24,17 @@ To execute queries at runtime, opt into the AR-backed task port:
 require 'jade-sql/runtime'
 ```
 
-To get the rake task for schema generation:
+To get the rake tasks for schema generation:
 
 ```ruby
 # Rakefile (or lib/tasks/jade.rake)
 load Gem.find_files('jade-sql/tasks.rake').first
 ```
+
+`rake jade:schema` writes the schema; `rake jade:schema:check` fails when the
+checked-in one no longer matches `db/structure.sql`, which is what a migration
+merged without regenerating looks like. Both are also `jade-sql schema` and
+`jade-sql schema --check`.
 
 ## At a glance
 

@@ -596,13 +596,14 @@ module Jade
     describe 'from + where via postfix' do
       let(:source) do
         <<~JADE
-module App exposing (named_paul)
+module App exposing (named_paul, named_paul_elsewhere)
 
 import Sql exposing (
   Expr,
   NoJoins,
   Pk,
   Table,
+  aliased,
   column,
   columns,
   eq,
@@ -624,10 +625,26 @@ end
 
 
 def named_paul -> Query(PersonsCols)
-  p_cols = columns(persons, "p")
+  p_cols = columns(persons)
   from(persons) |> where(p_cols.name |> eq(to_expr("Paul")))
 end
+
+
+def named_paul_elsewhere -> Query(PersonsCols)
+  other = persons |> aliased("q")
+
+  from(other) |> where(columns(other).name |> eq(to_expr("Paul")))
+end
         JADE
+      end
+
+      it 'takes the alias from the table, so aliased changes both' do
+        test_compiler.require('app', source)
+
+        App::Internal.named_paul_elsewhere.then do |q|
+          expect(q.tables.first.alias_).to eql 'q'
+          expect(q.wheres.first.sql).to eql 'q.name = ?'
+        end
       end
 
       it 'records the table and where clause' do

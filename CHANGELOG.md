@@ -9,6 +9,11 @@ and one migration is better than three.
 
 ### Changed
 
+- `columns` and `left_columns` take only the table. The alias was a second,
+  unchecked argument that had to match the one the table already carries;
+  passing anything else emitted a prefix the statement never declared. Use
+  `aliased` to read a table under another name — it changes both.
+
 - `set_` is `set` and `not_` is `not` — neither is a jade keyword, so the
   trailing underscore was never needed. `in_` is `any_of`, since `in` is one
   and no amount of renaming frees it.

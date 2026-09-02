@@ -28,16 +28,16 @@ module Jade
       end
     end
 
-    describe 'to_expr (polymorphic via SqlEncodable)' do
+    describe 'val (polymorphic via SqlEncodable)' do
       it 'encodes an Int into VInt' do
         test_compiler.require('app', <<~JADE)
           module App exposing (make_expr)
 
-          import Sql exposing (Expr, to_expr)
+          import Sql exposing (Expr, val)
 
 
           def make_expr -> Expr(Int)
-            to_expr(42)
+            val(42)
           end
         JADE
 
@@ -51,11 +51,11 @@ module Jade
         test_compiler.require('app', <<~JADE)
           module App exposing (make_expr)
 
-          import Sql exposing (Expr, to_expr)
+          import Sql exposing (Expr, val)
 
 
           def make_expr -> Expr(String)
-            to_expr("paul")
+            val("paul")
           end
         JADE
 
@@ -68,11 +68,11 @@ module Jade
         test_compiler.require('app', <<~JADE)
           module App exposing (make_expr)
 
-          import Sql exposing (Expr, to_expr)
+          import Sql exposing (Expr, val)
 
 
           def make_expr -> Expr(Maybe(Int))
-            to_expr(Just(12))
+            val(Just(12))
           end
         JADE
 
@@ -85,11 +85,11 @@ module Jade
         test_compiler.require('app', <<~JADE)
           module App exposing (make_expr)
 
-          import Sql exposing (Expr, to_expr)
+          import Sql exposing (Expr, val)
 
 
           def make_expr -> Expr(Maybe(Int))
-            to_expr(Nothing)
+            val(Nothing)
           end
         JADE
 
@@ -104,11 +104,11 @@ module Jade
         test_compiler.require('app', <<~JADE)
           module App exposing (predicate)
 
-          import Sql exposing (Expr, column, eq, to_expr)
+          import Sql exposing (Expr, column, eq, val)
 
 
           def predicate -> Expr(Bool)
-            column("p", "age") |> eq(to_expr(18))
+            column("p", "age") |> eq(val(18))
           end
         JADE
 
@@ -124,7 +124,7 @@ module Jade
         test_compiler.require('app', <<~JADE)
           module App exposing (after_now, at_least, at_most, cheap)
 
-          import Sql exposing (Expr, column, db_now, gt, gte, lt, lte, to_expr)
+          import Sql exposing (Expr, column, db_now, gt, gte, lt, lte, val)
 
 
           def after_now -> Expr(Bool)
@@ -133,17 +133,17 @@ module Jade
 
 
           def at_least -> Expr(Bool)
-            column("t", "amount") |> gte(to_expr(100))
+            column("t", "amount") |> gte(val(100))
           end
 
 
           def cheap -> Expr(Bool)
-            column("t", "amount") |> lt(to_expr(5))
+            column("t", "amount") |> lt(val(5))
           end
 
 
           def at_most -> Expr(Bool)
-            column("t", "amount") |> lte(to_expr(5))
+            column("t", "amount") |> lte(val(5))
           end
         JADE
 
@@ -185,21 +185,21 @@ module Jade
         test_compiler.require('app', <<~JADE)
           module App exposing (different, insensitive, matching)
 
-          import Sql exposing (Expr, column, ilike, like, neq, to_expr)
+          import Sql exposing (Expr, column, ilike, like, neq, val)
 
 
           def different -> Expr(Bool)
-            column("p", "name") |> neq(to_expr("Ada"))
+            column("p", "name") |> neq(val("Ada"))
           end
 
 
           def matching -> Expr(Bool)
-            column("p", "name") |> like(to_expr("Ada%"))
+            column("p", "name") |> like(val("Ada%"))
           end
 
 
           def insensitive -> Expr(Bool)
-            column("p", "name") |> ilike(to_expr("ada%"))
+            column("p", "name") |> ilike(val("ada%"))
           end
         JADE
 
@@ -230,12 +230,12 @@ module Jade
         test_compiler.require('app', <<~JADE)
           module App exposing (predicate)
 
-          import Sql exposing (Expr, and, column, eq, to_expr)
+          import Sql exposing (Expr, and, column, eq, val)
 
 
           def predicate -> Expr(Bool)
-            a = column("p", "a") |> eq(to_expr(1))
-            b = column("p", "b") |> eq(to_expr(2))
+            a = column("p", "a") |> eq(val(1))
+            b = column("p", "b") |> eq(val(2))
             a |> and(b)
           end
         JADE
@@ -252,12 +252,12 @@ module Jade
         test_compiler.require('app', <<~JADE)
           module App exposing (predicate)
 
-          import Sql exposing (Expr, column, eq, or, to_expr)
+          import Sql exposing (Expr, column, eq, or, val)
 
 
           def predicate -> Expr(Bool)
-            a = column("p", "a") |> eq(to_expr(1))
-            b = column("p", "b") |> eq(to_expr(2))
+            a = column("p", "a") |> eq(val(1))
+            b = column("p", "b") |> eq(val(2))
             a |> or(b)
           end
         JADE
@@ -274,13 +274,13 @@ module Jade
         test_compiler.require('app', <<~JADE)
           module App exposing (predicate)
 
-          import Sql exposing (Expr, and, column, eq, or, to_expr)
+          import Sql exposing (Expr, and, column, eq, or, val)
 
 
           def predicate -> Expr(Bool)
-            x = column("p", "x") |> eq(to_expr(0))
-            a = column("p", "a") |> eq(to_expr(1))
-            b = column("p", "b") |> eq(to_expr(2))
+            x = column("p", "x") |> eq(val(0))
+            a = column("p", "a") |> eq(val(1))
+            b = column("p", "b") |> eq(val(2))
             x |> and(or(a, b))
           end
         JADE
@@ -332,7 +332,7 @@ module Jade
             count_all,
             neg,
             sum,
-            to_expr,
+            val,
           )
 
 
@@ -352,7 +352,7 @@ module Jade
 
 
           def coalesced -> Expr(Int)
-            coalesce(sum(column("p", "amount")), to_expr(0))
+            coalesce(sum(column("p", "amount")), val(0))
           end
 
 
@@ -492,7 +492,7 @@ module Jade
             array_concat,
             array_remove,
             column,
-            to_expr,
+            val,
           )
 
 
@@ -507,7 +507,7 @@ module Jade
 
 
           def concat_(extra: List(String)) -> Expr(List(String))
-            array_concat(column("l", "tags"), to_expr(extra))
+            array_concat(column("l", "tags"), val(extra))
           end
         JADE
       end
@@ -610,7 +610,7 @@ import Sql exposing (
   no_joins,
   pk,
   table,
-  to_expr,
+  val,
 )
 import Encode
 import Sql.Query exposing (Query, from, where)
@@ -626,14 +626,14 @@ end
 
 def named_paul -> Query(PersonsCols)
   p_cols = columns(persons)
-  from(persons) |> where(p_cols.name |> eq(to_expr("Paul")))
+  from(persons) |> where(p_cols.name |> eq(val("Paul")))
 end
 
 
 def named_paul_elsewhere -> Query(PersonsCols)
   other = persons |> aliased("q")
 
-  from(other) |> where(columns(other).name |> eq(to_expr("Paul")))
+  from(other) |> where(columns(other).name |> eq(val("Paul")))
 end
         JADE
       end
@@ -680,7 +680,7 @@ import Sql exposing (
   no_joins,
   pk,
   table,
-  to_expr,
+  val,
 )
 import Sql.Query exposing (Query, field, filter, from, join, select, to_sql)
 
@@ -708,7 +708,7 @@ end
 
 
 def filtered -> Query(Selector(Order))
-  o <- persons_with_orders |> filter((c) -> { c.id |> eq(to_expr(7)) })
+  o <- persons_with_orders |> filter((c) -> { c.id |> eq(val(7)) })
 
   select(Order(_)) |> field(o.id)
 end
@@ -914,7 +914,7 @@ import Sql exposing (
   no_joins,
   pk,
   table,
-  to_expr,
+  val,
 )
 import Encode
 import Sql.Query exposing (Query, field, from, select, where)
@@ -971,7 +971,7 @@ import Sql exposing (
   no_joins,
   pk,
   table,
-  to_expr,
+  val,
 )
 import Encode
 import Sql.Query exposing (Query, field, from, join, select, to_sql, where)
@@ -1019,7 +1019,7 @@ def query -> Query(Selector(Row))
     |> field(p.name)
     |> field(o.total)
     |> where(p.age |> is_not_null)
-    |> where(o.total |> eq(to_expr(100)))
+    |> where(o.total |> eq(val(100)))
 end
 
 
@@ -1378,7 +1378,7 @@ import Sql exposing (
   set,
   table,
   to_assigns,
-  to_expr,
+  val,
 )
 import Sql.Query exposing (Query, field, select)
 import Sql.Write exposing (
@@ -1502,7 +1502,7 @@ end
 def update_all_nothing -> (String, List(Value))
   patients
     |> update_all(
-  (p) -> { p.balance |> eq(to_expr(0)) },
+  (p) -> { p.balance |> eq(val(0)) },
   (p) -> { [] },
 )
     |> to_sql
@@ -1512,7 +1512,7 @@ end
 def update_all_nothing_returning -> (String, List(Value))
   patients
     |> update_all(
-  (p) -> { p.balance |> eq(to_expr(0)) },
+  (p) -> { p.balance |> eq(val(0)) },
   (p) -> { [] },
 )
     |> returning(
@@ -1528,8 +1528,8 @@ end
 def update_all_to_zero -> (String, List(Value))
   patients
     |> update_all(
-  (p) -> { p.balance |> eq(to_expr(0)) },
-  (p) -> { [p.archived |> set(to_expr(True))] },
+  (p) -> { p.balance |> eq(val(0)) },
+  (p) -> { [p.archived |> set(val(True))] },
 )
     |> to_sql
 end
@@ -1547,7 +1547,7 @@ end
 
 def delete_archived -> (String, List(Value))
   patients
-    |> delete_all((p) -> { p.archived |> eq(to_expr(True)) })
+    |> delete_all((p) -> { p.archived |> eq(val(True)) })
     |> to_sql
 end
 

@@ -9,10 +9,14 @@ and one migration is better than three.
 
 ### Changed
 
+- `to_expr` is `val`. It is the most-typed function in the library, wrapping
+  every literal a predicate compares against, and the old name described the
+  return type rather than the argument.
+
 - `columns` and `left_columns` take only the table. The alias was a second,
-  unchecked argument that had to match the one the table already carries;
-  passing anything else emitted a prefix the statement never declared. Use
-  `aliased` to read a table under another name — it changes both.
+  unchecked argument that had to match the one the table already carries, so
+  the only thing it could add was a way to get it wrong. Use `aliased` to read
+  a table under another name; it changes both halves at once.
 
 - `set_` is `set` and `not_` is `not` — neither is a jade keyword, so the
   trailing underscore was never needed. `in_` is `any_of`, since `in` is one

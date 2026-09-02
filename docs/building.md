@@ -50,7 +50,7 @@ type VisitStatus
 
 Nullary unions derive `Encodable` and `Decodable` with the variant name in
 snake_case, which is the label Postgres stores — so the codec is free and
-`eq(v.status, to_expr("schedulled"))` stops compiling. Before this, an enum
+`eq(v.status, val("schedulled"))` stops compiling. Before this, an enum
 column failed generation outright with `Unknown SQL type`.
 
 `bytea` isn't mapped yet, though jade's `Bytes` is the natural target. See
@@ -139,7 +139,7 @@ makes a `COUNT(*)` land in a `visits` field).
 ## Build queries
 
 ```jade
-import Sql exposing (Selector, eq, to_expr)
+import Sql exposing (Selector, eq, val)
 import Sql.Query exposing (Query, field, from, join, select, where)
 import Schema exposing (patients, appointments)
 
@@ -155,7 +155,7 @@ def scheduled_visits -> Query(Selector(Visit))
   select(Visit(_, _))
     |> field(p.name)
     |> field(a.reason)
-    |> where(a.status |> eq(to_expr("scheduled")))
+    |> where(a.status |> eq(val("scheduled")))
 end
 ```
 
@@ -173,9 +173,9 @@ Notes:
 `db_now` is the database clock (`now()`), for time comparisons:
 
 ```jade
-import Sql exposing (column, db_now, gt, to_expr)
+import Sql exposing (column, db_now, gt, val)
 
-a.starts_at |> gte(to_expr(cutoff))          # a.starts_at >= ?
+a.starts_at |> gte(val(cutoff))          # a.starts_at >= ?
 column("s", "expires_at") |> gt(db_now)      # s.expires_at > now()
 ```
 
@@ -304,11 +304,11 @@ Worked example — count visits and the most recent visit number,
 coalesced to 0 when a patient has none:
 
 ```jade
-import Sql exposing (coalesce, column, count_all, sum, to_expr)
+import Sql exposing (coalesce, column, count_all, sum, val)
 
 select(Totals(_, _))
   |> field(count_all)
-  |> field(coalesce(sum(column("a", "visit_no")), to_expr(0)))
+  |> field(coalesce(sum(column("a", "visit_no")), val(0)))
 # SELECT COUNT(*), COALESCE(SUM(a.visit_no), ?)
 ```
 
@@ -345,7 +345,7 @@ end
 `array_length` uses `cardinality(col)` rather than Postgres'
 `array_length(col, 1)` because `cardinality` is non-null (returns 0
 on empty). Filter untagged rows with
-`array_length(column("a", "tags")) |> eq(to_expr(0))`.
+`array_length(column("a", "tags")) |> eq(val(0))`.
 
 Write ops for partial array updates:
 
@@ -360,7 +360,7 @@ Use these in `update_all` to avoid rewriting an array column wholesale:
 ```jade
 appointments
   |> update_all(
-       (a) -> { a.id |> eq(to_expr(aid)) },
+       (a) -> { a.id |> eq(val(aid)) },
        (a) -> { [a.tags |> set(array_append(a.tags, new_tag))] },
      )
 # UPDATE appointments SET tags = array_append(tags, ?) WHERE id = ?
@@ -462,12 +462,12 @@ p |> delete(patients) |> to_sql        # DELETE FROM patients WHERE id = ?
 [p1, p2] |> insert_all(patients) |> to_sql
 
 appointments
-|> update_all((a) -> { a.status |> eq(to_expr("scheduled")) },
-              (a) -> { [a.cancelled |> set(to_expr(True))] })
+|> update_all((a) -> { a.status |> eq(val("scheduled")) },
+              (a) -> { [a.cancelled |> set(val(True))] })
 |> to_sql
 
 appointments
-|> delete_all((a) -> { a.cancelled |> eq(to_expr(True)) })
+|> delete_all((a) -> { a.cancelled |> eq(val(True)) })
 |> to_sql
 ```
 

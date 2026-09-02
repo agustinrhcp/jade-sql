@@ -57,10 +57,10 @@ module Sql exposing (
   sum,
   table,
   to_assigns,
-  to_expr,
   transaction,
   unkeyed,
   unsafe_cast,
+  val,
 )
 
 import Encode exposing (Encodable, encode)
@@ -160,7 +160,7 @@ end
 # `update` and `delete`, which take a key; write to the table with
 # `update_all`/`delete_all`, which take a predicate:
 #
-#   delete_all(events, (c) -> { c.recorded_at |> lt(to_expr(cutoff)) })
+#   delete_all(events, (c) -> { c.recorded_at |> lt(val(cutoff)) })
 #
 # The generator passes this for you. You need it by hand only when writing a
 # table function yourself.
@@ -219,7 +219,12 @@ def column(alias_: String, name: String) -> Expr(a)
 end
 
 
-def to_expr(value: a) -> Expr(a)
+# A value the app holds, as something a predicate can compare a column
+# against. It renders as a bound parameter, never as literal SQL, so a string
+# from a request is safe to pass:
+#
+#   where(p.name |> eq(val(name)))
+def val(value: a) -> Expr(a)
   Expr("?", [encode(value)])
 end
 
@@ -305,7 +310,7 @@ end
 # pattern — a user-supplied string containing either is a wildcard, so escape
 # it yourself before it gets here.
 #
-#   c.name |> like(to_expr("Ada%"))
+#   c.name |> like(val("Ada%"))
 def like(e: Expr(String), pattern: Expr(String)) -> Expr(Bool)
   Expr(e.sql ++ " LIKE " ++ pattern.sql, e.params ++ pattern.params)
 end
@@ -333,7 +338,7 @@ end
 
 
 # SUM may return NULL on an empty group, so the result is Expr(Maybe(Int)).
-# Wrap with `coalesce(sum(x), to_expr(0))` for a strict total.
+# Wrap with `coalesce(sum(x), val(0))` for a strict total.
 def sum(e: Expr(Int)) -> Expr(Maybe(Int))
   Expr("SUM(" ++ e.sql ++ ")", e.params)
 end
@@ -474,7 +479,7 @@ end
 # columns yet:
 #
 #   p = columns(persons)
-#   from(persons) |> where(p.name |> eq(to_expr("Paul")))
+#   from(persons) |> where(p.name |> eq(val("Paul")))
 #
 # Use `aliased` first to read the same table under another name.
 def columns(t: Table(c, m, k, o, r)) -> c

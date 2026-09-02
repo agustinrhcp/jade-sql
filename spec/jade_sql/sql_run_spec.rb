@@ -45,7 +45,7 @@ import Sql exposing (
   no_joins,
   pk,
   table,
-  to_expr,
+  val,
 )
 import Sql.Query exposing (Query, fetch_many, fetch_one, field, from, select, where)
 
@@ -93,7 +93,7 @@ def paul_query -> Query(Selector(Patient))
     |> field(p.id)
     |> field(p.name)
     |> field(p.balance)
-    |> where(p.name |> eq(to_expr("Paul")))
+    |> where(p.name |> eq(val("Paul")))
 end
 
 

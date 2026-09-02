@@ -38,7 +38,7 @@ it. The result is a `Query` you render with `to_sql` or run with `fetch_*`; rows
 decode straight into your struct.
 
 ```jade
-import Sql exposing (Selector, eq, to_expr)
+import Sql exposing (Selector, eq, val)
 import Sql.Query exposing (Query, field, from, join, select, where)
 import Schema exposing (patients, appointments)
 
@@ -54,7 +54,7 @@ def scheduled_visits -> Query(Selector(Visit))
   select(Visit(_, _))
     |> field(p.name)
     |> field(a.reason)
-    |> where(a.status |> eq(to_expr("scheduled")))
+    |> where(a.status |> eq(val("scheduled")))
 end
 ```
 

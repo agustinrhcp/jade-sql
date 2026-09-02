@@ -2,17 +2,52 @@
 
 ## [Unreleased]
 
-Requires `jade-lang ~> 0.9.0`.
+Requires `jade-lang ~> 0.10.0`.
 
 Held unreleased on purpose: the accessor work and policies are breaking too,
 and one migration is better than three.
 
+### Added
+
+- `within(col, range)` compares a column against a `Range`, so `a..b` renders
+  as `BETWEEN ? AND ?` and the one-ended forms as `>=` / `<=`. An empty range
+  is `FALSE` and an unbounded one `TRUE`, the way `any_of([])` is already
+  `FALSE`.
+
+- **`jade-sql schema --check`, and `rake jade:schema:check`.** The generator
+  reads `db/structure.sql` and nothing else, so a schema that was not
+  regenerated after a migration describes a database that no longer exists,
+  and every type built on it is wrong in a way no compiler can see. The check
+  regenerates in memory, compares, and names the tables that differ:
+
+  ```
+  schema.jd no longer matches the database:
+
+    in the database, missing here: visits
+    different: patients
+
+  Regenerate it with `jade-sql schema`.
+  ```
+
+  It reports and stops there. Writing the migration that would close the gap
+  needs the schema declared in jade, which is a separate piece of work.
+
 ### Changed
 
+- Every operator takes the value on the right rather than an `Expr`, matching
+  `any_of` and the jsonb functions, which already did: the six comparisons,
+  `like`, `ilike`, `set`, `coalesce` and `array_concat`. `Sql.Expr` holds
+  the eight comparisons again for the cases where the right side is something
+  already built, such as another column or `db_now`, and `set_expr` does the
+  same for an assignment built from the row.
+
+- `to_expr` is gone rather than renamed. Every operator now encodes its own
+  value, so nothing needed to wrap one by hand.
+
 - `columns` and `left_columns` take only the table. The alias was a second,
-  unchecked argument that had to match the one the table already carries;
-  passing anything else emitted a prefix the statement never declared. Use
-  `aliased` to read a table under another name — it changes both.
+  unchecked argument that had to match the one the table already carries, so
+  the only thing it could add was a way to get it wrong. Use `aliased` to read
+  a table under another name; it changes both halves at once.
 
 - `set_` is `set` and `not_` is `not` — neither is a jade keyword, so the
   trailing underscore was never needed. `in_` is `any_of`, since `in` is one

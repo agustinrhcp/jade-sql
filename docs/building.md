@@ -50,7 +50,7 @@ type VisitStatus
 
 Nullary unions derive `Encodable` and `Decodable` with the variant name in
 snake_case, which is the label Postgres stores — so the codec is free and
-`eq(v.status, to_expr("schedulled"))` stops compiling. Before this, an enum
+`eq(v.status, "schedulled")` stops compiling. Before this, an enum
 column failed generation outright with `Unknown SQL type`.
 
 `bytea` isn't mapped yet, though jade's `Bytes` is the natural target. See
@@ -139,7 +139,7 @@ makes a `COUNT(*)` land in a `visits` field).
 ## Build queries
 
 ```jade
-import Sql exposing (Selector, eq, to_expr)
+import Sql exposing (Selector, eq)
 import Sql.Query exposing (Query, field, from, join, select, where)
 import Schema exposing (patients, appointments)
 
@@ -150,12 +150,12 @@ struct Visit = {
 
 def scheduled_visits -> Query(Selector(Visit))
   p <- from(patients)
-  a <- join(appointments, (a) -> { p.id |> eq(a.patient_id) })
+  a <- join(appointments, (a) -> { p.id |> Expr.eq(a.patient_id) })
 
   select(Visit(_, _))
     |> field(p.name)
     |> field(a.reason)
-    |> where(a.status |> eq(to_expr("scheduled")))
+    |> where(a.status |> eq("scheduled"))
 end
 ```
 
@@ -168,15 +168,21 @@ Notes:
 
 ### Predicates
 
-`eq`, `gt`, `gte`, `lt`, `lte` compare two `Expr(a)` and yield `Expr(Bool)`;
-`is_null` / `is_not_null` take one; `and` joins two; `any_of` matches a list.
-`db_now` is the database clock (`now()`), for time comparisons:
+`eq`, `neq`, `gt`, `gte`, `lt`, `lte` compare a column against a value you
+hold and yield `Expr(Bool)`; `is_null` / `is_not_null` take one; `and` joins
+two; `any_of` matches a list. `db_now` is the database clock (`now()`), for
+time comparisons.
+
+To compare against something already built instead of a value, the same names
+live in `Sql.Col`:
 
 ```jade
-import Sql exposing (column, db_now, gt, to_expr)
+import Sql exposing (column, db_now, gte)
+import Sql.Expr as Expr
 
-a.starts_at |> gte(to_expr(cutoff))          # a.starts_at >= ?
-column("s", "expires_at") |> gt(db_now)      # s.expires_at > now()
+a.starts_at |> gte(cutoff)                   # a.starts_at >= ?
+a.starts_at |> Expr.gte(a.ends_at)            # a.starts_at >= a.ends_at
+column("s", "expires_at") |> Expr.gt(db_now)  # s.expires_at > now()
 ```
 
 `db_now` is `Expr(Instant)` — the *DB* transaction clock, not the app clock.
@@ -200,7 +206,7 @@ struct VisitCount = {
 
 def visit_counts -> Query(Selector(VisitCount))
   p <- from(patients)
-  a <- join(appointments, (a) -> { p.id |> eq(a.patient_id) })
+  a <- join(appointments, (a) -> { p.id |> Expr.eq(a.patient_id) })
 
   select(VisitCount(_, _))
     |> field(p.name)
@@ -243,7 +249,7 @@ The schema's default alias = table name. Override with `aliased`:
 
 ```jade
 p <- from(patients)
-c <- patients |> aliased("c") |> join((c) -> { p.id |> eq(c.parent_id) })
+c <- patients |> aliased("c") |> join((c) -> { p.id |> Expr.eq(c.parent_id) })
 ```
 
 ### Left joins with nullable views
@@ -252,7 +258,7 @@ c <- patients |> aliased("c") |> join((c) -> { p.id |> eq(c.parent_id) })
 
 ```jade
 p <- from(patients)
-a <- left_join(appointments, (a) -> { p.id |> eq(a.patient_id) })
+a <- left_join(appointments, (a) -> { p.id |> Expr.eq(a.patient_id) })
 # `a` is AppointmentsLeftCols; field types are Expr(Maybe(String)) etc.
 ```
 
@@ -260,7 +266,7 @@ For predicates that lift a non-null column into the nullable side,
 `nullable`:
 
 ```jade
-p.id |> nullable |> eq(a.patient_id)  # Expr(Int) → Expr(Maybe(Int))
+p.id |> nullable |> Expr.eq(a.patient_id)  # Expr(Int) → Expr(Maybe(Int))
 ```
 
 ### Phantom-type rewrap with `unsafe_cast`
@@ -297,18 +303,19 @@ builder — params stitch in declaration order automatically.
 | `sum(Expr(Int)) -> Expr(Maybe(Int))`           | `SUM(e)`           | `NULL` on empty group → `Maybe`.       |
 | `count(Expr(a)) -> Expr(Int)`                  | `COUNT(e)`         | Counts non-null rows for the column.   |
 | `count_all -> Expr(Int)`                       | `COUNT(*)`         | Total row count.                       |
-| `coalesce(Expr(Maybe(a)), Expr(a)) -> Expr(a)` | `COALESCE(e, def)` | Drops the `Maybe` with a fallback.     |
+| `coalesce(Expr(Maybe(a)), a) -> Expr(a)`       | `COALESCE(e, ?)`   | Drops the `Maybe` with a fallback.     |
 | `neg(Expr(Int)) -> Expr(Int)`                  | `-(e)`             | Unary minus.                           |
 
 Worked example — count visits and the most recent visit number,
 coalesced to 0 when a patient has none:
 
 ```jade
-import Sql exposing (coalesce, column, count_all, sum, to_expr)
+import Sql exposing (column, count_all, sum)
+import Sql.Expr as Expr
 
 select(Totals(_, _))
   |> field(count_all)
-  |> field(coalesce(sum(column("a", "visit_no")), to_expr(0)))
+  |> field(coalesce(sum(column("a", "visit_no")), 0))
 # SELECT COUNT(*), COALESCE(SUM(a.visit_no), ?)
 ```
 
@@ -345,7 +352,7 @@ end
 `array_length` uses `cardinality(col)` rather than Postgres'
 `array_length(col, 1)` because `cardinality` is non-null (returns 0
 on empty). Filter untagged rows with
-`array_length(column("a", "tags")) |> eq(to_expr(0))`.
+`array_length(column("a", "tags")) |> eq(0)`.
 
 Write ops for partial array updates:
 
@@ -360,8 +367,8 @@ Use these in `update_all` to avoid rewriting an array column wholesale:
 ```jade
 appointments
   |> update_all(
-       (a) -> { a.id |> eq(to_expr(aid)) },
-       (a) -> { [a.tags |> set(array_append(a.tags, new_tag))] },
+       (a) -> { a.id |> eq(aid) },
+       (a) -> { [a.tags |> set_expr(array_append(a.tags, new_tag))] },
      )
 # UPDATE appointments SET tags = array_append(tags, ?) WHERE id = ?
 ```
@@ -462,12 +469,12 @@ p |> delete(patients) |> to_sql        # DELETE FROM patients WHERE id = ?
 [p1, p2] |> insert_all(patients) |> to_sql
 
 appointments
-|> update_all((a) -> { a.status |> eq(to_expr("scheduled")) },
-              (a) -> { [a.cancelled |> set(to_expr(True))] })
+|> update_all((a) -> { a.status |> eq("scheduled") },
+              (a) -> { [a.cancelled |> set(True)] })
 |> to_sql
 
 appointments
-|> delete_all((a) -> { a.cancelled |> eq(to_expr(True)) })
+|> delete_all((a) -> { a.cancelled |> eq(True) })
 |> to_sql
 ```
 

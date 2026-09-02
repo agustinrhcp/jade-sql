@@ -132,11 +132,13 @@ module Jade
             addrs_by_pid = group_by(addresses, (a) -> { a.patient_id })
             List.map(
               patients,
-              (p) -> { PatientView(
-                p,
-                lookup_or_empty(orders_by_pid, p.id),
-                lookup_or_empty(addrs_by_pid, p.id),
-              ) },
+              (p) -> {
+                PatientView(
+                  p,
+                  lookup_or_empty(orders_by_pid, p.id),
+                  lookup_or_empty(addrs_by_pid, p.id),
+                )
+              },
             )
           end
         JADE

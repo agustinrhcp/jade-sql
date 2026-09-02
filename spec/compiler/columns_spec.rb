@@ -125,7 +125,17 @@ end
 module App exposing (go)
 
 import Encode
-import Sql exposing (Expr, NoJoins, NoRequiredCols, Pk, Table, column, no_joins, pk, table)
+import Sql exposing (
+  Expr,
+  NoJoins,
+  NoRequiredCols,
+  Pk,
+  Table,
+  column,
+  no_joins,
+  pk,
+  table,
+)
 import Sql.Write exposing (Write, insert)
 
 

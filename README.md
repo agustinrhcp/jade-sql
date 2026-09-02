@@ -24,12 +24,17 @@ To execute queries at runtime, opt into the AR-backed task port:
 require 'jade-sql/runtime'
 ```
 
-To get the rake task for schema generation:
+To get the rake tasks for schema generation:
 
 ```ruby
 # Rakefile (or lib/tasks/jade.rake)
 load Gem.find_files('jade-sql/tasks.rake').first
 ```
+
+`rake jade:schema` writes the schema; `rake jade:schema:check` fails when the
+checked-in one no longer matches `db/structure.sql`, which is what a migration
+merged without regenerating looks like. Both are also `jade-sql schema` and
+`jade-sql schema --check`.
 
 ## At a glance
 
@@ -38,7 +43,8 @@ it. The result is a `Query` you render with `to_sql` or run with `fetch_*`; rows
 decode straight into your struct.
 
 ```jade
-import Sql exposing (Selector, eq, to_expr)
+import Sql exposing (Selector, eq)
+import Sql.Compare as Compare
 import Sql.Query exposing (Query, field, from, join, select, where)
 import Schema exposing (patients, appointments)
 
@@ -49,12 +55,12 @@ struct Visit = {
 
 def scheduled_visits -> Query(Selector(Visit))
   p <- from(patients)
-  a <- join(appointments, (a) -> { p.id |> eq(a.patient_id) })
+  a <- join(appointments, (a) -> { p.id |> Compare.eq(a.patient_id) })
 
   select(Visit(_, _))
     |> field(p.name)
     |> field(a.reason)
-    |> where(a.status |> eq(to_expr("scheduled")))
+    |> where(a.status |> eq("scheduled"))
 end
 ```
 

@@ -9,10 +9,20 @@ and one migration is better than three.
 
 ### Changed
 
+- Every operator takes the value on the right rather than an `Expr`, matching
+  `any_of` and the jsonb functions, which already did: the six comparisons,
+  `like`, `ilike`, `set`, `coalesce` and `array_concat`. `Sql.Compare` holds
+  the eight comparisons again for the cases where the right side is something
+  already built, such as another column or `db_now`, and `set_expr` does the
+  same for an assignment built from the row.
+
+- `to_expr` is gone rather than renamed. Every operator now encodes its own
+  value, so nothing needed to wrap one by hand.
+
 - `columns` and `left_columns` take only the table. The alias was a second,
-  unchecked argument that had to match the one the table already carries;
-  passing anything else emitted a prefix the statement never declared. Use
-  `aliased` to read a table under another name — it changes both.
+  unchecked argument that had to match the one the table already carries, so
+  the only thing it could add was a way to get it wrong. Use `aliased` to read
+  a table under another name; it changes both halves at once.
 
 - `set_` is `set` and `not_` is `not` — neither is a jade keyword, so the
   trailing underscore was never needed. `in_` is `any_of`, since `in` is one

@@ -2,15 +2,18 @@ module Sql exposing (
   Assignable,
   Assignment(..),
   Expr(..),
+  NoJoins,
   NoKey,
+  NoRequiredCols,
   Pk,
-  ToSql,
   Selector(..),
   SqlError(..),
   Table,
   TableRef(..),
+  ToSql,
   aliased,
   and,
+  any_of,
   array_append,
   array_concat,
   array_contained_by,
@@ -20,12 +23,12 @@ module Sql exposing (
   array_overlaps,
   array_remove,
   assign,
-  unsafe_cast,
   coalesce,
   column,
   columns,
   count,
   count_all,
+  db_now,
   eq,
   execute,
   execute_raw,
@@ -33,34 +36,31 @@ module Sql exposing (
   fetch_one_raw,
   gt,
   gte,
-  in_,
+  ilike,
   is_not_null,
   is_null,
   jsonb_contains,
-  ilike,
   jsonb_path_exists,
+  left_columns,
   like,
   lt,
   lte,
-  left_columns,
-  NoJoins,
-  NoRequiredCols,
   neg,
   neq,
-  not_,
-  db_now,
-  or,
-  nullable,
   no_joins,
+  not,
+  nullable,
+  or,
   pk,
-  unkeyed,
-  set_,
+  set,
   strip_alias,
   sum,
   table,
   to_assigns,
   to_expr,
   transaction,
+  unkeyed,
+  unsafe_cast,
 )
 
 import Encode exposing (Encodable, encode)
@@ -176,7 +176,7 @@ struct Assignment = {
 }
 
 
-def set_(col: Expr(a), value: Expr(a)) -> Assignment
+def set(col: Expr(a), value: Expr(a)) -> Assignment
   Assignment(strip_alias(col.sql), value.sql, value.params)
 end
 
@@ -295,7 +295,7 @@ def unsafe_cast(e: Expr(a)) -> Expr(b)
 end
 
 
-def not_(e: Expr(Bool)) -> Expr(Bool)
+def not(e: Expr(Bool)) -> Expr(Bool)
   # `NOT a AND b` binds as `(NOT a) AND b`.
   Expr("NOT (" ++ e.sql ++ ")", e.params)
 end
@@ -440,7 +440,7 @@ def jsonb_path_exists(col: Expr(Value), path: String) -> Expr(Bool)
 end
 
 
-def in_(col: Expr(a), values: List(a)) -> Expr(Bool)
+def any_of(col: Expr(a), values: List(a)) -> Expr(Bool)
   case values
   in [] then Expr("FALSE", [])
   else in_nonempty(col, List.map(values, encode))

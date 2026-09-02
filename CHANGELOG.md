@@ -9,6 +9,10 @@ and one migration is better than three.
 
 ### Changed
 
+- `set_` is `set` and `not_` is `not` — neither is a jade keyword, so the
+  trailing underscore was never needed. `in_` is `any_of`, since `in` is one
+  and no amount of renaming frees it.
+
 - `Sql.Mutation` is `Sql.Write`, and `Mutation(ret, c)` is `Write(ret, c)`.
   The value is a description of a write not yet performed — immutable, in a
   language whose pitch is that nothing mutates — and the old name also

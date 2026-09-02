@@ -180,7 +180,7 @@ module Jade
       end
     end
 
-    describe 'neq, not_, like and ilike' do
+    describe 'neq, not, like and ilike' do
       it 'renders each operator' do
         test_compiler.require('app', <<~JADE)
           module App exposing (different, insensitive, matching)
@@ -213,11 +213,11 @@ module Jade
         test_compiler.require('app', <<~JADE)
           module App exposing (predicate)
 
-          import Sql exposing (Expr, and, column, is_null, not_)
+          import Sql exposing (Expr, and, column, is_null, not)
 
 
           def predicate -> Expr(Bool)
-            not_(and(is_null(column("p", "a")), is_null(column("p", "b"))))
+            not(and(is_null(column("p", "a")), is_null(column("p", "b"))))
           end
         JADE
 
@@ -1358,7 +1358,7 @@ import Sql exposing (
   eq,
   no_joins,
   pk,
-  set_,
+  set,
   table,
   to_assigns,
   to_expr,
@@ -1512,7 +1512,7 @@ def update_all_to_zero -> (String, List(Value))
   patients
     |> update_all(
   (p) -> { p.balance |> eq(to_expr(0)) },
-  (p) -> { [p.archived |> set_(to_expr(True))] },
+  (p) -> { [p.archived |> set(to_expr(True))] },
 )
     |> to_sql
 end

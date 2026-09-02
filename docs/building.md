@@ -169,7 +169,7 @@ Notes:
 ### Predicates
 
 `eq`, `gt`, `gte`, `lt`, `lte` compare two `Expr(a)` and yield `Expr(Bool)`;
-`is_null` / `is_not_null` take one; `and` joins two; `in_` matches a list.
+`is_null` / `is_not_null` take one; `and` joins two; `any_of` matches a list.
 `db_now` is the database clock (`now()`), for time comparisons:
 
 ```jade
@@ -361,7 +361,7 @@ Use these in `update_all` to avoid rewriting an array column wholesale:
 appointments
   |> update_all(
        (a) -> { a.id |> eq(to_expr(aid)) },
-       (a) -> { [a.tags |> set_(array_append(a.tags, new_tag))] },
+       (a) -> { [a.tags |> set(array_append(a.tags, new_tag))] },
      )
 # UPDATE appointments SET tags = array_append(tags, ?) WHERE id = ?
 ```
@@ -463,7 +463,7 @@ p |> delete(patients) |> to_sql        # DELETE FROM patients WHERE id = ?
 
 appointments
 |> update_all((a) -> { a.status |> eq(to_expr("scheduled")) },
-              (a) -> { [a.cancelled |> set_(to_expr(True))] })
+              (a) -> { [a.cancelled |> set(to_expr(True))] })
 |> to_sql
 
 appointments

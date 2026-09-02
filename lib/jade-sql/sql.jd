@@ -469,13 +469,23 @@ def table(
 end
 
 
-def columns(t: Table(c, m, k, o, r), alias_: String) -> c
-  alias_ |> t.cols
+# A table's columns, bound to the alias the table carries. Reach for it to
+# build a predicate outside a bind chain, where `from` has not handed you the
+# columns yet:
+#
+#   p = columns(persons)
+#   from(persons) |> where(p.name |> eq(to_expr("Paul")))
+#
+# Use `aliased` first to read the same table under another name.
+def columns(t: Table(c, m, k, o, r)) -> c
+  t.alias_ |> t.cols
 end
 
 
-def left_columns(t: Table(c, m, k, o, r), alias_: String) -> m
-  alias_ |> t.left_cols
+# The same columns as a left join produces them, every one lifted into
+# `Maybe`.
+def left_columns(t: Table(c, m, k, o, r)) -> m
+  t.alias_ |> t.left_cols
 end
 
 

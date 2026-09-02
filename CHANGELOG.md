@@ -80,6 +80,8 @@ and one migration is better than three.
   is `FALSE` and an unbounded one `TRUE`, the way `any_of([])` is already
   `FALSE`.
 
+### Added
+
 - **`jade-sql schema --check`, and `rake jade:schema:check`.** The generator
   reads `db/structure.sql` and nothing else, so a schema that was not
   regenerated after a migration describes a database that no longer exists,

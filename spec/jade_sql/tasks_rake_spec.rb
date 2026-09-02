@@ -94,4 +94,23 @@ describe 'jade:schema rake task' do
     ENV.delete('TABLES')
     ENV.delete('MODULE')
   end
+  it 'passes the check when the schema was generated from this structure' do
+    FileUtils.mkdir_p('db')
+    File.write('db/structure.sql', sql)
+    @rake['jade:schema'].invoke
+
+    expect { @rake['jade:schema:check'].invoke }.not_to raise_error
+  end
+
+  it 'fails the check when the database has moved on' do
+    FileUtils.mkdir_p('db')
+    File.write('db/structure.sql', sql)
+    @rake['jade:schema'].invoke
+    File.write('db/structure.sql', sql.sub('name character varying NOT NULL', "name character varying NOT NULL,\n    seen_on date"))
+
+    expect { @rake['jade:schema:check'].invoke }
+      .to raise_error(SystemExit)
+      .and output(/no longer matches the database/).to_stderr
+  end
+
 end

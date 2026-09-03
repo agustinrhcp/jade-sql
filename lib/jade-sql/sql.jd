@@ -1,5 +1,7 @@
 module Sql exposing (
   Assignable,
+  Selectable,
+  selector,
   Assignment(..),
   Expr(..),
   NoJoins,
@@ -53,14 +55,15 @@ module Sql exposing (
   or,
   pk,
   set,
+  set_expr,
   strip_alias,
   sum,
   table,
   to_assigns,
-  to_expr,
   transaction,
   unkeyed,
   unsafe_cast,
+  within,
 )
 
 import Encode exposing (Encodable, encode)
@@ -104,7 +107,7 @@ struct Table(c, m, k, o, r) = {
 # name, so there is no join predicate to reach for — join such a table by
 # writing the predicate yourself:
 #
-#   from(patients) |> join(events, (e) -> { p.id |> eq(e.patient_id) })
+#   from(patients) |> join(events, (e) -> { p.id |> Expr.eq(e.patient_id) })
 type NoJoins = NoJoinsOnly
 
 
@@ -160,7 +163,7 @@ end
 # `update` and `delete`, which take a key; write to the table with
 # `update_all`/`delete_all`, which take a predicate:
 #
-#   delete_all(events, (c) -> { c.recorded_at |> lt(to_expr(cutoff)) })
+#   delete_all(events, (c) -> { c.recorded_at |> lt(cutoff) })
 #
 # The generator passes this for you. You need it by hand only when writing a
 # table function yourself.
@@ -176,7 +179,20 @@ struct Assignment = {
 }
 
 
-def set(col: Expr(a), value: Expr(a)) -> Assignment
+# The assignment `update` and `update_all` take, given a column accessor and
+# the value to write:
+#
+#   [c.archived |> set(True)]
+def set(col: Expr(a), value: a) -> Assignment
+  Assignment(strip_alias(col.sql), "?", [encode(value)])
+end
+
+
+# `set`, where the new value is built from the row rather than held by the
+# caller:
+#
+#   [c.tags |> set_expr(array_append(c.tags, tag))]
+def set_expr(col: Expr(a), value: Expr(a)) -> Assignment
   Assignment(strip_alias(col.sql), value.sql, value.params)
 end
 
@@ -194,6 +210,11 @@ def strip_alias(sql: String) -> String
   in [name] then name
   in [_ | rest] then String.join(rest, ".")
   end
+end
+
+
+interface Selectable(a) with
+  selector : Selector(a)
 end
 
 
@@ -219,51 +240,46 @@ def column(alias_: String, name: String) -> Expr(a)
 end
 
 
-def to_expr(value: a) -> Expr(a)
-  Expr("?", [encode(value)])
-end
-
-
 # The database's clock, as `now()` in the statement — evaluated by Postgres
 # when the query runs, at the start of the enclosing transaction. Not the
 # app's clock: `Sql.Write.timestamped` and `stamped` use that one, so two
 # rows written by one request share an instant this would not give them.
 #
-#   where(s.expires_at |> gt(db_now))
+#   where(s.expires_at |> Expr.gt(db_now))
 def db_now -> Expr(Instant)
   Expr("now()", [])
 end
 
 
-def eq(left: Expr(a), right: Expr(a)) -> Expr(Bool)
-  Expr(left.sql ++ " = " ++ right.sql, left.params ++ right.params)
+def eq(col: Expr(a), value: a) -> Expr(Bool)
+  Expr(col.sql ++ " = " ++ "?", col.params ++ [encode(value)])
 end
 
 
 # `NULL <> x` is NULL, not true, so a nullable column never matches this.
 # Pair it with `is_null` when "different, or absent" is what you mean.
-def neq(left: Expr(a), right: Expr(a)) -> Expr(Bool)
-  Expr(left.sql ++ " <> " ++ right.sql, left.params ++ right.params)
+def neq(col: Expr(a), value: a) -> Expr(Bool)
+  Expr(col.sql ++ " <> " ++ "?", col.params ++ [encode(value)])
 end
 
 
-def gt(left: Expr(a), right: Expr(a)) -> Expr(Bool)
-  Expr(left.sql ++ " > " ++ right.sql, left.params ++ right.params)
+def gt(col: Expr(a), value: a) -> Expr(Bool)
+  Expr(col.sql ++ " > " ++ "?", col.params ++ [encode(value)])
 end
 
 
-def gte(left: Expr(a), right: Expr(a)) -> Expr(Bool)
-  Expr(left.sql ++ " >= " ++ right.sql, left.params ++ right.params)
+def gte(col: Expr(a), value: a) -> Expr(Bool)
+  Expr(col.sql ++ " >= " ++ "?", col.params ++ [encode(value)])
 end
 
 
-def lt(left: Expr(a), right: Expr(a)) -> Expr(Bool)
-  Expr(left.sql ++ " < " ++ right.sql, left.params ++ right.params)
+def lt(col: Expr(a), value: a) -> Expr(Bool)
+  Expr(col.sql ++ " < " ++ "?", col.params ++ [encode(value)])
 end
 
 
-def lte(left: Expr(a), right: Expr(a)) -> Expr(Bool)
-  Expr(left.sql ++ " <= " ++ right.sql, left.params ++ right.params)
+def lte(col: Expr(a), value: a) -> Expr(Bool)
+  Expr(col.sql ++ " <= " ++ "?", col.params ++ [encode(value)])
 end
 
 
@@ -305,14 +321,14 @@ end
 # pattern — a user-supplied string containing either is a wildcard, so escape
 # it yourself before it gets here.
 #
-#   c.name |> like(to_expr("Ada%"))
-def like(e: Expr(String), pattern: Expr(String)) -> Expr(Bool)
-  Expr(e.sql ++ " LIKE " ++ pattern.sql, e.params ++ pattern.params)
+#   c.name |> like("Ada%")
+def like(col: Expr(String), pattern: String) -> Expr(Bool)
+  Expr(col.sql ++ " LIKE " ++ "?", col.params ++ [encode(pattern)])
 end
 
 
-def ilike(e: Expr(String), pattern: Expr(String)) -> Expr(Bool)
-  Expr(e.sql ++ " ILIKE " ++ pattern.sql, e.params ++ pattern.params)
+def ilike(col: Expr(String), pattern: String) -> Expr(Bool)
+  Expr(col.sql ++ " ILIKE " ++ "?", col.params ++ [encode(pattern)])
 end
 
 
@@ -333,7 +349,7 @@ end
 
 
 # SUM may return NULL on an empty group, so the result is Expr(Maybe(Int)).
-# Wrap with `coalesce(sum(x), to_expr(0))` for a strict total.
+# Wrap with `coalesce(sum(x), 0)` for a strict total.
 def sum(e: Expr(Int)) -> Expr(Maybe(Int))
   Expr("SUM(" ++ e.sql ++ ")", e.params)
 end
@@ -349,10 +365,10 @@ def count_all -> Expr(Int)
 end
 
 
-def coalesce(maybe_e: Expr(Maybe(a)), default: Expr(a)) -> Expr(a)
+def coalesce(col: Expr(Maybe(a)), default: a) -> Expr(a)
   Expr(
-    "COALESCE(" ++ maybe_e.sql ++ ", " ++ default.sql ++ ")",
-    maybe_e.params ++ default.params,
+    "COALESCE(" ++ col.sql ++ ", ?)",
+    col.params ++ [encode(default)],
   )
 end
 
@@ -415,8 +431,8 @@ def array_remove(col: Expr(List(a)), value: a) -> Expr(List(a))
 end
 
 
-def array_concat(left: Expr(List(a)), right: Expr(List(a))) -> Expr(List(a))
-  Expr(left.sql ++ " || " ++ right.sql, left.params ++ right.params)
+def array_concat(col: Expr(List(a)), values: List(a)) -> Expr(List(a))
+  Expr(col.sql ++ " || ?", col.params ++ [encode(values)])
 end
 
 
@@ -437,6 +453,31 @@ end
 
 def jsonb_path_exists(col: Expr(Value), path: String) -> Expr(Bool)
   Expr(col.sql ++ " @? ?::jsonpath", col.params ++ [encode(path)])
+end
+
+
+# A column against a range, as `a..b` builds one. Both ends are inclusive,
+# matching `Range.contains?`, so the whole span renders as SQL rather than
+# being tested row by row:
+#
+#   where(c.seen_on |> within(start..finish))
+#   where(c.seen_on |> within(Range.from(start)))
+#
+# The degenerate ends render as constants: an empty range is `FALSE`, an
+# unbounded one `TRUE`, the same way `any_of([])` is `FALSE`.
+def within(col: Expr(a), range: Range(a)) -> Expr(Bool)
+  case (Range.empty?(range), Range.lower(range), Range.upper(range))
+  in (True, _, _) then Expr("FALSE", [])
+
+  in (_, Just(low), Just(high))
+  then Expr(col.sql ++ " BETWEEN ? AND ?", col.params ++ [encode(low), encode(high)])
+
+  in (_, Just(low), Nothing) then Expr(col.sql ++ " >= ?", col.params ++ [encode(low)])
+
+  in (_, Nothing, Just(high)) then Expr(col.sql ++ " <= ?", col.params ++ [encode(high)])
+
+  in (_, Nothing, Nothing) then Expr("TRUE", [])
+  end
 end
 
 
@@ -474,7 +515,7 @@ end
 # columns yet:
 #
 #   p = columns(persons)
-#   from(persons) |> where(p.name |> eq(to_expr("Paul")))
+#   from(persons) |> where(p.name |> eq("Paul"))
 #
 # Use `aliased` first to read the same table under another name.
 def columns(t: Table(c, m, k, o, r)) -> c

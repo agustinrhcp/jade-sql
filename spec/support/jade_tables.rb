@@ -56,8 +56,8 @@ module JadeTables
         table(
           #{name.inspect},
           #{alias_.inspect},
-          (a) -> { #{constructor("#{klass}Cols", reads)} },
-          (a) -> { #{constructor("#{klass}LeftCols", reads)} },
+          #{projector("#{klass}Cols", reads)},
+          #{projector("#{klass}LeftCols", reads)},
           #{pk},
           #{joins},
         )
@@ -76,14 +76,21 @@ module JadeTables
     ].join(', ').then { "Table(#{it})" }
   end
 
-  # The formatter breaks a constructor call once it outgrows the line.
-  def constructor(klass, reads)
-    one_line = "#{klass}(#{reads.join(', ')})"
-
-    if one_line.length <= 60
-      one_line
-    else
-      "#{klass}(\n#{reads.map { "      #{it}," }.join("\n")}\n    )"
+  # A lambda whose body outgrows the line loses the hugging braces: the
+  # formatter puts the call on its own lines and the braces on theirs.
+  def projector(klass, reads)
+    "#{klass}(#{reads.join(', ')})".then do |one_line|
+      if one_line.length <= 60
+        "(a) -> { #{one_line} }"
+      else
+        [
+          '(a) -> {',
+          "      #{klass}(",
+          *reads.map { "        #{it}," },
+          '      )',
+          '    }',
+        ].join("\n")
+      end
     end
   end
 

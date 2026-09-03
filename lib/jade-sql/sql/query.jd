@@ -18,7 +18,15 @@ module Sql.Query exposing (
   filter,
 )
 
-import Sql exposing (Expr, Selector(..), SqlError, Table, TableRef(..), ToSql)
+import Sql exposing (
+  Expr,
+  Selector(..),
+  SqlError,
+  Table,
+  TableRef(..),
+  ToSql,
+  selector,
+)
 import Decode exposing (Value)
 
 
@@ -51,6 +59,7 @@ struct GroupTerm = {
   sql: String,
   params: List(Value)
 }
+
 
 
 struct Query(a) = {
@@ -337,6 +346,7 @@ def to_sql(q: Query(Selector(a))) -> (String, List(Value))
     q.result.params ++ join_ps ++ where_ps ++ group_ps ++ order_ps,
   )
 end
+
 
 
 # Runs the query and decodes the single row it selected. Errors with

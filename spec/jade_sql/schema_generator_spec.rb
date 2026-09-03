@@ -79,8 +79,12 @@ describe JadeSql::SchemaGenerator do
           table(
             "patients",
             "patients",
-            (a) -> { PatientsCols(column(a, "id"), column(a, "name"), column(a, "balance")) },
-            (a) -> { PatientsLeftCols(column(a, "id"), column(a, "name"), column(a, "balance")) },
+            (a) -> {
+              PatientsCols(column(a, "id"), column(a, "name"), column(a, "balance"))
+            },
+            (a) -> {
+              PatientsLeftCols(column(a, "id"), column(a, "name"), column(a, "balance"))
+            },
             patients_pk,
             no_joins,
           )

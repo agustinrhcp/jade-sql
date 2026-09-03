@@ -1,0 +1,65 @@
+module Sql.Expr exposing (
+  eq,
+  gt,
+  gte,
+  ilike,
+  like,
+  lt,
+  lte,
+  neq,
+)
+
+import Sql exposing (Expr(..))
+
+
+# The same comparisons `Sql` exposes, against another expression rather than a
+# value you hold: a second column, `db_now`, an aggregate, anything already
+# built. Import it qualified, so the call says which side it takes:
+#
+#   join(orders, (o) -> { p.id |> Expr.eq(o.person_id) })
+#   where(s.expires_at |> Expr.gt(db_now))
+def eq(left: Expr(a), right: Expr(a)) -> Expr(Bool)
+  binary(left, " = ", right)
+end
+
+
+def neq(left: Expr(a), right: Expr(a)) -> Expr(Bool)
+  binary(left, " <> ", right)
+end
+
+
+def gt(left: Expr(a), right: Expr(a)) -> Expr(Bool)
+  binary(left, " > ", right)
+end
+
+
+def gte(left: Expr(a), right: Expr(a)) -> Expr(Bool)
+  binary(left, " >= ", right)
+end
+
+
+def lt(left: Expr(a), right: Expr(a)) -> Expr(Bool)
+  binary(left, " < ", right)
+end
+
+
+def lte(left: Expr(a), right: Expr(a)) -> Expr(Bool)
+  binary(left, " <= ", right)
+end
+
+
+def like(e: Expr(String), pattern: Expr(String)) -> Expr(Bool)
+  binary(e, " LIKE ", pattern)
+end
+
+
+def ilike(e: Expr(String), pattern: Expr(String)) -> Expr(Bool)
+  binary(e, " ILIKE ", pattern)
+end
+
+
+
+
+def binary(left: Expr(a), op: String, right: Expr(b)) -> Expr(Bool)
+  Expr(left.sql ++ op ++ right.sql, left.params ++ right.params)
+end

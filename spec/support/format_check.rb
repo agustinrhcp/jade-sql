@@ -12,6 +12,8 @@ module Jade
 
     Mismatch = Class.new(StandardError)
 
+    # A fixture that does not lex is not jade: the same heredocs hold SQL and
+    # plain prose. Nothing to check, rather than a crash.
     def run(text)
       source = Source.new(uri: '<format-check>', text:)
       Lexer.tokenize(source)
@@ -23,7 +25,7 @@ module Jade
           in Err(_) then nil
           end
         end
-    rescue NoMatchingPatternError, NoMethodError
+    rescue NoMatchingPatternError, NoMethodError, RuntimeError
       nil
     end
 

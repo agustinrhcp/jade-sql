@@ -25,5 +25,5 @@ Gem::Specification.new do |s|
     'rubygems_mfa_required' => 'true',
   }
 
-  s.add_dependency 'jade-lang', '~> 0.9.0'
+  s.add_dependency 'jade-lang', '~> 0.10.0'
 end

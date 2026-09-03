@@ -125,7 +125,7 @@ emits a `<table>_row` projector that aliases every column to its field name
 (`SELECT … AS type_`), so reads round-trip without hand-written SQL:
 
 ```jade
-def entries -> Query(Selector(JournalEntriesRow))
+def entries -> Select(JournalEntriesRow)
   c <- from(journal_entries)
   journal_entries_row(c)
 end
@@ -148,7 +148,7 @@ struct Visit = {
   reason: String
 }
 
-def scheduled_visits -> Query(Selector(Visit))
+def scheduled_visits -> Select(Visit)
   p <- from(patients)
   a <- join(appointments, (a) -> { p.id |> Expr.eq(a.patient_id) })
 
@@ -204,7 +204,7 @@ struct VisitCount = {
   visits: Int
 }
 
-def visit_counts -> Query(Selector(VisitCount))
+def visit_counts -> Select(VisitCount)
   p <- from(patients)
   a <- join(appointments, (a) -> { p.id |> Expr.eq(a.patient_id) })
 
@@ -233,7 +233,7 @@ returned `List(Value)` is unaffected:
 ```jade
 import Sql.Query exposing(limit, offset)
 
-def page(n: Int) -> Query(Selector(Visit))
+def page(n: Int) -> Select(Visit)
   scheduled_visits
     |> limit(20)
     |> offset(n * 20)
@@ -506,7 +506,7 @@ np
 
 Bonus: the projector can be defined once and shared between SELECT
 queries and RETURNING — both contexts now take the same `cols ->
-Query(Selector(target))` shape, so a single `def patient_projector(p)`
+Select(target)` shape, so a single `def patient_projector(p)`
 works for `from(patients) |> patient_projector` (query) and
 `... |> returning(patient_projector)` (RETURNING).
 

@@ -53,7 +53,7 @@ struct Visit = {
   reason: String
 }
 
-def scheduled_visits -> Query(Selector(Visit))
+def scheduled_visits -> Select(Visit)
   p <- from(patients)
   a <- join(appointments, (a) -> { p.id |> Expr.eq(a.patient_id) })
 

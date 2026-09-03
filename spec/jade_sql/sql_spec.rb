@@ -725,7 +725,7 @@ import Sql exposing (
   table,
 )
 import Sql.Expr as Expr
-import Sql.Query exposing (Query, field, filter, from, join, select, to_sql)
+import Sql.Query exposing (Query, Select, field, filter, from, join, select, to_sql)
 
 
 #{jade_table('persons', { id: 'Int' }, alias_: 'p')}
@@ -750,7 +750,7 @@ def filtered_sql -> String
 end
 
 
-def filtered -> Query(Selector(Order))
+def filtered -> Select(Order)
   o <- persons_with_orders |> filter((c) -> { c.id |> eq(7) })
 
   select(Order(_)) |> field(o.id)
@@ -962,7 +962,7 @@ import Sql exposing (
   table,
 )
 import Encode
-import Sql.Query exposing (Query, field, from, select, where)
+import Sql.Query exposing (Query, Select, field, from, select, where)
 
 
 #{jade_table('persons', { id: 'Int', name: 'String', age: 'Int' }, alias_: 'p', pk: 'persons_pk')}
@@ -980,7 +980,7 @@ def persons_pk -> Pk(PersonsCols, Int)
 end
 
 
-def adults_query -> Query(Selector(Person))
+def adults_query -> Select(Person)
   p <- from(persons)
   select(Person(_, _, _))
     |> field(p.id)
@@ -1019,7 +1019,7 @@ import Sql exposing (
 )
 import Sql.Expr as Expr
 import Encode
-import Sql.Query exposing (Query, field, from, join, select, to_sql, where)
+import Sql.Query exposing (Query, Select, field, from, join, select, to_sql, where)
 import Decode exposing (Value)
 
 
@@ -1056,7 +1056,7 @@ def orders_pk -> Pk(OrdersCols, Int)
 end
 
 
-def query -> Query(Selector(Row))
+def query -> Select(Row)
   p <- from(persons)
   o <- join(orders, (o) -> { p.id |> Expr.eq(o.person_id) })
   select(Row(_, _, _))
@@ -1096,7 +1096,7 @@ module App exposing (rendered)
 
 import Sql exposing (Expr, NoJoins, Pk, Selector, Table, column, no_joins, pk, table)
 import Encode
-import Sql.Query exposing (Query, field_as, from, select, to_sql)
+import Sql.Query exposing (Query, Select, field_as, from, select, to_sql)
 import Decode exposing (Value)
 
 
@@ -1114,7 +1114,7 @@ def entries_pk -> Pk(EntriesCols, Int)
 end
 
 
-def query -> Query(Selector(Row))
+def query -> Select(Row)
   c <- from(entries)
   select(Row(_, _))
     |> field_as(c.id, "id")
@@ -1151,6 +1151,7 @@ import Sql exposing (Expr, NoJoins, Pk, Selector, Table, column, no_joins, pk, t
 import Encode
 import Sql.Query exposing (
   Query,
+  Select,
   field,
   from,
   group,
@@ -1179,7 +1180,7 @@ def persons_pk -> Pk(PersonsCols, Int)
 end
 
 
-def projected -> Query(Selector(Person))
+def projected -> Select(Person)
   p <- from(persons)
   select(Person(_, _, _))
     |> field(p.id)
@@ -1188,7 +1189,7 @@ def projected -> Query(Selector(Person))
 end
 
 
-def sorted_asc_q -> Query(Selector(Person))
+def sorted_asc_q -> Select(Person)
   p <- from(persons)
   select(Person(_, _, _))
     |> field(p.id)
@@ -1198,7 +1199,7 @@ def sorted_asc_q -> Query(Selector(Person))
 end
 
 
-def sorted_desc_q -> Query(Selector(Person))
+def sorted_desc_q -> Select(Person)
   p <- from(persons)
   select(Person(_, _, _))
     |> field(p.id)
@@ -1208,7 +1209,7 @@ def sorted_desc_q -> Query(Selector(Person))
 end
 
 
-def multi_sorted_q -> Query(Selector(Person))
+def multi_sorted_q -> Select(Person)
   p <- from(persons)
   select(Person(_, _, _))
     |> field(p.id)
@@ -1219,7 +1220,7 @@ def multi_sorted_q -> Query(Selector(Person))
 end
 
 
-def grouped_q -> Query(Selector(Person))
+def grouped_q -> Select(Person)
   p <- from(persons)
   select(Person(_, _, _))
     |> field(p.id)
@@ -1308,7 +1309,7 @@ module App exposing (no_paging, only_offset, page_one, page_two)
 
 import Sql exposing (Expr, NoJoins, Pk, Selector, Table, column, no_joins, pk, table)
 import Encode
-import Sql.Query exposing (Query, field, from, limit, offset, select, to_sql)
+import Sql.Query exposing (Query, Select, field, from, limit, offset, select, to_sql)
 import Decode exposing (Value)
 
 
@@ -1326,7 +1327,7 @@ def persons_pk -> Pk(PersonsCols, Int)
 end
 
 
-def projected -> Query(Selector(Person))
+def projected -> Select(Person)
   p <- from(persons)
   select(Person(_, _))
     |> field(p.id)

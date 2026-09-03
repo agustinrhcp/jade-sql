@@ -1302,6 +1302,86 @@ end
       end
     end
 
+    describe 'having and distinct' do
+      let(:source) do
+        <<~JADE
+module App exposing (busy, distinct_names)
+
+import Encode
+import Sql exposing (
+  Expr,
+  NoJoins,
+  Pk,
+  Table,
+  column,
+  count_all,
+  eq,
+  gt,
+  no_joins,
+  pk,
+  table,
+)
+import Sql.Expr as Expr
+import Sql.Query exposing (
+  Query,
+  Select,
+  distinct,
+  field,
+  from,
+  group,
+  having,
+  select,
+  to_sql,
+)
+
+
+#{jade_table('visits', { id: 'Int', patient_id: 'Int' }, alias_: 'v')}
+
+
+struct Busy = { patient_id: Int }
+
+
+def busy -> Select(Busy)
+  v <- from(visits)
+
+  select(Busy(_))
+    |> field(v.patient_id)
+    |> group(v.patient_id)
+    |> having(count_all |> gt(3))
+end
+
+
+def distinct_names -> Select(Busy)
+  v <- from(visits)
+
+  select(Busy(_))
+    |> field(v.patient_id)
+    |> distinct
+end
+        JADE
+      end
+
+      before { test_compiler.require('app', source) }
+
+      it 'renders HAVING after GROUP BY, with its params in clause order' do
+        sql, params = App::Internal.busy.then { [to_sql_of(it), params_of(it)] }
+
+        expect(sql).to eql(
+          'SELECT v.patient_id FROM visits v GROUP BY v.patient_id HAVING COUNT(*) > ?',
+        )
+        expect(params).to eql [3]
+      end
+
+      it 'renders SELECT DISTINCT' do
+        expect(to_sql_of(App::Internal.distinct_names))
+          .to eql 'SELECT DISTINCT v.patient_id FROM visits v'
+      end
+
+      def to_sql_of(q) = Sql::Query::Internal.to_sql(q)._1
+
+      def params_of(q) = Sql::Query::Internal.to_sql(q)._2
+    end
+
     describe 'limit and offset for pagination' do
       let(:source) do
         <<~JADE

@@ -3,8 +3,10 @@ module Sql.Query exposing (
   Select,
   field,
   field_as,
+  distinct,
   from,
   group,
+  having,
   join,
   left_join,
   limit,
@@ -76,9 +78,11 @@ struct Query(a) = {
   joins: List(Join),
   wheres: List(Expr(Bool)),
   groups: List(GroupTerm),
+  havings: List(Expr(Bool)),
   orders: List(OrderTerm),
   limit_: Maybe(Int),
   offset_: Maybe(Int),
+  distinct_: Bool,
   result: a
 }
 
@@ -96,9 +100,11 @@ def q_and_then(q: Query(a), fn: a -> Query(b)) -> Query(b)
     q.joins ++ next_.joins,
     q.wheres ++ next_.wheres,
     q.groups ++ next_.groups,
+    q.havings ++ next_.havings,
     q.orders ++ next_.orders,
     merge_paging(q.limit_, next_.limit_),
     merge_paging(q.offset_, next_.offset_),
+    q.distinct_ || next_.distinct_,
     next_.result,
   )
 end
@@ -115,7 +121,7 @@ end
 def from(t: Table(c, m, k, o, r)) -> Query(c)
   cols_ = t.alias_ |> t.cols
 
-  Query([TableRef(t.name, t.alias_)], [], [], [], [], Nothing, Nothing, cols_)
+  Query([TableRef(t.name, t.alias_)], [], [], [], [], [], Nothing, Nothing, False, cols_)
 end
 
 
@@ -129,8 +135,10 @@ def join(t: Table(c, m, k, o, r), on_: c -> Expr(Bool)) -> Query(c)
     [],
     [],
     [],
+    [],
     Nothing,
     Nothing,
+    False,
     cols_,
   )
 end
@@ -147,24 +155,17 @@ def left_join(t: Table(c, m, k, o, r), on_: c -> Expr(Bool)) -> Query(m)
     [],
     [],
     [],
+    [],
     Nothing,
     Nothing,
+    False,
     cols_maybe,
   )
 end
 
 
 def where(q: Query(a), predicate: Expr(Bool)) -> Query(a)
-  Query(
-    q.tables,
-    q.joins,
-    q.wheres ++ [predicate],
-    q.groups,
-    q.orders,
-    q.limit_,
-    q.offset_,
-    q.result,
-  )
+  { q | wheres: q.wheres ++ [predicate] }
 end
 
 
@@ -174,77 +175,49 @@ end
 
 
 def group(q: Query(a), e: Expr(b)) -> Query(a)
-  Query(
-    q.tables,
-    q.joins,
-    q.wheres,
-    q.groups ++ [GroupTerm(e.sql, e.params)],
-    q.orders,
-    q.limit_,
-    q.offset_,
-    q.result,
-  )
+  { q | groups: q.groups ++ [GroupTerm(e.sql, e.params)] }
+end
+
+
+# Filters on an aggregate, after `group` has collapsed the rows. `where`
+# cannot: it runs before the grouping, so `count_all` has nothing to count
+# yet.
+#
+#   group(p.id) |> having(count_all |> Expr.gt(val(3)))
+def having(q: Query(a), predicate: Expr(Bool)) -> Query(a)
+  { q | havings: q.havings ++ [predicate] }
+end
+
+
+# Drops duplicate rows from the result. Applies to the whole row the query
+# projects, which is `SELECT DISTINCT` rather than Postgres' `DISTINCT ON`.
+def distinct(q: Query(a)) -> Query(a)
+  { q | distinct_: True }
 end
 
 
 def order(q: Query(a), e: Expr(b)) -> Query(a)
-  Query(
-    q.tables,
-    q.joins,
-    q.wheres,
-    q.groups,
-    q.orders ++ [OrderTerm(Asc, e.sql, e.params)],
-    q.limit_,
-    q.offset_,
-    q.result,
-  )
+  { q | orders: q.orders ++ [OrderTerm(Asc, e.sql, e.params)] }
 end
 
 
 def order_desc(q: Query(a), e: Expr(b)) -> Query(a)
-  Query(
-    q.tables,
-    q.joins,
-    q.wheres,
-    q.groups,
-    q.orders ++ [OrderTerm(Desc, e.sql, e.params)],
-    q.limit_,
-    q.offset_,
-    q.result,
-  )
+  { q | orders: q.orders ++ [OrderTerm(Desc, e.sql, e.params)] }
 end
 
 
 def limit(q: Query(a), n: Int) -> Query(a)
-  Query(
-    q.tables,
-    q.joins,
-    q.wheres,
-    q.groups,
-    q.orders,
-    Just(n),
-    q.offset_,
-    q.result,
-  )
+  { q | limit_: Just(n) }
 end
 
 
 def offset(q: Query(a), n: Int) -> Query(a)
-  Query(
-    q.tables,
-    q.joins,
-    q.wheres,
-    q.groups,
-    q.orders,
-    q.limit_,
-    Just(n),
-    q.result,
-  )
+  { q | offset_: Just(n) }
 end
 
 
 def select(make: a -> b) -> Query(Selector(a -> b))
-  Query([], [], [], [], [], Nothing, Nothing, Selector([], []))
+  Query([], [], [], [], [], [], Nothing, Nothing, False, Selector([], []))
 end
 
 
@@ -254,9 +227,11 @@ def field(qs: Query(Selector(a -> b)), e: Expr(a)) -> Select(b)
     qs.joins,
     qs.wheres,
     qs.groups,
+    qs.havings,
     qs.orders,
     qs.limit_,
     qs.offset_,
+    qs.distinct_,
     Selector(qs.result.columns_sql ++ [e.sql], qs.result.params ++ e.params),
   )
 end
@@ -268,9 +243,11 @@ def field_as(qs: Query(Selector(a -> b)), e: Expr(a), name: String) -> Select(b)
     qs.joins,
     qs.wheres,
     qs.groups,
+    qs.havings,
     qs.orders,
     qs.limit_,
     qs.offset_,
+    qs.distinct_,
     Selector(
       qs.result.columns_sql ++ [e.sql ++ " AS " ++ name],
       qs.result.params ++ e.params,
@@ -322,7 +299,8 @@ end
 
 
 def to_sql(q: Select(a)) -> (String, List(Value))
-  select_clause = "SELECT " ++ String.join(q.result.columns_sql, ", ")
+  select_clause = (q.distinct_ ? "SELECT DISTINCT " : "SELECT ")
+    ++ String.join(q.result.columns_sql, ", ")
   from_clause = render_from(q.tables)
   joins_clause = q.joins
     |> List.map((j) -> { " " ++ render_join(j) })
@@ -333,6 +311,9 @@ def to_sql(q: Select(a)) -> (String, List(Value))
   group_clause = List.empty?(q.groups)
     ? ""
     : " GROUP BY " ++ String.join(List.map(q.groups, (g) -> { g.sql }), ", ")
+  having_clause = List.empty?(q.havings)
+    ? ""
+    : " HAVING " ++ String.join(List.map(q.havings, (h) -> { h.sql }), " AND ")
   order_clause = List.empty?(q.orders)
     ? ""
     : " ORDER BY " ++ String.join(List.map(q.orders, render_order_term), ", ")
@@ -341,6 +322,7 @@ def to_sql(q: Select(a)) -> (String, List(Value))
   join_ps = List.fold(q.joins, [], (acc, j) -> { acc ++ j.on.params })
   where_ps = List.fold(q.wheres, [], (acc, w) -> { acc ++ w.params })
   group_ps = List.fold(q.groups, [], (acc, g) -> { acc ++ g.params })
+  having_ps = List.fold(q.havings, [], (acc, h) -> { acc ++ h.params })
   order_ps = List.fold(q.orders, [], (acc, o) -> { acc ++ o.params })
 
   Tuple.Tuple2(
@@ -349,10 +331,11 @@ def to_sql(q: Select(a)) -> (String, List(Value))
       ++ joins_clause
       ++ where_clause
       ++ group_clause
+      ++ having_clause
       ++ order_clause
       ++ limit_clause
       ++ offset_clause,
-    q.result.params ++ join_ps ++ where_ps ++ group_ps ++ order_ps,
+    q.result.params ++ join_ps ++ where_ps ++ group_ps ++ having_ps ++ order_ps,
   )
 end
 

@@ -233,6 +233,21 @@ select(Busy(_))
 `distinct(q)` drops duplicate rows from the whole projected row, which is
 `SELECT DISTINCT` rather than Postgres' `DISTINCT ON`.
 
+`exists(q)` and `not_exists(q)` ask whether a related row is there, without
+joining to it and without projecting anything from it. The inner query may
+name the outer query's columns, which is what makes it correlated:
+
+```jade
+p <- from(patients)
+
+select(Name(_))
+  |> field(p.name)
+  |> where(exists(from(visits) |> filter((v) -> { v.patient_id |> Expr.eq(p.id) })))
+# ... WHERE EXISTS (SELECT 1 FROM visits v WHERE v.patient_id = p.id)
+```
+
+They take an unprojected `Query`, since `EXISTS` ignores the select list.
+
 `CASE` is not built in — for conditional expressions, fall back to the raw-SQL
 escape hatch (`execute_*`). Basic aggregates (`SUM`, `COUNT`) and the
 null-handling primitive (`coalesce`) are typed; see *Aggregates,

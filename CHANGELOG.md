@@ -9,6 +9,11 @@ and one migration is better than three.
 
 ### Added
 
+- `Sql.Query.exists` and `not_exists` render a correlated subquery as
+  `EXISTS (SELECT 1 FROM …)`. They take an unprojected `Query`, since `EXISTS`
+  ignores the select list, and the inner query may name the outer one's
+  columns.
+
 - `Sql.Query.having` filters on an aggregate after `group` has collapsed the
   rows, and `Sql.Query.distinct` renders `SELECT DISTINCT`. Both were on the
   list of clauses whose documented answer was dropping to `execute_raw` and

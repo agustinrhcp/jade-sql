@@ -9,6 +9,19 @@ and one migration is better than three.
 
 ### Added
 
+- **`Selectable(a)`, the read side of `Assignable(a)`.** The shape you ask
+  for names the columns, so a straightforward read needs no `select`:
+
+  ```jade
+  from(patients) |> select_fields    -- SELECT id, name FROM patients
+  ```
+
+  Only the names are derived. Values decode through the port's own
+  `Decodable(a)`, which already reads a row by field name, so a struct and an
+  anonymous `{ name: String }` work the same way. `select` is untouched and
+  stays the way to say anything computed: coalesce, an aggregate, an
+  expression aliased to a field.
+
 - The generator emits a type alias per table, so a function that takes one
   names it: `def archive(t: Patients)` rather than repeating
   `Table(PatientsCols, PatientsLeftCols, Int, NoJoins, RequiredPatientsCols)`.

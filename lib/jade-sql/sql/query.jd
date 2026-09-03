@@ -12,6 +12,7 @@ module Sql.Query exposing (
   order,
   order_desc,
   select,
+  select_fields,
   fetch_many,
   fetch_one,
   to_sql,
@@ -356,6 +357,14 @@ def to_sql(q: Select(a)) -> (String, List(Value))
   )
 end
 
+
+
+# The shape you asked for names the columns: a read with nothing computed
+# in it does not need a `select`, because the fields of the result are the
+# selection. `select` stays for everything else.
+def select_fields(q: Query(c)) -> Query(Selector(a))
+  Query(q.tables, q.joins, q.wheres, q.groups, q.orders, q.limit_, q.offset_, selector)
+end
 
 
 # Runs the query and decodes the single row it selected. Errors with

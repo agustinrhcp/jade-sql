@@ -12,9 +12,11 @@ module Sql.Query exposing (
   order,
   order_desc,
   select,
-  select_fields,
   fetch_many,
   fetch_one,
+  fetch_row,
+  fetch_rows,
+  selected,
   to_sql,
   where,
   filter,
@@ -359,14 +361,6 @@ end
 
 
 
-# The shape you asked for names the columns: a read with nothing computed
-# in it does not need a `select`, because the fields of the result are the
-# selection. `select` stays for everything else.
-def select_fields(q: Query(c)) -> Query(Selector(a))
-  Query(q.tables, q.joins, q.wheres, q.groups, q.orders, q.limit_, q.offset_, selector)
-end
-
-
 # Runs the query and decodes the single row it selected. Errors with
 # `NotFound` on none and `TooManyRows` on more than one, so "exactly one" is
 # checked rather than assumed.
@@ -379,4 +373,21 @@ end
 # not an error.
 def fetch_many(q: Select(a)) -> Task(List(a), SqlError)
   to_sql(q) |> Sql.fetch_many_raw
+end
+
+
+# The shape you asked for names the columns, so a read with nothing computed
+# in it needs no `select`. `fetch_one` stays for a query that has one.
+def fetch_row(q: Query(c)) -> Task(a, SqlError)
+  q |> selected |> fetch_one
+end
+
+
+def fetch_rows(q: Query(c)) -> Task(List(a), SqlError)
+  q |> selected |> fetch_many
+end
+
+
+def selected(q: Query(c)) -> Select(a)
+  Query(q.tables, q.joins, q.wheres, q.groups, q.orders, q.limit_, q.offset_, selector)
 end

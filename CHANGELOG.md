@@ -13,7 +13,7 @@ and one migration is better than three.
   for names the columns, so a straightforward read needs no `select`:
 
   ```jade
-  from(patients) |> select_fields    -- SELECT id, name FROM patients
+  from(patients) |> fetch_row    -- SELECT id, name FROM patients
   ```
 
   Only the names are derived. Values decode through the port's own

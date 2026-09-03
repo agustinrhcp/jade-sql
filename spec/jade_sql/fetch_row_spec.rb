@@ -3,7 +3,7 @@ require 'spec_helper'
 require 'jade-sql'
 require 'jade-sql/bin/generate_schema'
 
-describe 'select_fields' do
+describe 'reading without a select' do
   include_context 'with test compiler'
 
   let(:schema_sql) do
@@ -28,7 +28,7 @@ describe 'select_fields' do
       import Schema exposing (patients)
       import Decode exposing (Value)
       import Sql exposing (Selector)
-      import Sql.Query exposing (Query, Select, from, select_fields, to_sql)
+      import Sql.Query exposing (Query, Select, from, selected, to_sql)
 
 
       struct Row = {
@@ -38,7 +38,7 @@ describe 'select_fields' do
 
 
       def rows -> Select(Row)
-        from(patients) |> select_fields
+        from(patients) |> selected
       end
 
 
@@ -59,11 +59,11 @@ describe 'select_fields' do
       import Schema exposing (patients)
       import Decode exposing (Value)
       import Sql exposing (Selector)
-      import Sql.Query exposing (Query, Select, from, select_fields, to_sql)
+      import Sql.Query exposing (Query, Select, from, selected, to_sql)
 
 
       def rows -> Select({ name: String })
-        from(patients) |> select_fields
+        from(patients) |> selected
       end
 
 
@@ -74,4 +74,34 @@ describe 'select_fields' do
 
     expect(Anon.sql.first).to start_with 'SELECT name FROM patients'
   end
+  # The reader is where the shape and the query meet, so this is the call
+  # that has to type check: nothing in it names a column.
+  it 'reads a row without a select' do
+    test_compiler.require('reader', <<~JADE)
+      module Reader exposing (Row(..), many, one)
+
+      import Schema exposing (patients)
+      import Sql exposing (SqlError)
+      import Sql.Query exposing (fetch_row, fetch_rows, from)
+
+
+      struct Row = {
+        id: Int,
+        name: String
+      }
+
+
+      def one -> Task(Row, SqlError)
+        from(patients) |> fetch_row
+      end
+
+
+      def many -> Task(List(Row), SqlError)
+        from(patients) |> fetch_rows
+      end
+    JADE
+
+    expect(defined?(Reader)).to eq 'constant'
+  end
+
 end

@@ -9,6 +9,12 @@ and one migration is better than three.
 
 ### Added
 
+- The generator emits a type alias per table, so a function that takes one
+  names it: `def archive(t: Patients)` rather than repeating
+  `Table(PatientsCols, PatientsLeftCols, Int, NoJoins, RequiredPatientsCols)`.
+  Nothing shorter is possible in general, since an alias has to bind every
+  variable its body names; only a fully applied one saves anything.
+
 - `Sql.Query.Select(a)` names `Query(Selector(a))`, so a finished query reads
   `-> Select(Visit)` rather than three type names to say one thing. `Selector`
   stays as the arity ledger `field` peels, but leaves application signatures.

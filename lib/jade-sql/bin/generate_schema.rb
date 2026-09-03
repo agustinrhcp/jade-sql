@@ -284,6 +284,7 @@ module JadeSql
         emit_strict_cols(t),
         emit_left_cols(t),
         *emit_required_cols(t),
+        emit_table_alias(t),
         emit_row(t),
         *emit_on(t),
         *emit_on_fns(t),
@@ -307,6 +308,7 @@ module JadeSql
       names = tables
         .flat_map do |t|
           [
+            camel(t.name),
             "#{camel(t.name)}Cols",
             "#{camel(t.name)}LeftCols",
             *("Required#{camel(t.name)}Cols" if required_columns(t).any?),
@@ -400,6 +402,19 @@ module JadeSql
       required_columns(t).any? ? "Required#{camel(t.name)}Cols" : 'NoRequiredCols'
     end
 
+    # The table's own type, with every argument filled in. Nothing else can
+    # shorten `Table(c, m, k, o, r)`: an alias has to bind every variable its
+    # body names, so only a fully applied one saves anything.
+    def emit_table_alias(t)
+      [
+        "#{camel(t.name)}Cols",
+        "#{camel(t.name)}LeftCols",
+        key_type(t),
+        on_type(t),
+        required_type(t),
+      ].join(', ').then { "type alias #{camel(t.name)} = Table(#{it})" }
+    end
+
     def emit_row(t)
       fields = t.columns
         .map { |c| "  #{field_name(c.name)}: #{c.nullable ? "Maybe(#{c.jade_type})" : c.jade_type}" }
@@ -422,7 +437,7 @@ module JadeSql
       maybe_fields = t.columns.map { |c| "column(a, #{c.name.inspect})" }.join(", ")
 
       <<~JADE.strip
-        def #{t.name} -> Table(#{camel(t.name)}Cols, #{camel(t.name)}LeftCols, #{key_type(t)}, #{on_type(t)}, #{required_type(t)})
+        def #{t.name} -> #{camel(t.name)}
           table(
             #{t.name.inspect},
             #{t.name.inspect},

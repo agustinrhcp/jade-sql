@@ -46,7 +46,16 @@ import Sql exposing (
   pk,
   table,
 )
-import Sql.Query exposing (Query, fetch_many, fetch_one, field, from, select, where)
+import Sql.Query exposing (
+  Query,
+  Select,
+  fetch_many,
+  fetch_one,
+  field,
+  from,
+  select,
+  where,
+)
 
 
 struct Patient = {
@@ -86,7 +95,7 @@ def all_via_run -> Task(List(Patient), SqlError)
 end
 
 
-def paul_query -> Query(Selector(Patient))
+def paul_query -> Select(Patient)
   p <- from(patients)
   select(Patient(_, _, _))
     |> field(p.id)
@@ -281,7 +290,7 @@ import Sql exposing (
   pk,
   table,
 )
-import Sql.Query exposing (Query, fetch_one, field, from, select)
+import Sql.Query exposing (Query, Select, fetch_one, field, from, select)
 import Encode
 
 
@@ -294,7 +303,7 @@ struct Person = { id: Int }
 struct Order = { id: Int }
 
 
-def everyone -> Query(Selector(Person))
+def everyone -> Select(Person)
   p <- from(persons)
   select(Person(_)) |> field(p.id)
 end

@@ -9,6 +9,10 @@ and one migration is better than three.
 
 ### Added
 
+- `Sql.Query.Select(a)` names `Query(Selector(a))`, so a finished query reads
+  `-> Select(Visit)` rather than three type names to say one thing. `Selector`
+  stays as the arity ledger `field` peels, but leaves application signatures.
+
 - `within(col, range)` compares a column against a `Range`, so `a..b` renders
   as `BETWEEN ? AND ?` and the one-ended forms as `>=` / `<=`. An empty range
   is `FALSE` and an unbounded one `TRUE`, the way `any_of([])` is already

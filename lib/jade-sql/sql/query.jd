@@ -1,5 +1,6 @@
 module Sql.Query exposing (
   Query,
+  Select,
   field,
   field_as,
   from,
@@ -60,6 +61,14 @@ struct GroupTerm = {
   params: List(Value)
 }
 
+
+
+# A finished query: one you have projected columns into with `select` and
+# `field`, and can hand to `fetch_one` / `fetch_many`. A bare `Query(c)` is a
+# query mid-chain, still carrying a table's column accessors.
+#
+#   def scheduled_visits -> Select(Visit)
+type alias Select(a) = Query(Selector(a))
 
 
 struct Query(a) = {
@@ -239,7 +248,7 @@ def select(make: a -> b) -> Query(Selector(a -> b))
 end
 
 
-def field(qs: Query(Selector(a -> b)), e: Expr(a)) -> Query(Selector(b))
+def field(qs: Query(Selector(a -> b)), e: Expr(a)) -> Select(b)
   Query(
     qs.tables,
     qs.joins,
@@ -253,7 +262,7 @@ def field(qs: Query(Selector(a -> b)), e: Expr(a)) -> Query(Selector(b))
 end
 
 
-def field_as(qs: Query(Selector(a -> b)), e: Expr(a), name: String) -> Query(Selector(b))
+def field_as(qs: Query(Selector(a -> b)), e: Expr(a), name: String) -> Select(b)
   Query(
     qs.tables,
     qs.joins,
@@ -312,7 +321,7 @@ implements ToSql(Query(Selector(a))) with
 end
 
 
-def to_sql(q: Query(Selector(a))) -> (String, List(Value))
+def to_sql(q: Select(a)) -> (String, List(Value))
   select_clause = "SELECT " ++ String.join(q.result.columns_sql, ", ")
   from_clause = render_from(q.tables)
   joins_clause = q.joins
@@ -352,13 +361,13 @@ end
 # Runs the query and decodes the single row it selected. Errors with
 # `NotFound` on none and `TooManyRows` on more than one, so "exactly one" is
 # checked rather than assumed.
-def fetch_one(q: Query(Selector(a))) -> Task(a, SqlError)
+def fetch_one(q: Select(a)) -> Task(a, SqlError)
   to_sql(q) |> Sql.fetch_one_raw
 end
 
 
 # Runs the query and decodes every row it selected. No rows is an empty list,
 # not an error.
-def fetch_many(q: Query(Selector(a))) -> Task(List(a), SqlError)
+def fetch_many(q: Select(a)) -> Task(List(a), SqlError)
   to_sql(q) |> Sql.fetch_many_raw
 end

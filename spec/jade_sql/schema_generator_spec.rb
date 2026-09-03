@@ -22,6 +22,7 @@ describe JadeSql::SchemaGenerator do
     it 'emits the module header' do
       expect(generated).to include(<<~JADE.strip)
         module Schema exposing (
+          Patients,
           PatientsCols,
           PatientsLeftCols,
           PatientsRow(..),
@@ -75,7 +76,7 @@ describe JadeSql::SchemaGenerator do
 
     it 'emits a table function with alias = table name and its key' do
       expect(generated).to include(<<~FN.strip)
-        def patients -> Table(PatientsCols, PatientsLeftCols, Int, NoJoins, RequiredPatientsCols)
+        def patients -> Patients
           table(
             "patients",
             "patients",
@@ -229,7 +230,7 @@ describe JadeSql::SchemaGenerator do
     end
 
     it 'hands the record to the table' do
-      expect(generated).to include('def patients -> Table(PatientsCols, PatientsLeftCols, Uuid, PatientsOn, RequiredPatientsCols)')
+      expect(generated).to include('def patients -> Patients')
       expect(generated).to include('PatientsOn(patients_on_phone),')
     end
   end
@@ -273,7 +274,7 @@ describe JadeSql::SchemaGenerator do
     end
 
     it 'keys the table by NoKey and passes unkeyed' do
-      expect(generated).to include('def events -> Table(EventsCols, EventsLeftCols, NoKey, NoJoins, RequiredEventsCols)')
+      expect(generated).to include('def events -> Events')
       expect(generated).to include('unkeyed,')
     end
 
@@ -295,7 +296,7 @@ describe JadeSql::SchemaGenerator do
     end
 
     it 'is generated like any other table' do
-      expect(generated).to include('def schema_migrations -> Table(SchemaMigrationsCols, SchemaMigrationsLeftCols, String, NoJoins, RequiredSchemaMigrationsCols)')
+      expect(generated).to include('def schema_migrations -> SchemaMigrations')
       expect(generated).to include('["version"]')
     end
   end
@@ -322,8 +323,8 @@ describe JadeSql::SchemaGenerator do
     end
 
     it 'emits both table functions' do
-      expect(generated).to include('def persons -> Table')
-      expect(generated).to include('def orders -> Table')
+      expect(generated).to include('def persons -> Persons')
+      expect(generated).to include('def orders -> Orders')
     end
 
     it 'exposes both, sorted' do
@@ -331,8 +332,8 @@ describe JadeSql::SchemaGenerator do
       expect(m).not_to be_nil
       entries = m[1].split(',').map { |e| e.strip.sub(/,\z/, '') }.reject(&:empty?)
       expect(entries).to eql %w[
-        OrdersCols OrdersLeftCols OrdersRow(..) PersonsCols PersonsLeftCols
-        PersonsRow(..) RequiredOrdersCols RequiredPersonsCols
+        Orders OrdersCols OrdersLeftCols OrdersRow(..) Persons PersonsCols
+        PersonsLeftCols PersonsRow(..) RequiredOrdersCols RequiredPersonsCols
         orders orders_pk orders_row persons persons_pk persons_row
       ]
     end
@@ -341,7 +342,7 @@ describe JadeSql::SchemaGenerator do
       subject(:generated) { described_class.generate(sql, tables: ['persons']) }
 
       it 'only emits the listed tables' do
-        expect(generated).to include('def persons -> Table')
+        expect(generated).to include('def persons -> Persons')
         expect(generated).not_to include('def orders -> Table')
       end
 
@@ -396,7 +397,7 @@ describe JadeSql::SchemaGenerator do
     end
 
     it 'still parses the persons table cleanly' do
-      expect(generated).to include('def persons -> Table')
+      expect(generated).to include('def persons -> Persons')
       expect(generated).to include('["id"]')
     end
   end
@@ -477,7 +478,7 @@ describe JadeSql::SchemaGenerator do
 
     it 'does not abort when the unsupported type is filtered out' do
       result = described_class.generate(sql, tables: ['wanted'])
-      expect(result).to include('def wanted -> Table')
+      expect(result).to include('def wanted -> Wanted')
       expect(result).not_to include('unwanted')
     end
 

@@ -218,9 +218,23 @@ end
 # ... GROUP BY p.name ORDER BY COUNT(*) DESC, p.name
 ```
 
-`HAVING` and `CASE` aren't built in yet — for filtering aggregates or
-conditional expressions, fall back to the raw-SQL escape hatch
-(`execute_*`). Basic aggregates (`SUM`, `COUNT`) and the
+`having(q, predicate)` filters on an aggregate, after `group` has collapsed
+the rows. `where` cannot: it runs before the grouping, so `count_all` has
+nothing to count yet.
+
+```jade
+select(Busy(_))
+  |> field(v.patient_id)
+  |> group(v.patient_id)
+  |> having(count_all |> gt(3))
+# ... GROUP BY v.patient_id HAVING COUNT(*) > ?
+```
+
+`distinct(q)` drops duplicate rows from the whole projected row, which is
+`SELECT DISTINCT` rather than Postgres' `DISTINCT ON`.
+
+`CASE` is not built in — for conditional expressions, fall back to the raw-SQL
+escape hatch (`execute_*`). Basic aggregates (`SUM`, `COUNT`) and the
 null-handling primitive (`coalesce`) are typed; see *Aggregates,
 COALESCE* below.
 
@@ -319,7 +333,7 @@ select(Totals(_, _))
 # SELECT COUNT(*), COALESCE(SUM(a.visit_no), ?)
 ```
 
-For `CASE WHEN`, `HAVING`, and arithmetic, fall back to the raw-`Expr`
+For `CASE WHEN` and arithmetic, fall back to the raw-`Expr`
 escape hatch until they get a typed builder.
 
 ### Postgres arrays

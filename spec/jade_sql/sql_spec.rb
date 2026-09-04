@@ -1469,6 +1469,104 @@ end
       def sql_of(q) = Sql::Query::Internal.to_sql(q)._1
     end
 
+
+    describe 'a subquery in a value position' do
+      let(:source) do
+        <<~JADE
+          module App exposing (last_seen, seen_patients)
+
+          import Encode
+          import Sql exposing (
+            Col(..),
+            Expr,
+            NoJoins,
+            NoRequiredCols,
+            Pk,
+            Table,
+            column,
+            no_joins,
+            pk,
+            table,
+          )
+          import Sql.Expr as Expr
+          import Sql.Query exposing (
+            Query,
+            Select,
+            field,
+            from,
+            in_subquery,
+            limit,
+            order_desc,
+            rows,
+            select,
+            subquery,
+            where,
+          )
+
+
+          #{jade_table('patients', { id: 'Int' }, alias_: 'p')}
+
+
+          #{jade_table('visits', { id: 'Int', patient_id: 'Int', seen_on: 'Int' }, alias_: 'v')}
+
+
+          struct Row = {
+            id: Int,
+            last: Maybe(Int)
+          }
+
+
+          struct Id = { id: Int }
+
+
+          def latest(p: PatientsCols) -> Query(VisitsCols)
+            v <- from(visits)
+
+            rows(v)
+              |> where(v.patient_id |> Expr.eq(p.id))
+              |> order_desc(v.seen_on)
+              |> limit(1)
+          end
+
+
+          def last_seen -> Select(Row)
+            p <- from(patients)
+
+            select(Row(_, _))
+              |> field(p.id)
+              |> field(subquery(latest(p), .seen_on))
+          end
+
+
+          def seen_patients -> Select(Id)
+            p <- from(patients)
+
+            select(Id(_))
+              |> field(p.id)
+              |> where(p.id |> in_subquery(from(visits), .patient_id))
+          end
+        JADE
+      end
+
+      before { test_compiler.require('app', source) }
+
+      it 'renders the picked column as a correlated subquery' do
+        Sql::Query::Internal.to_sql(App::Internal.last_seen).then do |built|
+          expect(built._1).to eql 'SELECT p.id, (SELECT v.seen_on FROM visits v ' \
+            'WHERE v.patient_id = p.id ORDER BY v.seen_on DESC LIMIT 1) ' \
+            'FROM patients p'
+          expect(built._2).to eql []
+        end
+      end
+
+      it 'renders IN over the picked column' do
+        Sql::Query::Internal.to_sql(App::Internal.seen_patients).then do |built|
+          expect(built._1).to eql 'SELECT p.id FROM patients p ' \
+            'WHERE p.id IN (SELECT v.patient_id FROM visits v)'
+        end
+      end
+    end
+
     describe 'having and distinct' do
       let(:source) do
         <<~JADE

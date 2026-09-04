@@ -17,6 +17,21 @@ and one migration is better than three.
 
 ### Added
 
+- `Sql.Query.subquery` renders a subquery in a value position,
+  `(SELECT v.seen_on FROM visits v ... LIMIT 1)`. It takes the query and a
+  function picking the column, since `Select(a)` says nothing about having
+  exactly one and a subquery with two is a runtime error. The result is
+  `Expr(Maybe(a))`: a subquery over no rows is NULL, same as `sum`.
+
+- `Sql.Query.in_subquery` is the same shape for `col IN (SELECT ...)`. There
+  is no `not_in`: `NOT IN` against a subquery yielding a NULL returns no rows
+  at all, and `not_exists` is the form that does not have the trap.
+
+- `Sql.Query.rows` is `select`'s unprojected twin, returning the columns
+  rather than a projection. It is what lets a subquery be written in a bind
+  chain, so `where`, `order_desc` and `limit` need no function forms of their
+  own.
+
 - `Sql.Query.exists` and `not_exists` render a correlated subquery as
   `EXISTS (SELECT 1 FROM …)`. They take an unprojected `Query`, since `EXISTS`
   ignores the select list, and the inner query may name the outer one's
@@ -173,7 +188,7 @@ and one migration is better than three.
   `Sql.Write.fetch_one` / `fetch_many` / `execute` replace them, each typed
   against what its module builds. `Sql.execute` stays — its result is `Int`,
   so it had nothing to lose.
-  The `*_raw` forms keep the free result type, which is honest: nothing about a
+  The `*_raw` forms rows the free result type, which is honest: nothing about a
   hand-written string says what it returns.
 
 - `Sql.SqlMapper` is now `Sql.Assignable`. The type implementing it is not a

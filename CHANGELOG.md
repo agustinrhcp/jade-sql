@@ -17,6 +17,11 @@ and one migration is better than three.
 
 ### Added
 
+- `Sql.Query.having` filters on an aggregate after `group` has collapsed the
+  rows, and `Sql.Query.distinct` renders `SELECT DISTINCT`. Both were on the
+  list of clauses whose documented answer was dropping to `execute_raw` and
+  hand-writing the whole statement.
+
 - The generator emits a type alias per table, so a function that takes one
   names it: `def archive(t: Patients)` rather than repeating
   `Table(PatientsCols, PatientsLeftCols, Int, NoJoins, RequiredPatientsCols)`.

@@ -26,10 +26,12 @@ describe JadeSql::SchemaGenerator do
           PatientsCols,
           PatientsLeftCols,
           PatientsRow(..),
+          PatientsSetCols,
           RequiredPatientsCols,
           patients,
           patients_pk,
           patients_row,
+          patients_set_cols,
         )
       JADE
     end
@@ -45,7 +47,18 @@ describe JadeSql::SchemaGenerator do
     end
 
     it 'imports Sql' do
-      expect(generated).to include('import Sql exposing (Expr, NoJoins, Pk, Selector, Table, column, no_joins, pk, table)')
+      expect(generated).to include('import Sql exposing (
+  Col(..),
+  Expr,
+  NoJoins,
+  Pk,
+  Selector,
+  Table,
+  column,
+  no_joins,
+  pk,
+  table,
+)')
       expect(generated).to include('import Encode')
     end
 
@@ -86,6 +99,7 @@ describe JadeSql::SchemaGenerator do
             (a) -> {
               PatientsLeftCols(column(a, "id"), column(a, "name"), column(a, "balance"))
             },
+            patients_set_cols,
             patients_pk,
             no_joins,
           )
@@ -332,9 +346,11 @@ describe JadeSql::SchemaGenerator do
       expect(m).not_to be_nil
       entries = m[1].split(',').map { |e| e.strip.sub(/,\z/, '') }.reject(&:empty?)
       expect(entries).to eql %w[
-        Orders OrdersCols OrdersLeftCols OrdersRow(..) Persons PersonsCols
-        PersonsLeftCols PersonsRow(..) RequiredOrdersCols RequiredPersonsCols
-        orders orders_pk orders_row persons persons_pk persons_row
+        Orders OrdersCols OrdersLeftCols OrdersRow(..) OrdersSetCols Persons
+        PersonsCols PersonsLeftCols PersonsRow(..) PersonsSetCols
+        RequiredOrdersCols RequiredPersonsCols
+        orders orders_pk orders_row orders_set_cols
+        persons persons_pk persons_row persons_set_cols
       ]
     end
 
@@ -660,7 +676,7 @@ describe JadeSql::SchemaGenerator do
 
     it 'has no struct to name, so the table is typed NoRequiredCols' do
       expect(generated).not_to include('RequiredEventsCols')
-      expect(generated).to include('NoJoins, NoRequiredCols)')
+      expect(generated).to include('NoJoins, NoRequiredCols, EventsSetCols)')
     end
   end
 end

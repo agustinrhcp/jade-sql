@@ -376,13 +376,19 @@ Write ops for partial array updates:
 | `array_remove(Expr(List(a)), a) -> Expr(List(a))`                   | `array_remove(col, ?)`       |
 | `array_concat(Expr(List(a)), Expr(List(a))) -> Expr(List(a))`       | `left ‖ right`               |
 
+`update_all`'s builder receives two records: the column accessors, for
+expressions over the row, and the assignment-side accessors, for the left of a
+`SET`. The second yields `Col`, which carries the column's name, so `set` reads
+it rather than recovering it from rendered SQL — an aggregate or a `COALESCE`
+cannot be assigned to, and cannot be offered.
+
 Use these in `update_all` to avoid rewriting an array column wholesale:
 
 ```jade
 appointments
   |> update_all(
        (a) -> { a.id |> eq(aid) },
-       (a) -> { [a.tags |> set_expr(array_append(a.tags, new_tag))] },
+       (a, s) -> { [s.tags |> set_expr(array_append(a.tags, new_tag))] },
      )
 # UPDATE appointments SET tags = array_append(tags, ?) WHERE id = ?
 ```
@@ -484,7 +490,7 @@ p |> delete(patients) |> to_sql        # DELETE FROM patients WHERE id = ?
 
 appointments
 |> update_all((a) -> { a.status |> eq("scheduled") },
-              (a) -> { [a.cancelled |> set(True)] })
+              (a, s) -> { [s.cancelled |> set(True)] })
 |> to_sql
 
 appointments

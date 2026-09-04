@@ -30,6 +30,7 @@ module App exposing (
 import Decode exposing (Value)
 import Encode
 import Sql exposing (
+  Col(..),
   Expr,
   NoJoins,
   Pk,
@@ -278,6 +279,7 @@ end
 module Wrong exposing (mismatched)
 
 import Sql exposing (
+  Col(..),
   Expr,
   NoJoins,
   NoRequiredCols,

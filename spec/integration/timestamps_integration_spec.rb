@@ -19,6 +19,7 @@ module App exposing (add_plain, add_stamped, backdate, touch)
 import Sql exposing (
   Assignable,
   Assignment,
+  Col(..),
   Expr,
   NoJoins,
   Pk,

@@ -52,7 +52,7 @@ struct Write(ret, c) = {
 }
 
 
-def insert(value: a, t: Table(c, m, k, o, r)) -> Write(Int, c)
+def insert(value: a, t: Table(c, m, k, o, r, s)) -> Write(Int, c)
   Write(
     InsertK,
     TableRef(t.name, t.alias_),
@@ -65,7 +65,7 @@ def insert(value: a, t: Table(c, m, k, o, r)) -> Write(Int, c)
 end
 
 
-def insert_all(values: List(a), t: Table(c, m, k, o, r)) -> Write(Int, c)
+def insert_all(values: List(a), t: Table(c, m, k, o, r, s)) -> Write(Int, c)
   Write(
     InsertK,
     TableRef(t.name, t.alias_),
@@ -78,7 +78,7 @@ def insert_all(values: List(a), t: Table(c, m, k, o, r)) -> Write(Int, c)
 end
 
 
-def update(value: a, t: Table(c, m, k, o, r), key: k) -> Write(Int, c)
+def update(value: a, t: Table(c, m, k, o, r, s), key: k) -> Write(Int, c)
   Write(
     UpdateK,
     TableRef(t.name, t.alias_),
@@ -91,7 +91,7 @@ def update(value: a, t: Table(c, m, k, o, r), key: k) -> Write(Int, c)
 end
 
 
-def delete(t: Table(c, m, k, o, r), key: k) -> Write(Int, c)
+def delete(t: Table(c, m, k, o, r, s), key: k) -> Write(Int, c)
   Write(
     DeleteK,
     TableRef(t.name, t.alias_),
@@ -118,9 +118,9 @@ end
 
 
 def update_all(
-  t: Table(c, m, k, o, r),
+  t: Table(c, m, k, o, r, s),
   pred_fn: c -> Expr(Bool),
-  build: c -> List(Assignment),
+  build: c, s -> List(Assignment),
 ) -> Write(Int, c)
   cols_ = t.alias_ |> t.cols
   pred = cols_ |> pred_fn
@@ -129,7 +129,7 @@ def update_all(
     UpdateK,
     TableRef(t.name, t.alias_),
     cols_,
-    [cols_ |> build],
+    [build(cols_, t.set_cols)],
     [pred],
     Selector([], []),
      Nothing,
@@ -137,7 +137,7 @@ def update_all(
 end
 
 
-def update_many(rows_: List((k, a)), t: Table(c, m, k, o, r)) -> Write(Int, c)
+def update_many(rows_: List((k, a)), t: Table(c, m, k, o, r, s)) -> Write(Int, c)
   rows = rows_ |> List.map((r) -> { keyed_assigns(t.pk, r) })
 
   Write(
@@ -220,7 +220,7 @@ def pk_join(pk_columns: List(String)) -> Expr(Bool)
 end
 
 
-def delete_all(t: Table(c, m, k, o, r), pred_fn: c -> Expr(Bool)) -> Write(Int, c)
+def delete_all(t: Table(c, m, k, o, r, s), pred_fn: c -> Expr(Bool)) -> Write(Int, c)
   cols_ = t.alias_ |> t.cols
   pred = cols_ |> pred_fn
 

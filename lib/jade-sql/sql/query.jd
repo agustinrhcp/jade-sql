@@ -4,9 +4,11 @@ module Sql.Query exposing (
   field,
   field_as,
   distinct,
+  exists,
   from,
   group,
   having,
+  not_exists,
   join,
   left_join,
   limit,
@@ -22,7 +24,7 @@ module Sql.Query exposing (
 )
 
 import Sql exposing (
-  Expr,
+  Expr(..),
   Selector(..),
   SqlError,
   Table,
@@ -306,8 +308,42 @@ end
 
 
 def to_sql(q: Select(a)) -> (String, List(Value))
+  render(q, q.result.columns_sql, q.result.params)
+end
+
+
+# `EXISTS (SELECT 1 FROM …)`, for asking whether a related row is there
+# without joining to it and without projecting anything from it. The inner
+# query may name the outer query's columns, which is what makes it correlated:
+#
+#   p <- from(patients)
+#   where(exists(from(visits) |> filter((v) -> { v.patient_id |> Expr.eq(p.id) })))
+def exists(q: Query(a)) -> Expr(Bool)
+  wrap_subquery("EXISTS (", q)
+end
+
+
+def not_exists(q: Query(a)) -> Expr(Bool)
+  wrap_subquery("NOT EXISTS (", q)
+end
+
+
+def wrap_subquery(keyword: String, q: Query(a)) -> Expr(Bool)
+  case render(q, ["1"], [])
+  in (sql, params) then Expr(keyword ++ sql ++ ")", params)
+  end
+end
+
+
+# Every clause but the select list, which the caller supplies: `to_sql` passes
+# the projected columns, a subquery passes `1`.
+def render(
+  q: Query(a),
+  columns_sql: List(String),
+  result_params: List(Value),
+) -> (String, List(Value))
   select_clause = (q.distinct_ ? "SELECT DISTINCT " : "SELECT ")
-    ++ String.join(q.result.columns_sql, ", ")
+    ++ String.join(columns_sql, ", ")
   from_clause = render_from(q.tables)
   joins_clause = q.joins
     |> List.map((j) -> { " " ++ render_join(j) })
@@ -342,7 +378,7 @@ def to_sql(q: Select(a)) -> (String, List(Value))
       ++ order_clause
       ++ limit_clause
       ++ offset_clause,
-    q.result.params ++ join_ps ++ where_ps ++ group_ps ++ having_ps ++ order_ps,
+    result_params ++ join_ps ++ where_ps ++ group_ps ++ having_ps ++ order_ps,
   )
 end
 

@@ -1390,6 +1390,85 @@ end
       end
     end
 
+    describe 'exists, for a correlated subquery' do
+      let(:source) do
+        <<~JADE
+module App exposing (with_visits, without_visits)
+
+import Encode
+import Sql exposing (
+  Col(..),
+  Expr,
+  NoJoins,
+  NoRequiredCols,
+  Pk,
+  Table,
+  column,
+  eq,
+  no_joins,
+  pk,
+  table,
+)
+import Sql.Expr as Expr
+import Sql.Query exposing (
+  Query,
+  Select,
+  exists,
+  field,
+  filter,
+  from,
+  not_exists,
+  select,
+  where,
+)
+
+
+#{jade_table('patients', { id: 'Int', name: 'String' }, alias_: 'p')}
+
+
+#{jade_table('visits', { id: 'Int', patient_id: 'Int' }, alias_: 'v')}
+
+
+struct Name = { name: String }
+
+
+def with_visits -> Select(Name)
+  p <- from(patients)
+
+  select(Name(_))
+    |> field(p.name)
+    |> where(exists(from(visits) |> filter((v) -> { v.patient_id |> Expr.eq(p.id) })))
+end
+
+
+def without_visits -> Select(Name)
+  p <- from(patients)
+
+  select(Name(_))
+    |> field(p.name)
+    |> where(
+      not_exists(from(visits) |> filter((v) -> { v.patient_id |> Expr.eq(p.id) })),
+    )
+end
+        JADE
+      end
+
+      before { test_compiler.require('app', source) }
+
+      it 'renders EXISTS with SELECT 1, correlated on the outer alias' do
+        expect(sql_of(App::Internal.with_visits)).to eql(
+          'SELECT p.name FROM patients p ' \
+            'WHERE EXISTS (SELECT 1 FROM visits v WHERE v.patient_id = p.id)',
+        )
+      end
+
+      it 'renders NOT EXISTS the same way' do
+        expect(sql_of(App::Internal.without_visits)).to include('WHERE NOT EXISTS (SELECT 1')
+      end
+
+      def sql_of(q) = Sql::Query::Internal.to_sql(q)._1
+    end
+
     describe 'having and distinct' do
       let(:source) do
         <<~JADE

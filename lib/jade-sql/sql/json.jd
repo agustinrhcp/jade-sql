@@ -1,0 +1,142 @@
+module Sql.Json exposing (
+  Doc,
+  Json,
+  Object,
+  agg,
+  build,
+  correlated,
+  empty_list,
+  fetch_many,
+  fetch_one,
+  nested,
+  object,
+  of_array,
+  prop,
+  select,
+  text,
+)
+
+# Builds JSON in the database instead of in Ruby.
+#
+# `Expr(Json(a))` is a SQL expression whose value is JSON text encoding an
+# `a`. `Json(a)` has no exported constructors, so the only way to get one is
+# through this module — which means a projection can't drift from the type it
+# claims to encode without the type checker noticing.
+#
+# The builder mirrors `Sql.Query.select`/`field` deliberately: `object` takes
+# the target constructor as a type witness and `prop` peels one argument per
+# field, so a projection that doesn't match the struct's fields in arity and
+# type fails to compile. The witness is never called — Postgres does the
+# constructing.
+
+import Sql exposing (Expr(..), Selector, SqlError, cast)
+import Sql.Query as Query exposing (Q)
+import Decode exposing (Value)
+
+
+type Json(a)
+  = Json
+
+
+struct Object(a) = {
+  pairs: List(String),
+  params: List(Value)
+}
+
+
+def object(make: a -> b) -> Object(a -> b)
+  Object([], [])
+end
+
+
+def prop(o: Object(a -> b), name: String, e: Expr(a)) -> Object(b)
+  Object(o.pairs ++ ["'" ++ name ++ "', " ++ e.sql], o.params ++ e.params)
+end
+
+
+def build(o: Object(a)) -> Expr(Json(a))
+  Expr("json_build_object(" ++ String.join(o.pairs, ", ") ++ ")", o.params)
+end
+
+
+# `json_agg` over an empty group is NULL, not `[]` — the same hazard
+# `Sql.sum` models. Returning Maybe forces the caller through `coalesce`,
+# which makes the empty-collection bug unrepresentable rather than merely
+# documented.
+def agg(e: Expr(Json(a)), by: Expr(b)) -> Expr(Maybe(List(a)))
+  Expr(
+    "json_agg(" ++ e.sql ++ " ORDER BY " ++ by.sql ++ ")",
+    e.params ++ by.params,
+  )
+end
+
+
+def empty_list -> Expr(List(a))
+  Expr("'[]'::json", [])
+end
+
+
+# Embeds one object as an object-valued field. `agg` is the same placement
+# for a list-valued one: both take a rendered object and hand back the type
+# the target field actually has, because `prop` peels the field's type.
+def nested(e: Expr(Json(a))) -> Expr(a)
+  Expr(e.sql, e.params)
+end
+
+
+# Postgres arrays (`text[]`) are not JSON arrays: without this a `List(a)`
+# column serializes as `{a,b}`. The type is unchanged — this is a rendering
+# concern, not a different value.
+def of_array(e: Expr(List(a))) -> Expr(List(a))
+  Expr("to_jsonb(" ++ e.sql ++ ")", e.params)
+end
+
+
+# A scalar subquery, which is what a preload becomes once the child rows are
+# aggregated. The outer columns are passed in rather than closed over so the
+# correlated scope is a named argument: reusing a builder under a different
+# outer table is then a type error instead of a silently wrong correlation.
+def correlated(outer: c, q: c -> Q(Selector(a))) -> Expr(a)
+  (sql, params) = outer |> q |> Query.to_sql
+
+  Expr("(" ++ sql ++ ")", params)
+end
+
+
+# JSON text that decodes as an `a`. The tag survives the round trip, so a
+# signature can still say what a response contains after the value has
+# stopped being a structure.
+struct Doc(a) = {
+  text: String
+}
+
+
+def text(d: Doc(a)) -> String
+  d.text
+end
+
+
+# The row comes back as a hash keyed by column name, so the projection needs
+# an alias matching Doc's field. `cast` is the escape hatch that erases
+# Json(a) to the String the column actually holds — it stays inside this
+# module, and the signature ties the result's tag back to the projection's.
+def select(e: Expr(Json(a))) -> Q(Selector(Doc(a)))
+  Query.select(Doc(_)) |> Query.field_as(cast(e), "text")
+end
+
+
+# The parent list is joined here rather than aggregated in SQL: LIMIT applies
+# to an aggregate's single output row, not to the rows feeding it, so a paged
+# json_agg silently returns the wrong page.
+def fetch_many(q: Q(Selector(Doc(a)))) -> Task(Doc(List(a)), SqlError)
+  docs <- Sql.fetch_many(q)
+
+  Task.succeed(Doc("[" ++ String.join(List.map(docs, text), ",") ++ "]"))
+end
+
+
+def fetch_one(q: Q(Selector(Doc(a)))) -> Task(Doc(a), SqlError)
+  doc <- Sql.fetch_one(q)
+
+  Task.succeed(doc)
+end

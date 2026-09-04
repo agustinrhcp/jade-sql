@@ -7,9 +7,11 @@ module Sql.Query exposing (
   exists,
   from,
   group,
+  in_subquery,
   having,
   not_exists,
   join,
+  rows,
   left_join,
   limit,
   offset,
@@ -19,6 +21,7 @@ module Sql.Query exposing (
   fetch_many,
   fetch_one,
   to_sql,
+  subquery,
   where,
   filter,
 )
@@ -223,6 +226,17 @@ def select(make: a -> b) -> Query(Selector(a -> b))
 end
 
 
+# `select`'s unprojected twin, for a query the caller carries on building
+# rather than projects. It is what lets a subquery be written in a bind chain:
+#
+#   v <- from(visits)
+#
+#   rows(v) |> where(...) |> order_desc(v.seen_on) |> limit(1)
+def rows(cols: c) -> Query(c)
+  Query([], [], [], [], [], [], Nothing, Nothing, False, cols)
+end
+
+
 def field(qs: Query(Selector(a -> b)), e: Expr(a)) -> Select(b)
   Query(
     qs.tables,
@@ -331,6 +345,29 @@ end
 def wrap_subquery(keyword: String, q: Query(a)) -> Expr(Bool)
   case render(q, ["1"], [])
   in (sql, params) then Expr(keyword ++ sql ++ ")", params)
+  end
+end
+
+
+# A subquery in a value position: `(SELECT v.seen_on FROM ... LIMIT 1)`.
+# `Maybe`, because a subquery over no rows is NULL, same as `sum`.
+#
+# The column is picked rather than projected: `Select(a)` says nothing about
+# having exactly one, and a subquery with two is a runtime error.
+def subquery(q: Query(c), pick: c -> Expr(a)) -> Expr(Maybe(a))
+  picked = pick(q.result)
+
+  case render(q, [picked.sql], picked.params)
+  in (sql, params) then Expr("(" ++ sql ++ ")", params)
+  end
+end
+
+
+def in_subquery(e: Expr(a), q: Query(c), pick: c -> Expr(a)) -> Expr(Bool)
+  picked = pick(q.result)
+
+  case render(q, [picked.sql], picked.params)
+  in (sql, params) then Expr(e.sql ++ " IN (" ++ sql ++ ")", e.params ++ params)
   end
 end
 

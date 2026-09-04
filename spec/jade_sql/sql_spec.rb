@@ -1469,6 +1469,46 @@ end
       def sql_of(q) = Sql::Query::Internal.to_sql(q)._1
     end
 
+    describe 'a unique index, by name' do
+      let(:source) do
+        <<~JADE
+          module App exposing (clashed_on_email, clashed_on_other)
+
+          import Sql exposing (
+            SqlError(..),
+            Unique,
+            unique,
+            violated,
+          )
+
+
+          def users_email_key -> Unique(c)
+            unique("users_email_key", ["email"])
+          end
+
+
+          def clashed_on_email -> Bool
+            violated(UniqueViolation("users_email_key"), users_email_key)
+          end
+
+
+          def clashed_on_other -> Bool
+            violated(UniqueViolation("users_handle_key"), users_email_key)
+          end
+        JADE
+      end
+
+      before { test_compiler.require('app', source) }
+
+      it 'matches the violation it names' do
+        expect(App::Internal.clashed_on_email).to be true
+      end
+
+      it 'does not match another' do
+        expect(App::Internal.clashed_on_other).to be false
+      end
+    end
+
     describe 'having and distinct' do
       let(:source) do
         <<~JADE

@@ -3,7 +3,10 @@ require 'spec_helper'
 require 'jade-sql/bin/generate_schema'
 
 describe JadeSql::SchemaGenerator do
-  subject(:generated) { described_class.generate(sql) }
+  subject(:generated) { modules.fetch(root_module) }
+
+  let(:modules) { described_class.generate(sql) }
+  let(:root_module) { 'Schema' }
 
   context 'a single table with NOT NULL and nullable columns' do
     let(:sql) do
@@ -355,7 +358,7 @@ describe JadeSql::SchemaGenerator do
     end
 
     context 'with a table whitelist' do
-      subject(:generated) { described_class.generate(sql, tables: ['persons']) }
+      let(:modules) { described_class.generate(sql, tables: ['persons']) }
 
       it 'only emits the listed tables' do
         expect(generated).to include('def persons -> Persons')
@@ -369,7 +372,8 @@ describe JadeSql::SchemaGenerator do
     end
 
     context 'with a custom module name' do
-      subject(:generated) { described_class.generate(sql, module_name: 'Schema.Billing') }
+      let(:modules) { described_class.generate(sql, module_name: 'Schema.Billing') }
+      let(:root_module) { 'Schema.Billing' }
 
       it 'uses the override in the module declaration' do
         expect(generated).to include('module Schema.Billing exposing (')
@@ -432,8 +436,6 @@ describe JadeSql::SchemaGenerator do
     end
 
     it 'maps numeric/decimal to Decimal and double precision/real to Float' do
-      generated = described_class.generate(sql)
-
       expect(generated).to include(<<~STRUCT.strip)
         struct TaxLinesRow = {
           id: Int,
@@ -493,7 +495,7 @@ describe JadeSql::SchemaGenerator do
     end
 
     it 'does not abort when the unsupported type is filtered out' do
-      result = described_class.generate(sql, tables: ['wanted'])
+      result = described_class.generate(sql, tables: ['wanted']).fetch('Schema')
       expect(result).to include('def wanted -> Wanted')
       expect(result).not_to include('unwanted')
     end
@@ -505,7 +507,7 @@ describe JadeSql::SchemaGenerator do
   end
 
   describe 'column selection' do
-    subject(:generated) { described_class.generate(sql, columns: columns) }
+    let(:modules) { described_class.generate(sql, columns: columns) }
 
     let(:sql) do
       <<~SQL
@@ -677,6 +679,60 @@ describe JadeSql::SchemaGenerator do
     it 'has no struct to name, so the table is typed NoRequiredCols' do
       expect(generated).not_to include('RequiredEventsCols')
       expect(generated).to include('NoJoins, NoRequiredCols, EventsSetCols)')
+    end
+  end
+
+  describe 'enums' do
+    include_context 'with test compiler'
+
+    let(:sql) do
+      <<~SQL
+        CREATE TYPE public.invoice_status AS ENUM ('pending', 'paid');
+        CREATE TYPE public.card_status AS ENUM ('pending', 'active');
+        CREATE TYPE public.currency AS ENUM ('usd', 'eur');
+
+        CREATE TABLE public.invoices (
+            id bigint NOT NULL,
+            status public.invoice_status NOT NULL,
+            paid_in public.currency NOT NULL
+        );
+
+        CREATE TABLE public.cards (
+            id bigint NOT NULL,
+            status public.card_status NOT NULL
+        );
+      SQL
+    end
+
+    it 'gives each enum a module, since a table does not own one' do
+      expect(modules.keys).to contain_exactly(
+        'Schema', 'Schema.InvoiceStatus', 'Schema.CardStatus', 'Schema.Currency'
+      )
+    end
+
+    it 'names the type after the SQL type, guessing nothing' do
+      expect(modules.fetch('Schema.InvoiceStatus')).to eql(<<~JADE)
+        module Schema.InvoiceStatus exposing (InvoiceStatus(..))
+
+        type InvoiceStatus
+          = Pending
+          | Paid
+      JADE
+    end
+
+    it 'types the column through the module it imports' do
+      expect(generated).to include('import Schema.InvoiceStatus as InvoiceStatus')
+      expect(generated).to include('status: Expr(InvoiceStatus.InvoiceStatus)')
+    end
+
+    it 'compiles, though both enums have a pending label' do
+      modules
+        .sort_by { |name, _| -name.count('.') }
+        .each do |name, source|
+          described_class
+            .module_path(root_module, name, 'schema.jd')
+            .then { test_compiler.require(it.delete_suffix('.jd'), source) }
+        end
     end
   end
 end

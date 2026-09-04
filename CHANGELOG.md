@@ -111,6 +111,17 @@ and one migration is better than three.
 
 ### Added
 
+- Each enum is generated into a module of its own, since a Postgres enum
+  belongs to the schema rather than to a table — two tables can share one, and
+  a table can have none. `invoice_status` becomes `Schema.InvoiceStatus`
+  exposing `Status(..)`, so a database with an `invoice_status` and a
+  `card_status` both carrying `pending` no longer produces a module that
+  cannot compile. The type inside is named after the SQL type too, since every
+  shorter name is a guess at where the SQL name divides;
+  `jade.json` is where a better one gets said. `SchemaGenerator.generate`
+  returns modules keyed by name, and `rake jade:schema` writes
+  `schema/invoice_status.jd` next to `schema.jd`.
+
 - `Table(c, m, k, o)` becomes `Table(c, m, k, o, r)`, where `r` is a struct of
   the columns an insert has to write, or `NoRequiredCols` for a table that has
   none. The generator works out which those are: NOT NULL, with no DEFAULT,

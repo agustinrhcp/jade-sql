@@ -679,4 +679,55 @@ describe JadeSql::SchemaGenerator do
       expect(generated).to include('NoJoins, NoRequiredCols, EventsSetCols)')
     end
   end
+  context 'unique indexes' do
+    let(:sql) do
+      <<~SQL
+        CREATE TABLE public.users (
+            id bigint NOT NULL,
+            email character varying NOT NULL,
+            tenant_id bigint NOT NULL,
+            handle character varying
+        );
+
+        ALTER TABLE ONLY public.users
+            ADD CONSTRAINT users_pkey PRIMARY KEY (id);
+
+        ALTER TABLE ONLY public.users
+            ADD CONSTRAINT users_email_key UNIQUE (email);
+
+        CREATE UNIQUE INDEX index_users_on_tenant_and_handle ON public.users USING btree (tenant_id, handle);
+
+        CREATE UNIQUE INDEX index_users_on_handle_active ON public.users USING btree (handle) WHERE (handle IS NOT NULL);
+      SQL
+    end
+
+    it 'names a table-level UNIQUE constraint' do
+      expect(generated).to include(<<~JADE.strip)
+        def users_email_key -> Unique(UsersCols)
+          unique("users_email_key", ["email"])
+        end
+      JADE
+    end
+
+    it 'names a standalone unique index, with its columns in order' do
+      expect(generated).to include(<<~JADE.strip)
+        def index_users_on_tenant_and_handle -> Unique(UsersCols)
+          unique("index_users_on_tenant_and_handle", ["tenant_id", "handle"])
+        end
+      JADE
+    end
+
+    # A partial index constrains only the rows its WHERE matches, so a
+    # conflict target built from it is not the one the database enforces.
+    it 'skips a partial index' do
+      expect(generated).not_to include('index_users_on_handle_active')
+    end
+
+    it 'exposes them and imports what they need' do
+      expect(generated).to include('users_email_key,')
+      expect(generated).to include('  Unique,')
+      expect(generated).to include('  unique,')
+    end
+  end
+
 end

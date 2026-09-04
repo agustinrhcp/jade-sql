@@ -13,6 +13,7 @@ module Sql exposing (
   SqlError(..),
   Table,
   TableRef(..),
+  Unique(..),
   ToSql,
   aliased,
   and,
@@ -61,8 +62,10 @@ module Sql exposing (
   table,
   to_assigns,
   transaction,
+  unique,
   unkeyed,
   unsafe_cast,
+  violated,
   within,
 )
 
@@ -182,6 +185,20 @@ end
 # The generator emits one record of these per table, which `update_all` hands
 # to the builder alongside the column accessors.
 struct Col(a) = { name: String }
+
+
+# A unique index, by the name Postgres reports when it is violated. Phantom
+# in the column struct, so an index cannot be used with a table it is not on.
+# The generator emits one per unique index and per table-level UNIQUE.
+struct Unique(c) = {
+  name: String,
+  columns: List(String)
+}
+
+
+def unique(name: String, cols: List(String)) -> Unique(c)
+  Unique(name, cols)
+end
 
 
 struct Assignment = {
@@ -538,13 +555,22 @@ def aliased(t: Table(c, m, k, o, r, s), alias_: String) -> Table(c, m, k, o, r, 
 end
 
 
-# `UniqueViolation` carries the violated constraint name, so a caller routes
-# it to a field error without matching on the database's message text.
+# `UniqueViolation` carries the violated constraint name. Compare it with
+# `violated` rather than a literal: rename the index, regenerate, and the
+# call site stops compiling instead of quietly never matching again.
 type SqlError
   = DbError(String)
   | NotFound
   | TooManyRows
   | UniqueViolation(String)
+
+
+def violated(e: SqlError, u: Unique(c)) -> Bool
+  case e
+  in UniqueViolation(name) then name == u.name
+  else False
+  end
+end
 
 
 implements Encodable(SqlError) with

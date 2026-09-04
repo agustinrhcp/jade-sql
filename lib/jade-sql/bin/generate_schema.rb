@@ -59,7 +59,7 @@ module JadeSql
 
     # Column names that collide with Jade keywords get a trailing underscore
     # in the struct field; the SQL column reference keeps the real name.
-    Table = Data.define(:name, :columns, :pk_columns, :fks)
+    Table = Data.define(:name, :columns, :pk_columns, :fks, :uniques)
     # `defaulted` is what the database fills in when an INSERT leaves the
     # column out — a DEFAULT clause, an identity or serial sequence. Not the
     # same question as `nullable`: a NOT NULL column with a default is still
@@ -72,9 +72,12 @@ module JadeSql
       bodies = select_tables(bodies, tables) if tables
       pks = parse_pks(sql)
       fks = parse_fks(sql)
+      uniques = parse_uniques(sql)
       defaults = parse_alter_defaults(sql)
       parsed = bodies
-        .map { |name, body| Table[name, parse_columns(body, name), pks[name] || [], fks[name]] }
+        .map { |name, body|
+          Table[name, parse_columns(body, name), pks[name] || [], fks[name], uniques[name]]
+        }
         .map { |t| t.with(columns: apply_defaults(t.columns, defaults[t.name] || [])) }
         .then { |ts| ts.map { |t| t.with(fks: relations(t, ts)) } }
       parsed = select_columns(parsed, columns) if columns
@@ -223,6 +226,27 @@ module JadeSql
         end
     end
 
+    Unique = Data.define(:name, :columns)
+
+    # Both spellings of the same fact: a table-level constraint, which
+    # pg_dump writes as an ALTER, and a standalone unique index. A partial
+    # index is skipped, since it constrains only the rows its WHERE matches
+    # and a conflict target built from it would not be the one it enforces.
+    def parse_uniques(sql)
+      constraints = sql.scan(
+        /ALTER TABLE (?:ONLY\s+)?(?:\w+\.)?(\w+)\s+ADD CONSTRAINT (\w+) UNIQUE \(([^)]+)\)/i,
+      )
+      indexes = sql
+        .scan(/CREATE UNIQUE INDEX (\w+) ON (?:\w+\.)?(\w+) USING \w+ \(([^)]+)\)([^;]*);/i)
+        .reject { |(_, _, _, tail)| tail =~ /\bWHERE\b/i }
+        .map { |(index, table, cols, _)| [table, index, cols] }
+
+      (constraints + indexes)
+        .each_with_object(Hash.new { |h, k| h[k] = [] }) do |(table, name, cols), acc|
+          acc[table] << Unique[name, cols.split(',').map { |c| c.strip.delete('"') }]
+        end
+    end
+
     def parse_pks(sql)
       sql
         .scan(/ALTER TABLE (?:ONLY\s+)?(?:\w+\.)?(\w+)\s+ADD CONSTRAINT \w+ PRIMARY KEY \(([^)]+)\)/i)
@@ -293,6 +317,7 @@ module JadeSql
         emit_table_fn(t),
       ]
         .then { keyed?(t) ? it + [emit_pk_fn(t), emit_pk_values_fn(t)] : it }
+        .then { it + t.uniques.map { |u| emit_unique_fn(t, u) } }
         .then { it + [emit_row_projector(t)] }
     end
 
@@ -323,6 +348,7 @@ module JadeSql
         end
       names += tables.map { |t| "#{t.name}_row" }
       names += keyed.map { |t| "#{t.name}_pk" }
+      names += tables.flat_map { |t| t.uniques.map(&:name) }
       names += (@enums || {}).values.map { "#{camel(it.name)}(..)" }
       exposed = names.sort.join(", ")
 
@@ -339,6 +365,7 @@ module JadeSql
         *("NoJoins" if bare.any?),
         *("NoKey" if unkeyed),
         *("NoRequiredCols" if tables.any? { required_columns(it).empty? }),
+        *("Unique" if tables.any? { it.uniques.any? }),
       ].sort
       fns = [
         "column",
@@ -347,6 +374,7 @@ module JadeSql
         *("no_joins" if bare.any?),
         *("pk" if keyed.any?),
         *("unkeyed" if unkeyed),
+        *("unique" if tables.any? { it.uniques.any? }),
       ].sort
       sql_import = "import Sql exposing(#{(types + fns).join(', ')})"
       query_import = ["import Sql.Query exposing(Select, field_as, select)"]
@@ -538,6 +566,18 @@ module JadeSql
           end
         JADE
       end
+    end
+
+    # The index name is what Postgres reports in a violation, so naming it
+    # here is what lets a caller route the error without matching a string.
+    def emit_unique_fn(t, u)
+      cols = u.columns.map { it.inspect }.join(", ")
+
+      <<~JADE.strip
+        def #{u.name} -> Unique(#{camel(t.name)}Cols)
+          unique(#{u.name.inspect}, [#{cols}])
+        end
+      JADE
     end
 
     def emit_pk_fn(t)

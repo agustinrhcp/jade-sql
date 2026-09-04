@@ -17,6 +17,14 @@ and one migration is better than three.
 
 ### Added
 
+- The generator emits every unique index as a named `Unique(c)`, from both
+  spellings: a table-level `UNIQUE (...)` and a standalone
+  `CREATE UNIQUE INDEX`. `Sql.violated(err, users_email_key)` routes a
+  `UniqueViolation` without matching the constraint name as a string, so
+  renaming the index and regenerating breaks the call site instead of leaving
+  it quietly never matching. Partial indexes are skipped, since they
+  constrain only the rows their `WHERE` matches.
+
 - `Sql.Query.exists` and `not_exists` render a correlated subquery as
   `EXISTS (SELECT 1 FROM …)`. They take an unprojected `Query`, since `EXISTS`
   ignores the select list, and the inner query may name the outer one's

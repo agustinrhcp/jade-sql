@@ -77,6 +77,32 @@ Strict cols mirror NOT NULL constraints; the maybe version wraps every
 field in `Maybe` for left-join projections. The default alias is the
 table name; override per-call with `aliased` (see joins below).
 
+Every unique index becomes a name too, from both spellings: a table-level
+`UNIQUE (...)` and a standalone `CREATE UNIQUE INDEX`.
+
+```jade
+def users_email_key -> Unique(UsersCols)
+  unique("users_email_key", ["email"])
+end
+```
+
+`UniqueViolation` carries the constraint name Postgres reports, so `violated`
+routes it without matching a string:
+
+```jade
+case err
+in UniqueViolation(_) then
+  violated(err, users_email_key) ? EmailTaken : Other
+end
+```
+
+Rename the index, regenerate, and the call site stops compiling rather than
+quietly never matching again. `Unique(c)` is phantom in the column struct, so
+an index cannot be used with a table it is not on.
+
+A partial index is skipped: it constrains only the rows its `WHERE` matches,
+so a conflict target built from it is not the one the database enforces.
+
 `patients_pk` names the table's primary key. `Pk(c, k)` is phantom in the
 column struct, so a key can only be used with the table it came from, and
 carries the key's own type — `Int` here, a tuple for a composite key,

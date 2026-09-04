@@ -1302,6 +1302,53 @@ end
       end
     end
 
+    describe 'two tables in one chain' do
+      it 'renders both, since accessors for both are in scope' do
+        test_compiler.require('crossed', <<~JADE)
+          module Crossed exposing (pairs)
+
+          import Encode
+          import Sql exposing (
+            Expr,
+            NoJoins,
+            NoRequiredCols,
+            Pk,
+            Table,
+            column,
+            no_joins,
+            pk,
+            table,
+          )
+          import Sql.Query exposing (Query, Select, field, from, select)
+
+
+          #{jade_table('patients', { id: 'Int' }, alias_: 'p')}
+
+
+          #{jade_table('visits', { id: 'Int' }, alias_: 'v')}
+
+
+          struct Pair = {
+            patient: Int,
+            visit: Int
+          }
+
+
+          def pairs -> Select(Pair)
+            p <- from(patients)
+            v <- from(visits)
+
+            select(Pair(_, _))
+              |> field(p.id)
+              |> field(v.id)
+          end
+        JADE
+
+        expect(Sql::Query::Internal.to_sql(Crossed::Internal.pairs)._1)
+          .to eql 'SELECT p.id, v.id FROM patients p, visits v'
+      end
+    end
+
     describe 'limit and offset for pagination' do
       let(:source) do
         <<~JADE

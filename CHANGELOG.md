@@ -7,6 +7,14 @@ Requires `jade-lang ~> 0.10.0`.
 Held unreleased on purpose: the accessor work and policies are breaking too,
 and one migration is better than three.
 
+### Fixed
+
+- `from` twice in one bind chain rendered only the first table, while
+  accessors for both were in scope and both were in the query's `tables`. The
+  second table's columns reached the statement with nothing to resolve them
+  against. Every table renders now, comma-separated, which is the cross join
+  the value describes.
+
 ### Added
 
 - The generator emits a type alias per table, so a function that takes one

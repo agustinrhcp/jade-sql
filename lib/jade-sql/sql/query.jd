@@ -300,10 +300,17 @@ def render_order_term(t: OrderTerm) -> String
 end
 
 
+# Every table the query was built from, which is a cross join when there is
+# more than one. Rendering only the first would leave the statement
+# disagreeing with the value: `from` twice puts two tables in `tables`, and
+# accessors for both are in scope.
 def render_from(tables: List(TableRef)) -> String
   case tables
   in [] then ""
-  in [first | _] then " FROM " ++ first.name ++ " " ++ first.alias_
+
+  in _
+  then " FROM "
+    ++ String.join(List.map(tables, (t) -> { t.name ++ " " ++ t.alias_ }), ", ")
   end
 end
 

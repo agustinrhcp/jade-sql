@@ -174,15 +174,15 @@ two; `any_of` matches a list. `db_now` is the database clock (`now()`), for
 time comparisons.
 
 To compare against something already built instead of a value, the same names
-live in `Sql.Col`:
+live in `Sql.Expr`:
 
 ```jade
-import Sql exposing (column, db_now, gte)
+import Sql exposing (db_now, gte)
 import Sql.Expr as Expr
 
-a.starts_at |> gte(cutoff)                   # a.starts_at >= ?
-a.starts_at |> Expr.gte(a.ends_at)            # a.starts_at >= a.ends_at
-column("s", "expires_at") |> Expr.gt(db_now)  # s.expires_at > now()
+a.starts_at |> gte(cutoff)             # a.starts_at >= ?
+a.starts_at |> Expr.gte(a.ends_at)     # a.starts_at >= a.ends_at
+s.expires_at |> Expr.gt(db_now)        # s.expires_at > now()
 ```
 
 `db_now` is `Expr(Instant)` — the *DB* transaction clock, not the app clock.
@@ -196,7 +196,7 @@ It's the right tool for `WHERE` filters; for `created_at`/`updated_at` use
 order — e.g. counting visits per patient, busiest first:
 
 ```jade
-import Sql exposing (column, count_all)
+import Sql exposing (count_all)
 import Sql.Query exposing (group, order, order_desc)
 
 struct VisitCount = {
@@ -211,9 +211,9 @@ def visit_counts -> Select(VisitCount)
   select(VisitCount(_, _))
     |> field(p.name)
     |> field(count_all)
-    |> group(column("p", "name"))
+    |> group(p.name)
     |> order_desc(count_all)
-    |> order(column("p", "name"))
+    |> order(p.name)
 end
 # ... GROUP BY p.name ORDER BY COUNT(*) DESC, p.name
 ```
@@ -324,13 +324,16 @@ Worked example — count visits and the most recent visit number,
 coalesced to 0 when a patient has none:
 
 ```jade
-import Sql exposing (column, count_all, sum)
-import Sql.Expr as Expr
+import Sql exposing (coalesce, count_all, sum)
 
-select(Totals(_, _))
-  |> field(count_all)
-  |> field(coalesce(sum(column("a", "visit_no")), 0))
-# SELECT COUNT(*), COALESCE(SUM(a.visit_no), ?)
+def totals -> Select(Totals)
+  a <- from(appointments)
+
+  select(Totals(_, _))
+    |> field(count_all)
+    |> field(coalesce(sum(a.visit_no), 0))
+end
+# SELECT COUNT(*), COALESCE(SUM(a.visit_no), ?) FROM appointments a
 ```
 
 For `CASE WHEN` and arithmetic, fall back to the raw-`Expr`
@@ -354,19 +357,26 @@ the other side of the operator. No `ARRAY[$1,...,$N]` expansion, no
 
 Example — filter appointments whose tag set overlaps any selected chip:
 
-```jade
-import Sql exposing (array_overlaps, column)
+A predicate written outside a bind chain has no accessors in scope, so take
+them as an argument and hand it to `filter`, which supplies them:
 
-def filter_by_tags(selected: List(String)) -> Expr(Bool)
-  array_overlaps(column("a", "tags"), selected)
+```jade
+import Sql exposing (array_overlaps)
+import Sql.Query exposing (filter, from)
+
+def tagged(selected: List(String)) -> (AppointmentsCols -> Expr(Bool))
+  (a) -> { array_overlaps(a.tags, selected) }
 end
+
+
+from(appointments) |> filter(tagged(["urgent", "followup"]))
 # WHERE a.tags && ?    (param: ["urgent","followup"])
 ```
 
 `array_length` uses `cardinality(col)` rather than Postgres'
 `array_length(col, 1)` because `cardinality` is non-null (returns 0
 on empty). Filter untagged rows with
-`array_length(column("a", "tags")) |> eq(0)`.
+`array_length(a.tags) |> eq(0)`.
 
 Write ops for partial array updates:
 
@@ -406,18 +416,19 @@ Out of scope: `unnest`, `array_agg`. Add when a caller hits them.
 so you can pass any record / scalar / list directly:
 
 ```jade
-import Sql exposing (column, jsonb_contains, jsonb_path_exists)
+import Sql exposing (jsonb_contains, jsonb_path_exists)
 
 struct KindMatch = { kind: String }
 
 # WHERE r.meta @> ?       (param: { "kind": "referral" })
-def matches_kind(k: String) -> Expr(Bool)
-  jsonb_contains(column("r", "meta"), KindMatch(k))
+def matches_kind(k: String) -> (ReferralsCols -> Expr(Bool))
+  (r) -> { jsonb_contains(r.meta, KindMatch(k)) }
 end
 
+
 # WHERE r.meta @? ?::jsonpath   (param: "$.priority ? (@ > 1)")
-def has_priority_gt(path: String) -> Expr(Bool)
-  jsonb_path_exists(column("r", "meta"), path)
+def has_priority_gt(path: String) -> (ReferralsCols -> Expr(Bool))
+  (r) -> { jsonb_path_exists(r.meta, path) }
 end
 ```
 

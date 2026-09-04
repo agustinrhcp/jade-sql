@@ -13,7 +13,7 @@ module JadeSql
 module App exposing (go)
 
 import Encode
-import Sql exposing (Expr, NoJoins, Pk, Table, column, no_joins, pk, table)
+import Sql exposing (Col(..), Expr, NoJoins, Pk, Table, column, no_joins, pk, table)
 import Sql.Write exposing (Write, insert, insert_all, update)
 
 
@@ -83,7 +83,7 @@ module App exposing (go)
 
 import Clock exposing (Instant)
 import Encode
-import Sql exposing (Expr, NoJoins, Pk, Table, column, no_joins, pk, table)
+import Sql exposing (Col(..), Expr, NoJoins, Pk, Table, column, no_joins, pk, table)
 import Sql.Write exposing (Write, insert, timestamped)
 
 
@@ -119,6 +119,57 @@ end
       end
     end
 
+    context 'assigning to something that is not a column' do
+      let(:not_a_column) do
+        <<~JADE.strip
+module App exposing (go)
+
+import Encode
+import Sql exposing (
+  Assignment,
+  Col(..),
+  Expr,
+  NoJoins,
+  NoRequiredCols,
+  Pk,
+  Table,
+  coalesce,
+  column,
+  no_joins,
+  pk,
+  set,
+  table,
+)
+import Sql.Write exposing (Write, update_all)
+
+
+#{jade_table('patients', { id: 'Int', nickname: 'Maybe(String)' }, pk: 'patients_pk')}
+
+
+def patients_pk -> Pk(PatientsCols, Int)
+  pk(["id"], (v) -> { [Encode.encode(v)] })
+end
+
+
+def go -> Write(Int, PatientsCols)
+  update_all(
+    patients,
+    (c) -> { c.id |> eq(1) },
+    (c, s) -> { [coalesce(c.nickname, "x") |> set("y")] },
+  )
+end
+        JADE
+      end
+
+      # `set` used to recover the column name by splitting the rendered SQL on
+      # a dot, so this produced `SET nickname, ?) = ?` and nobody found out
+      # until Postgres did.
+      it 'will not take an expression where a column belongs' do
+        expect { test_compiler.require('app', not_a_column) }
+          .to raise_error(Jade::CompilationError)
+      end
+    end
+
     context 'a table the database can fill on its own' do
       let(:no_required_app) do
         <<~JADE.strip
@@ -126,6 +177,7 @@ module App exposing (go)
 
 import Encode
 import Sql exposing (
+  Col(..),
   Expr,
   NoJoins,
   NoRequiredCols,
@@ -167,7 +219,7 @@ end
 module App exposing (go)
 
 import Encode
-import Sql exposing (Expr, NoJoins, Pk, Table, column, no_joins, pk, table)
+import Sql exposing (Col(..), Expr, NoJoins, Pk, Table, column, no_joins, pk, table)
 import Sql.Write exposing (Write, insert)
 
 
@@ -194,7 +246,7 @@ end
 module App exposing (go)
 
 import Encode
-import Sql exposing (Expr, NoJoins, Pk, Table, column, no_joins, pk, table)
+import Sql exposing (Col(..), Expr, NoJoins, Pk, Table, column, no_joins, pk, table)
 import Sql.Write exposing (Write, insert)
 
 
@@ -204,7 +256,7 @@ import Sql.Write exposing (Write, insert)
 struct Patient = { nmae: String }
 
 
-def save(v: a, t: Table(c, m, k, o, r)) -> Write(Int, c)
+def save(v: a, t: Table(c, m, k, o, r, s)) -> Write(Int, c)
   insert(v, t)
 end
 
@@ -231,6 +283,7 @@ import Encode
 import Sql exposing (
   Assignable,
   Assignment,
+  Col(..),
   Expr,
   NoJoins,
   Pk,

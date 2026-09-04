@@ -22,6 +22,8 @@ module JadeTables
       cols_struct("#{klass}Cols", columns) { |t| "Expr(#{t})" },
       cols_struct("#{klass}LeftCols", columns) { |t| "Expr(#{maybe(t)})" },
       *(cols_struct("Required#{klass}Cols", columns.slice(*required)) { |t| "Expr(#{t})" } if required.any?),
+      cols_struct("#{klass}SetCols", columns) { |t| "Col(#{t})" },
+      set_cols_fn(name, klass, columns),
       table_fn(name, klass, columns, key, alias_ || name, pk, joins, required),
     ].join("\n\n\n")
   end
@@ -58,11 +60,20 @@ module JadeTables
           #{alias_.inspect},
           #{projector("#{klass}Cols", reads)},
           #{projector("#{klass}LeftCols", reads)},
+          #{name}_set_cols,
           #{pk},
           #{joins},
         )
       end
     JADE
+  end
+
+  def set_cols_fn(name, klass, columns)
+    columns
+      .keys
+      .map { "    Col(#{column_name(it).inspect})," }
+      .join("\n")
+      .then { "def #{name}_set_cols -> #{klass}SetCols\n  #{klass}SetCols(\n#{it}\n  )\nend" }
   end
 
   # The formatter leaves a type annotation on one line however long it runs.
@@ -73,6 +84,7 @@ module JadeTables
       key,
       joins_type(joins),
       required.any? ? "Required#{klass}Cols" : 'NoRequiredCols',
+      "#{klass}SetCols",
     ].join(', ').then { "Table(#{it})" }
   end
 

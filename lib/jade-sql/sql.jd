@@ -3,6 +3,7 @@ module Sql exposing (
   Selectable,
   selector,
   Assignment(..),
+  Col(..),
   Expr(..),
   NoJoins,
   NoKey,
@@ -56,7 +57,6 @@ module Sql exposing (
   pk,
   set,
   set_expr,
-  strip_alias,
   sum,
   table,
   to_assigns,
@@ -86,18 +86,19 @@ struct Selector(a) = {
 # A table, as `structure.sql` declares it. `c` is its strict column struct
 # (`Expr(String)` for a NOT NULL text column), `m` the same columns lifted into
 # `Maybe` for left-join projections, `k` the type of its primary key, `o` a
-# record of one join predicate per foreign key it declares, and `r` a struct of
-# the columns an insert has to write — the ones the database will not fill in
-# for you.
+# record of one join predicate per foreign key it declares, `r` a struct of the
+# columns an insert has to write, and `s` a record of `Col` accessors for the
+# left of a `SET`.
 #
 # `schema.jd` generates one of these per table, so you name the table rather
 # than build it: `from(patients)`, `insert(row, patients)`. Reach for `table`
 # yourself only for something the generator does not see.
-struct Table(c, m, k, o, r) = {
+struct Table(c, m, k, o, r, s) = {
   name: String,
   alias_: String,
   cols: String -> c,
   left_cols: String -> m,
+  set_cols: s,
   pk: Pk(c, k),
   on: o
 }
@@ -172,6 +173,17 @@ def unkeyed -> Pk(c, NoKey)
 end
 
 
+# A column on the left of a `SET`, carrying the name rather than an
+# expression that happens to look like one. `set` reads the name off it, so
+# there is nothing to recover from a rendered string and nothing to get wrong:
+# an aggregate or a `COALESCE` cannot be assigned to, and now cannot be
+# offered.
+#
+# The generator emits one record of these per table, which `update_all` hands
+# to the builder alongside the column accessors.
+struct Col(a) = { name: String }
+
+
 struct Assignment = {
   col: String,
   value_sql: String,
@@ -183,8 +195,8 @@ struct Assignment = {
 # the value to write:
 #
 #   [c.archived |> set(True)]
-def set(col: Expr(a), value: a) -> Assignment
-  Assignment(strip_alias(col.sql), "?", [encode(value)])
+def set(col: Col(a), value: a) -> Assignment
+  Assignment(col.name, "?", [encode(value)])
 end
 
 
@@ -192,8 +204,8 @@ end
 # caller:
 #
 #   [c.tags |> set_expr(array_append(c.tags, tag))]
-def set_expr(col: Expr(a), value: Expr(a)) -> Assignment
-  Assignment(strip_alias(col.sql), value.sql, value.params)
+def set_expr(col: Col(a), value: Expr(a)) -> Assignment
+  Assignment(col.name, value.sql, value.params)
 end
 
 
@@ -201,16 +213,6 @@ def assign(col: String, value: a) -> Assignment
   Assignment(col, "?", [encode(value)])
 end
 
-
-def strip_alias(sql: String) -> String
-  parts = String.split(sql, ".")
-
-  case parts
-  in [] then sql
-  in [name] then name
-  in [_ | rest] then String.join(rest, ".")
-  end
-end
 
 
 interface Selectable(a) with
@@ -503,10 +505,11 @@ def table(
   alias_: String,
   cols: String -> c,
   left_cols: String -> m,
+  set_cols: s,
   pk_: Pk(c, k),
   on_: o,
-) -> Table(c, m, k, o, r)
-  Table(name, alias_, cols, left_cols, pk_, on_)
+) -> Table(c, m, k, o, r, s)
+  Table(name, alias_, cols, left_cols, set_cols, pk_, on_)
 end
 
 
@@ -518,20 +521,20 @@ end
 #   from(persons) |> where(p.name |> eq("Paul"))
 #
 # Use `aliased` first to read the same table under another name.
-def columns(t: Table(c, m, k, o, r)) -> c
+def columns(t: Table(c, m, k, o, r, s)) -> c
   t.alias_ |> t.cols
 end
 
 
 # The same columns as a left join produces them, every one lifted into
 # `Maybe`.
-def left_columns(t: Table(c, m, k, o, r)) -> m
+def left_columns(t: Table(c, m, k, o, r, s)) -> m
   t.alias_ |> t.left_cols
 end
 
 
-def aliased(t: Table(c, m, k, o, r), alias_: String) -> Table(c, m, k, o, r)
-  Table(t.name, alias_, t.cols, t.left_cols, t.pk, t.on)
+def aliased(t: Table(c, m, k, o, r, s), alias_: String) -> Table(c, m, k, o, r, s)
+  Table(t.name, alias_, t.cols, t.left_cols, t.set_cols, t.pk, t.on)
 end
 
 

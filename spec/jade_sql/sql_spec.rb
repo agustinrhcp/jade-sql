@@ -643,6 +643,7 @@ module Jade
 module App exposing (named_paul, named_paul_elsewhere)
 
 import Sql exposing (
+  Col(..),
   Expr,
   NoJoins,
   Pk,
@@ -712,6 +713,7 @@ module App exposing (filtered_sql, persons_with_orders)
 import Decode exposing (Value)
 import Encode
 import Sql exposing (
+  Col(..),
   Expr,
   NoJoins,
   NoRequiredCols,
@@ -795,7 +797,19 @@ end
         <<~JADE
 module App exposing (parents_and_kids)
 
-import Sql exposing (Expr, NoJoins, Pk, Table, aliased, column, eq, no_joins, pk, table)
+import Sql exposing (
+  Col(..),
+  Expr,
+  NoJoins,
+  Pk,
+  Table,
+  aliased,
+  column,
+  eq,
+  no_joins,
+  pk,
+  table,
+)
 import Sql.Expr as Expr
 import Encode
 import Sql.Query exposing (Query, from, join)
@@ -838,6 +852,7 @@ end
 module App exposing (persons_with_optional_orders)
 
 import Sql exposing (
+  Col(..),
   Expr,
   NoJoins,
   NoRequiredCols,
@@ -894,6 +909,7 @@ end
 module App exposing (persons_with_companies)
 
 import Sql exposing (
+  Col(..),
   Expr,
   NoJoins,
   NoRequiredCols,
@@ -950,6 +966,7 @@ end
 module App exposing (adults_query)
 
 import Sql exposing (
+  Col(..),
   Expr,
   NoJoins,
   Pk,
@@ -1005,6 +1022,7 @@ end
 module App exposing (rendered)
 
 import Sql exposing (
+  Col(..),
   Expr,
   NoJoins,
   Pk,
@@ -1094,7 +1112,18 @@ end
         <<~JADE
 module App exposing (rendered)
 
-import Sql exposing (Expr, NoJoins, Pk, Selector, Table, column, no_joins, pk, table)
+import Sql exposing (
+  Col(..),
+  Expr,
+  NoJoins,
+  Pk,
+  Selector,
+  Table,
+  column,
+  no_joins,
+  pk,
+  table,
+)
 import Encode
 import Sql.Query exposing (Query, Select, field_as, from, select, to_sql)
 import Decode exposing (Value)
@@ -1147,7 +1176,18 @@ module App exposing (
   sorted_then_paged,
 )
 
-import Sql exposing (Expr, NoJoins, Pk, Selector, Table, column, no_joins, pk, table)
+import Sql exposing (
+  Col(..),
+  Expr,
+  NoJoins,
+  Pk,
+  Selector,
+  Table,
+  column,
+  no_joins,
+  pk,
+  table,
+)
 import Encode
 import Sql.Query exposing (
   Query,
@@ -1309,6 +1349,7 @@ end
 
           import Encode
           import Sql exposing (
+            Col(..),
             Expr,
             NoJoins,
             NoRequiredCols,
@@ -1356,6 +1397,7 @@ module App exposing (busy, distinct_names)
 
 import Encode
 import Sql exposing (
+  Col(..),
   Expr,
   NoJoins,
   Pk,
@@ -1434,7 +1476,18 @@ end
         <<~JADE
 module App exposing (no_paging, only_offset, page_one, page_two)
 
-import Sql exposing (Expr, NoJoins, Pk, Selector, Table, column, no_joins, pk, table)
+import Sql exposing (
+  Col(..),
+  Expr,
+  NoJoins,
+  Pk,
+  Selector,
+  Table,
+  column,
+  no_joins,
+  pk,
+  table,
+)
 import Encode
 import Sql.Query exposing (Query, Select, field, from, limit, offset, select, to_sql)
 import Decode exposing (Value)
@@ -1538,6 +1591,7 @@ module App exposing (
 import Sql exposing (
   Assignable,
   Assignment(..),
+  Col(..),
   Expr,
   NoJoins,
   Pk,
@@ -1675,7 +1729,7 @@ def update_all_nothing -> (String, List(Value))
   patients
     |> update_all(
       (p) -> { p.balance |> eq(0) },
-      (p) -> { [] },
+      (p, a) -> { [] },
     )
     |> to_sql
 end
@@ -1685,7 +1739,7 @@ def update_all_nothing_returning -> (String, List(Value))
   patients
     |> update_all(
       (p) -> { p.balance |> eq(0) },
-      (p) -> { [] },
+      (p, a) -> { [] },
     )
     |> returning(
       (p) -> {
@@ -1703,7 +1757,7 @@ def update_all_to_zero -> (String, List(Value))
   patients
     |> update_all(
       (p) -> { p.balance |> eq(0) },
-      (p) -> { [p.archived |> set(True)] },
+      (p, a) -> { [a.archived |> set(True)] },
     )
     |> to_sql
 end
@@ -1875,6 +1929,7 @@ module Comp exposing (touch)
 import Sql exposing (
   Assignable,
   Assignment,
+  Col(..),
   Expr,
   NoJoins,
   Pk,
@@ -1957,6 +2012,7 @@ module NoPk exposing (touch)
 import Sql exposing (
   Assignable,
   Assignment,
+  Col(..),
   Expr,
   NoJoins,
   NoKey,
@@ -2005,6 +2061,7 @@ module Joined exposing (persons_with_orders)
 
 import Encode
 import Sql exposing (
+  Col(..),
   Expr,
   NoJoins,
   NoRequiredCols,

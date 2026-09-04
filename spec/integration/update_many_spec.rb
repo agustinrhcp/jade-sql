@@ -19,6 +19,7 @@ module App exposing (add, rewrite)
 import Sql exposing (
   Assignable,
   Assignment,
+  Col(..),
   Expr,
   NoJoins,
   Pk,

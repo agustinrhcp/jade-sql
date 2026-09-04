@@ -83,10 +83,14 @@ module JadeSql
           end
       end
 
-      # `Table(c, m, k, o, r)` — the required columns are its last argument.
+      # `Table(c, m, k, o, r, s)` — the required columns are its fifth
+      # argument. Matched by position rather than "the last one", so appending
+      # a parameter cannot silently point this at something else.
       def required_of(table)
         case table
-        in Type::Application(constructor: Type::Constructor(name: TABLE), args: [*, required])
+        in Type::Application(
+          constructor: Type::Constructor(name: TABLE), args: [_, _, _, _, required, _]
+        )
           required
 
         else nil

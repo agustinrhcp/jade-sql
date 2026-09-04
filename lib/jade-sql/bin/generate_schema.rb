@@ -284,6 +284,8 @@ module JadeSql
         emit_strict_cols(t),
         emit_left_cols(t),
         *emit_required_cols(t),
+        emit_set_cols(t),
+        emit_set_cols_fn(t),
         emit_table_alias(t),
         emit_row(t),
         *emit_on(t),
@@ -312,6 +314,8 @@ module JadeSql
             "#{camel(t.name)}Cols",
             "#{camel(t.name)}LeftCols",
             *("Required#{camel(t.name)}Cols" if required_columns(t).any?),
+            "#{camel(t.name)}SetCols",
+            "#{t.name}_set_cols",
             "#{camel(t.name)}Row(..)",
             *("#{camel(t.name)}On(..)" if t.fks.any?),
             t.name,
@@ -328,6 +332,7 @@ module JadeSql
 
       types = [
         "Expr",
+        "Col(..)",
         "Table",
         "Selector",
         *("Pk" if keyed.any?),
@@ -403,8 +408,28 @@ module JadeSql
     end
 
     # The table's own type, with every argument filled in. Nothing else can
-    # shorten `Table(c, m, k, o, r)`: an alias has to bind every variable its
+    # shorten `Table(c, m, k, o, r, s)`: an alias has to bind every variable its
     # body names, so only a fully applied one saves anything.
+    # The left of a `SET` is a column name, not an expression, so the fields
+    # are `Col` rather than `Expr` and nothing recovers a name from rendered
+    # SQL.
+    def emit_set_cols(t)
+      t.columns
+        .map { "  #{field_name(it.name)}: Col(#{it.jade_type})" }
+        .join(",\n")
+        .then { "struct #{camel(t.name)}SetCols = {\n#{it}\n}" }
+    end
+
+    def emit_set_cols_fn(t)
+      t.columns
+        .map { "    Col(#{it.name.inspect})" }
+        .join(",\n")
+        .then do
+          "def #{t.name}_set_cols -> #{camel(t.name)}SetCols\n" \
+            "  #{camel(t.name)}SetCols(\n#{it},\n  )\nend"
+        end
+    end
+
     def emit_table_alias(t)
       [
         "#{camel(t.name)}Cols",
@@ -412,6 +437,7 @@ module JadeSql
         key_type(t),
         on_type(t),
         required_type(t),
+        "#{camel(t.name)}SetCols",
       ].join(', ').then { "type alias #{camel(t.name)} = Table(#{it})" }
     end
 
@@ -443,6 +469,7 @@ module JadeSql
             #{t.name.inspect},
             (a) -> { #{camel(t.name)}Cols(#{strict_fields}) },
             (a) -> { #{camel(t.name)}LeftCols(#{maybe_fields}) },
+            #{t.name}_set_cols,
             #{keyed?(t) ? "#{t.name}_pk" : "unkeyed"},
             #{emit_on_value(t)},
           )

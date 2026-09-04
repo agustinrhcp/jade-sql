@@ -147,6 +147,13 @@ and one migration is better than three.
 
 ### Fixed
 
+- `set` recovered its column name by splitting the expression's rendered SQL on
+  a dot, so `coalesce(c.nickname, "x") |> set("y")` produced an assignment to
+  the column `nickname, ?)` and reached Postgres as `SET nickname, ?) = ?`. It
+  now takes a `Col`, which carries the name, and the generator emits one record
+  of them per table for `update_all` to hand to its builder. `strip_alias` is
+  deleted rather than guarded.
+
 - The transaction ports went through ActiveRecord's raw `begin_db_transaction`
   family, which only emits SQL. A second `BEGIN` on an open connection was a
   warning, and the matching `COMMIT` ended whichever transaction was already

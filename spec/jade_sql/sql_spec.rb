@@ -371,33 +371,38 @@ module Jade
           import Sql exposing (
             Expr,
             Pk,
-            coalesce,
+            coalesce_agg,
             column,
             count,
             count_all,
             neg,
             sum,
+            to_expr,
           )
           import Sql.Expr as Expr
 
 
           def sum_col -> Expr(Maybe(Int))
-            column("p", "amount") |> sum
+            column("p", "amount")
+              |> sum
+              |> to_expr
           end
 
 
           def count_col -> Expr(Int)
-            column("p", "id") |> count
+            column("p", "id")
+              |> count
+              |> to_expr
           end
 
 
           def count_star -> Expr(Int)
-            count_all
+            to_expr(count_all)
           end
 
 
           def coalesced -> Expr(Int)
-            coalesce(sum(column("p", "amount")), 0)
+            coalesce_agg(sum(column("p", "amount")), 0) |> to_expr
           end
 
 

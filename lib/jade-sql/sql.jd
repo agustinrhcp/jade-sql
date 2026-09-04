@@ -1,7 +1,10 @@
 module Sql exposing (
+  Agg(..),
   Assignable,
+  Projectable,
   Selectable,
   selector,
+  to_expr,
   Assignment(..),
   Expr(..),
   NoJoins,
@@ -26,6 +29,7 @@ module Sql exposing (
   array_remove,
   assign,
   coalesce,
+  coalesce_agg,
   column,
   columns,
   count,
@@ -75,6 +79,31 @@ struct Expr(a) = {
   sql: String,
   params: List(Value)
 }
+
+
+# An aggregate is not a column, and a grouped query may only project one of
+# those two. Separating them is what lets a signature say which it wants.
+type Agg(a) = Agg(Expr(a))
+
+
+# What `field` and `order` accept: a column, or an aggregate of one.
+interface Projectable(e) with
+  to_expr : e -> Expr(a)
+end
+
+
+implements Projectable(Expr(a)) with
+  to_expr: (e) -> { e }
+end
+
+
+implements Projectable(Agg(a)) with
+  to_expr: (g) -> {
+    case g
+    in Agg(e) then e
+    end
+  }
+end
 
 
 struct Selector(a) = {
@@ -348,20 +377,20 @@ def or(left: Expr(Bool), right: Expr(Bool)) -> Expr(Bool)
 end
 
 
-# SUM may return NULL on an empty group, so the result is Expr(Maybe(Int)).
-# Wrap with `coalesce(sum(x), 0)` for a strict total.
-def sum(e: Expr(Int)) -> Expr(Maybe(Int))
-  Expr("SUM(" ++ e.sql ++ ")", e.params)
+# SUM may return NULL on an empty group, so the result is Agg(Maybe(Int)).
+# Wrap with `coalesce_agg(sum(x), 0)` for a strict total.
+def sum(e: Expr(Int)) -> Agg(Maybe(Int))
+  Agg(Expr("SUM(" ++ e.sql ++ ")", e.params))
 end
 
 
-def count(e: Expr(a)) -> Expr(Int)
-  Expr("COUNT(" ++ e.sql ++ ")", e.params)
+def count(e: Expr(a)) -> Agg(Int)
+  Agg(Expr("COUNT(" ++ e.sql ++ ")", e.params))
 end
 
 
-def count_all -> Expr(Int)
-  Expr("COUNT(*)", [])
+def count_all -> Agg(Int)
+  Agg(Expr("COUNT(*)", []))
 end
 
 
@@ -370,6 +399,16 @@ def coalesce(col: Expr(Maybe(a)), default: a) -> Expr(a)
     "COALESCE(" ++ col.sql ++ ", ?)",
     col.params ++ [encode(default)],
   )
+end
+
+
+# `COALESCE(SUM(x), 0)` is still an aggregate, and the wrapper has to say so.
+# A single `coalesce` cannot: relating `Agg(Maybe(a))` to `Agg(a)` through one
+# interface parameter needs an associated type, which jade does not have.
+def coalesce_agg(col: Agg(Maybe(a)), default: a) -> Agg(a)
+  case col
+  in Agg(e) then Agg(coalesce(e, default))
+  end
 end
 
 

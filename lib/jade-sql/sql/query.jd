@@ -21,11 +21,13 @@ module Sql.Query exposing (
 
 import Sql exposing (
   Expr,
+  Projectable,
   Selector(..),
   SqlError,
   Table,
   TableRef(..),
   ToSql,
+  to_expr,
   selector,
 )
 import Decode exposing (Value)
@@ -187,13 +189,15 @@ def group(q: Query(a), e: Expr(b)) -> Query(a)
 end
 
 
-def order(q: Query(a), e: Expr(b)) -> Query(a)
+def order(q: Query(a), e: p) -> Query(a)
+  ordered = to_expr(e)
+
   Query(
     q.tables,
     q.joins,
     q.wheres,
     q.groups,
-    q.orders ++ [OrderTerm(Asc, e.sql, e.params)],
+    q.orders ++ [OrderTerm(Asc, ordered.sql, ordered.params)],
     q.limit_,
     q.offset_,
     q.result,
@@ -201,13 +205,15 @@ def order(q: Query(a), e: Expr(b)) -> Query(a)
 end
 
 
-def order_desc(q: Query(a), e: Expr(b)) -> Query(a)
+def order_desc(q: Query(a), e: p) -> Query(a)
+  ordered = to_expr(e)
+
   Query(
     q.tables,
     q.joins,
     q.wheres,
     q.groups,
-    q.orders ++ [OrderTerm(Desc, e.sql, e.params)],
+    q.orders ++ [OrderTerm(Desc, ordered.sql, ordered.params)],
     q.limit_,
     q.offset_,
     q.result,
@@ -248,21 +254,9 @@ def select(make: a -> b) -> Query(Selector(a -> b))
 end
 
 
-def field(qs: Query(Selector(a -> b)), e: Expr(a)) -> Select(b)
-  Query(
-    qs.tables,
-    qs.joins,
-    qs.wheres,
-    qs.groups,
-    qs.orders,
-    qs.limit_,
-    qs.offset_,
-    Selector(qs.result.columns_sql ++ [e.sql], qs.result.params ++ e.params),
-  )
-end
+def field(qs: Query(Selector(a -> b)), e: p) -> Select(b)
+  projected = to_expr(e)
 
-
-def field_as(qs: Query(Selector(a -> b)), e: Expr(a), name: String) -> Select(b)
   Query(
     qs.tables,
     qs.joins,
@@ -272,8 +266,27 @@ def field_as(qs: Query(Selector(a -> b)), e: Expr(a), name: String) -> Select(b)
     qs.limit_,
     qs.offset_,
     Selector(
-      qs.result.columns_sql ++ [e.sql ++ " AS " ++ name],
-      qs.result.params ++ e.params,
+      qs.result.columns_sql ++ [projected.sql],
+      qs.result.params ++ projected.params,
+    ),
+  )
+end
+
+
+def field_as(qs: Query(Selector(a -> b)), e: p, name: String) -> Select(b)
+  projected = to_expr(e)
+
+  Query(
+    qs.tables,
+    qs.joins,
+    qs.wheres,
+    qs.groups,
+    qs.orders,
+    qs.limit_,
+    qs.offset_,
+    Selector(
+      qs.result.columns_sql ++ [projected.sql ++ " AS " ++ name],
+      qs.result.params ++ projected.params,
     ),
   )
 end

@@ -539,6 +539,35 @@ appointments
 |> to_sql
 ```
 
+### Upserts
+
+`on_conflict_do_nothing` and `on_conflict_do_update` take a `Unique` as the
+conflict target, so the index named is one the database has:
+
+```jade
+import Sql exposing (set_excluded)
+import Sql.Write exposing (insert, on_conflict_do_nothing, on_conflict_do_update)
+
+NewUser("ada@example.com", "ada")
+  |> insert(users)
+  |> on_conflict_do_nothing(users_email_key)
+# INSERT INTO users (email, handle) VALUES (?, ?) ON CONFLICT (email) DO NOTHING
+
+NewUser("ada@example.com", "ada")
+  |> insert(users)
+  |> on_conflict_do_update(users_email_key, users, (s) -> { [set_excluded(s.handle)] })
+# ... ON CONFLICT (email) DO UPDATE SET handle = EXCLUDED.handle
+```
+
+`set_excluded(col)` renders `col = EXCLUDED.col`, which is what an upsert wants
+nearly every time. For anything else, `excluded(col)` is the proposed row's
+value as an ordinary `Expr`, so `set_expr(s.count_, excluded(s.count_))` and
+arithmetic over it compose as usual.
+
+The build receives the table's `SET` columns, which is why the table is passed
+again: a `Write` carries its columns aliased for the statement, and the left of
+a `SET` takes no alias.
+
 ### RETURNING
 
 `returning` is the write-side counterpart to `select` for queries.

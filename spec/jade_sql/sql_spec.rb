@@ -1705,6 +1705,8 @@ module App exposing (
   update_many_balances,
   update_paul,
   update_paul_returning,
+  upsert_nothing,
+  upsert_update,
 )
 
 import Sql exposing (
@@ -1716,14 +1718,17 @@ import Sql exposing (
   Pk,
   Selector,
   Table,
+  Unique,
   assign,
   column,
   eq,
   no_joins,
   pk,
   set,
+  set_excluded,
   table,
   to_assigns,
+  unique,
 )
 import Sql.Query exposing (Query, field, select)
 import Sql.Write exposing (
@@ -1732,6 +1737,8 @@ import Sql.Write exposing (
   delete_all,
   insert,
   insert_all,
+  on_conflict_do_nothing,
+  on_conflict_do_update,
   returning,
   to_sql,
   update,
@@ -1899,6 +1906,31 @@ def delete_archived -> (String, List(Value))
 end
 
 
+def patients_name_key -> Unique(c)
+  unique("patients_name_key", ["name"])
+end
+
+
+def upsert_nothing -> (String, List(Value))
+  NewPatient("Paul", 100)
+    |> insert(patients)
+    |> on_conflict_do_nothing(patients_name_key)
+    |> to_sql
+end
+
+
+def upsert_update -> (String, List(Value))
+  NewPatient("Paul", 100)
+    |> insert(patients)
+    |> on_conflict_do_update(
+      patients_name_key,
+      patients,
+      (s) -> { [set_excluded(s.balance)] },
+    )
+    |> to_sql
+end
+
+
 def insert_paul_returning -> (String, List(Value))
   NewPatient("Paul", 100)
     |> insert(patients)
@@ -1945,6 +1977,20 @@ end
       end
 
       before { test_compiler.require('app', source) }
+
+      it 'renders ON CONFLICT DO NOTHING against the named index' do
+        sql, params = App::Internal.upsert_nothing.then { [it._1, it._2] }
+        expect(sql).to eql 'INSERT INTO patients (name, balance) VALUES (?, ?) ' \
+          'ON CONFLICT (name) DO NOTHING'
+        expect(params).to eql ['Paul', 100]
+      end
+
+      it 'renders ON CONFLICT DO UPDATE, taking the value from EXCLUDED' do
+        sql, params = App::Internal.upsert_update.then { [it._1, it._2] }
+        expect(sql).to eql 'INSERT INTO patients (name, balance) VALUES (?, ?) ' \
+          'ON CONFLICT (name) DO UPDATE SET balance = EXCLUDED.balance'
+        expect(params).to eql ['Paul', 100]
+      end
 
       it 'insert renders INSERT with codec-driven assigns' do
         sql, params = App::Internal.insert_paul.then { [it._1, it._2] }

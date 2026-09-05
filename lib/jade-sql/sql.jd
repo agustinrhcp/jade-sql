@@ -34,6 +34,7 @@ module Sql exposing (
   count_all,
   db_now,
   eq,
+  excluded,
   execute,
   execute_raw,
   fetch_many_raw,
@@ -57,6 +58,7 @@ module Sql exposing (
   or,
   pk,
   set,
+  set_excluded,
   set_expr,
   sum,
   table,
@@ -223,6 +225,18 @@ end
 #   [c.tags |> set_expr(array_append(c.tags, tag))]
 def set_expr(col: Col(a), value: Expr(a)) -> Assignment
   Assignment(col.name, value.sql, value.params)
+end
+
+
+# The row that could not be inserted, for the `DO UPDATE` arm of an upsert.
+def excluded(col: Col(a)) -> Expr(a)
+  Expr("EXCLUDED." ++ col.name, [])
+end
+
+
+# `email = EXCLUDED.email`, which is what an upsert wants nearly every time.
+def set_excluded(col: Col(a)) -> Assignment
+  Assignment(col.name, "EXCLUDED." ++ col.name, [])
 end
 
 

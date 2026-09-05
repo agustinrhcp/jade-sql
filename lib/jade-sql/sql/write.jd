@@ -1,5 +1,8 @@
 module Sql.Write exposing (
+  Conflict(..),
   Write,
+  on_conflict_do_nothing,
+  on_conflict_do_update,
   delete,
   execute,
   fetch_many,
@@ -26,6 +29,7 @@ import Sql exposing (
   SqlError,
   Pk,
   Table,
+  Unique(..),
   TableRef(..),
   set,
   to_assigns,
@@ -48,8 +52,17 @@ struct Write(ret, c) = {
   rows: List(List(Assignment)),
   wheres: List(Expr(Bool)),
   returning_selector: Selector(ret),
-  from_: Maybe(Expr(Bool))
+  from_: Maybe(Expr(Bool)),
+  conflict: Maybe(Conflict)
 }
+
+
+# `ON CONFLICT (cols) DO NOTHING` or `DO UPDATE SET ...`. The columns are the
+# conflict target, taken from a `Unique`, so the index it names is the one the
+# database will actually use to detect the conflict.
+type Conflict
+  = DoNothing(List(String))
+  | DoUpdate(List(String), List(Assignment))
 
 
 def insert(value: a, t: Table(c, m, k, o, r, s)) -> Write(Int, c)
@@ -60,7 +73,8 @@ def insert(value: a, t: Table(c, m, k, o, r, s)) -> Write(Int, c)
     [to_assigns(value)],
     [],
     Selector([], []),
-     Nothing,
+    Nothing,
+    Nothing,
   )
 end
 
@@ -73,7 +87,8 @@ def insert_all(values: List(a), t: Table(c, m, k, o, r, s)) -> Write(Int, c)
     List.map(values, (v) -> { to_assigns(v) }),
     [],
     Selector([], []),
-     Nothing,
+    Nothing,
+    Nothing,
   )
 end
 
@@ -86,7 +101,8 @@ def update(value: a, t: Table(c, m, k, o, r, s), key: k) -> Write(Int, c)
     [without_created_at(without_key(t.pk, to_assigns(value)))],
     [key_predicate(t.pk, key)],
     Selector([], []),
-     Nothing,
+    Nothing,
+    Nothing,
   )
 end
 
@@ -99,7 +115,8 @@ def delete(t: Table(c, m, k, o, r, s), key: k) -> Write(Int, c)
     [],
     [key_predicate(t.pk, key)],
     Selector([], []),
-     Nothing,
+    Nothing,
+    Nothing,
   )
 end
 
@@ -113,6 +130,7 @@ def filter(m: Write(ret, c), build: c -> Expr(Bool)) -> Write(ret, c)
     m.wheres ++ [m.cols |> build],
     m.returning_selector,
     m.from_,
+    m.conflict,
   )
 end
 
@@ -132,7 +150,8 @@ def update_all(
     [build(cols_, t.set_cols)],
     [pred],
     Selector([], []),
-     Nothing,
+    Nothing,
+    Nothing,
   )
 end
 
@@ -148,6 +167,7 @@ def update_many(rows_: List((k, a)), t: Table(c, m, k, o, r, s)) -> Write(Int, c
     [pk_join(t.pk.columns)],
     Selector([], []),
     Just(source_of(t.name, rows)),
+    Nothing,
   )
 end
 
@@ -231,8 +251,29 @@ def delete_all(t: Table(c, m, k, o, r, s), pred_fn: c -> Expr(Bool)) -> Write(In
     [],
     [pred],
     Selector([], []),
-     Nothing,
+    Nothing,
+    Nothing,
   )
+end
+
+
+# `ON CONFLICT (email) DO NOTHING`. The target comes from a `Unique`, so the
+# index named is one the database has.
+def on_conflict_do_nothing(m: Write(ret, c), u: Unique(c)) -> Write(ret, c)
+  { m | conflict: Just(DoNothing(u.columns)) }
+end
+
+
+# `ON CONFLICT (email) DO UPDATE SET ...`, where the build receives the
+# table's `SET` columns. Reach for `set_excluded` to take a value from the row
+# that could not be inserted.
+def on_conflict_do_update(
+  m: Write(ret, c),
+  u: Unique(c),
+  t: Table(c, mc, k, o, r, s),
+  build: s -> List(Assignment),
+) -> Write(ret, c)
+  { m | conflict: Just(DoUpdate(u.columns, build(t.set_cols))) }
 end
 
 
@@ -245,6 +286,7 @@ def returning(m: Write(a, c), build: c -> Query(Selector(b))) -> Write(b, c)
     m.wheres,
     build(m.cols).result,
     m.from_,
+    m.conflict,
   )
 end
 
@@ -413,9 +455,39 @@ def render_insert(m: Write(ret, c)) -> (String, List(Value))
     ++ cols_str
     ++ " VALUES "
     ++ values_str
+    ++ conflict_clause(m.conflict)
     ++ returning_
 
-  Tuple.Tuple2(sql, insert_params(m.rows) ++ m.returning_selector.params)
+  Tuple.Tuple2(
+    sql,
+    insert_params(m.rows) ++ conflict_params(m.conflict) ++ m.returning_selector.params,
+  )
+end
+
+
+def conflict_clause(c: Maybe(Conflict)) -> String
+  case c
+  in Nothing then ""
+
+  in Just(DoNothing(cols)) then
+    " ON CONFLICT (" ++ String.join(cols, ", ") ++ ") DO NOTHING"
+
+  in Just(DoUpdate(cols, assigns)) then
+    " ON CONFLICT ("
+      ++ String.join(cols, ", ")
+      ++ ") DO UPDATE SET "
+      ++ String.join(List.map(assigns, (a) -> { a.col ++ " = " ++ a.value_sql }), ", ")
+  end
+end
+
+
+def conflict_params(c: Maybe(Conflict)) -> List(Value)
+  case c
+  in Just(DoUpdate(_, assigns)) then
+    List.fold(assigns, [], (acc, a) -> { acc ++ a.params })
+
+  else []
+  end
 end
 
 

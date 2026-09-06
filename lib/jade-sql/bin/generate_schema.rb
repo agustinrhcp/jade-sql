@@ -317,7 +317,7 @@ module JadeSql
         emit_table_fn(t),
       ]
         .then { keyed?(t) ? it + [emit_pk_fn(t), emit_pk_values_fn(t)] : it }
-        .then { it + t.uniques.map { |u| emit_unique_fn(t, u) } }
+        .then { it + t.uniques.flat_map { |u| [emit_unique_fn(t, u), emit_unique_values_fn(t, u)] } }
         .then { it + [emit_row_projector(t)] }
     end
 
@@ -348,7 +348,7 @@ module JadeSql
         end
       names += tables.map { |t| "#{t.name}_row" }
       names += keyed.map { |t| "#{t.name}_pk" }
-      names += tables.flat_map { |t| t.uniques.map(&:name) }
+      names += tables.flat_map { |t| t.uniques.flat_map { |u| [u.name, "#{u.name}_values"] } }
       names += (@enums || {}).values.map { "#{camel(it.name)}(..)" }
       exposed = names.sort.join(", ")
 
@@ -574,10 +574,32 @@ module JadeSql
       cols = u.columns.map { it.inspect }.join(", ")
 
       <<~JADE.strip
-        def #{u.name} -> Unique(#{camel(t.name)}Cols)
-          unique(#{u.name.inspect}, [#{cols}])
+        def #{u.name} -> Unique(#{camel(t.name)}Cols, #{unique_key_type(t, u)})
+          unique(#{u.name.inspect}, [#{cols}], #{u.name}_values)
         end
       JADE
+    end
+
+    def emit_unique_values_fn(t, u)
+      names = u.columns.each_index.map { |i| "v#{i}" }
+      encoded = names.map { "Encode.encode(#{it})" }.join(", ")
+
+      body = names.one? ?
+        "  [Encode.encode(v)]" :
+        "  (#{names.join(', ')}) = v\n\n  [#{encoded}]"
+
+      <<~JADE.strip
+        def #{u.name}_values(v: #{unique_key_type(t, u)}) -> List(Decode.Value)
+        #{body}
+        end
+      JADE
+    end
+
+    def unique_key_type(t, u)
+      u.columns
+        .map { |name| t.columns.find { |c| c.name == name } }
+        .map { |c| c.nullable ? "Maybe(#{c.jade_type})" : c.jade_type }
+        .then { it.one? ? it.first : "(#{it.join(', ')})" }
     end
 
     def emit_pk_fn(t)

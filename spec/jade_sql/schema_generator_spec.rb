@@ -703,16 +703,20 @@ describe JadeSql::SchemaGenerator do
 
     it 'names a table-level UNIQUE constraint' do
       expect(generated).to include(<<~JADE.strip)
-        def users_email_key -> Unique(UsersCols)
-          unique("users_email_key", ["email"])
+        def users_email_key -> Unique(UsersCols, String)
+          unique("users_email_key", ["email"], users_email_key_values)
         end
       JADE
     end
 
     it 'names a standalone unique index, with its columns in order' do
       expect(generated).to include(<<~JADE.strip)
-        def index_users_on_tenant_and_handle -> Unique(UsersCols)
-          unique("index_users_on_tenant_and_handle", ["tenant_id", "handle"])
+        def index_users_on_tenant_and_handle -> Unique(UsersCols, (Int, Maybe(String)))
+          unique(
+            "index_users_on_tenant_and_handle",
+            ["tenant_id", "handle"],
+            index_users_on_tenant_and_handle_values,
+          )
         end
       JADE
     end
@@ -721,6 +725,14 @@ describe JadeSql::SchemaGenerator do
     # conflict target built from it is not the one the database enforces.
     it 'skips a partial index' do
       expect(generated).not_to include('index_users_on_handle_active')
+    end
+
+    it 'types a composite key as a tuple, nullable columns included' do
+      expect(generated).to include(<<~JADE.strip)
+        def index_users_on_tenant_and_handle_values(
+          v: (Int, Maybe(String)),
+        ) -> List(Decode.Value)
+      JADE
     end
 
     it 'exposes them and imports what they need' do

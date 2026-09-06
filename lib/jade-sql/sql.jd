@@ -13,7 +13,8 @@ module Sql exposing (
   SqlError(..),
   Table,
   TableRef(..),
-  Unique(..),
+  Unique,
+  matching,
   ToSql,
   aliased,
   and,
@@ -192,14 +193,28 @@ struct Col(a) = { name: String }
 # A unique index, by the name Postgres reports when it is violated. Phantom
 # in the column struct, so an index cannot be used with a table it is not on.
 # The generator emits one per unique index and per table-level UNIQUE.
-struct Unique(c) = {
+struct Unique(c, k) = {
   name: String,
-  columns: List(String)
+  columns: List(String),
+  values: k -> List(Value)
 }
 
 
-def unique(name: String, cols: List(String)) -> Unique(c)
-  Unique(name, cols)
+def unique(name: String, cols: List(String), values: k -> List(Value)) -> Unique(c, k)
+  Unique(name, cols, values)
+end
+
+
+# `email = ?`, or every column of a composite index joined by AND. The key
+# type comes from the index, so the wrong one does not compile and a
+# composite cannot be given in the wrong order.
+def matching(u: Unique(c, k), key: k) -> Expr(Bool)
+  Expr(
+    u.columns
+      |> List.map((col) -> { col ++ " = ?" })
+      |> String.join(" AND "),
+    key |> u.values,
+  )
 end
 
 
@@ -579,7 +594,7 @@ type SqlError
   | UniqueViolation(String)
 
 
-def violated(e: SqlError, u: Unique(c)) -> Bool
+def violated(e: SqlError, u: Unique(c, k)) -> Bool
   case e
   in UniqueViolation(name) then name == u.name
   else False

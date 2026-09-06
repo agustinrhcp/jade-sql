@@ -17,6 +17,14 @@ and one migration is better than three.
 
 ### Added
 
+- `Sql.matching(users_email_key, key)` builds the predicate for a read by a
+  unique index. `Unique(c, k)` carries the key type, so the wrong key does not
+  compile and a composite cannot be given in the wrong order.
+
+- `Sql.Query.fetch_maybe` is `fetch_one` with no row as an answer rather than
+  an error. More than one is still `TooManyRows`: nothing is dropped to make
+  the type fit.
+
 - `Sql.Write.on_conflict_do_nothing` and `on_conflict_do_update` render
   `ON CONFLICT (cols) DO NOTHING` and `DO UPDATE SET ...`, which is what
   `find_or_create_by`, `upsert` and `upsert_all` all compile to. The conflict

@@ -29,7 +29,7 @@ import Sql exposing (
   SqlError,
   Pk,
   Table,
-  Unique(..),
+  Unique,
   TableRef(..),
   set,
   to_assigns,
@@ -259,7 +259,7 @@ end
 
 # `ON CONFLICT (email) DO NOTHING`. The target comes from a `Unique`, so the
 # index named is one the database has.
-def on_conflict_do_nothing(m: Write(ret, c), u: Unique(c)) -> Write(ret, c)
+def on_conflict_do_nothing(m: Write(ret, c), u: Unique(c, uk)) -> Write(ret, c)
   { m | conflict: Just(DoNothing(u.columns)) }
 end
 
@@ -269,7 +269,7 @@ end
 # that could not be inserted.
 def on_conflict_do_update(
   m: Write(ret, c),
-  u: Unique(c),
+  u: Unique(c, uk),
   t: Table(c, mc, k, o, r, s),
   build: s -> List(Assignment),
 ) -> Write(ret, c)

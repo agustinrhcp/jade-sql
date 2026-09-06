@@ -17,6 +17,7 @@ module Sql.Query exposing (
   order_desc,
   select,
   fetch_many,
+  fetch_maybe,
   fetch_one,
   to_sql,
   where,
@@ -26,7 +27,7 @@ module Sql.Query exposing (
 import Sql exposing (
   Expr(..),
   Selector(..),
-  SqlError,
+  SqlError(..),
   Table,
   TableRef(..),
   ToSql,
@@ -389,6 +390,21 @@ end
 # checked rather than assumed.
 def fetch_one(q: Select(a)) -> Task(a, SqlError)
   to_sql(q) |> Sql.fetch_one_raw
+end
+
+
+# `fetch_one` where no row is an answer rather than an error. More than one
+# is still `TooManyRows`: nothing is dropped to make the type fit.
+def fetch_maybe(q: Select(a)) -> Task(Maybe(a), SqlError)
+  q
+    |> fetch_one
+    |> Task.map(Just)
+    |> Task.on_error((e) -> {
+      case e
+      in NotFound then Task.succeed(Nothing)
+      else Task.fail(e)
+      end
+    })
 end
 
 

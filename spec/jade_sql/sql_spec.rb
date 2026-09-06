@@ -1474,6 +1474,7 @@ end
         <<~JADE
           module App exposing (clashed_on_email, clashed_on_other)
 
+          import Encode
           import Sql exposing (
             SqlError(..),
             Unique,
@@ -1482,8 +1483,8 @@ end
           )
 
 
-          def users_email_key -> Unique(c)
-            unique("users_email_key", ["email"])
+          def users_email_key -> Unique(c, String)
+            unique("users_email_key", ["email"], (v) -> { [Encode.encode(v)] })
           end
 
 
@@ -1506,6 +1507,98 @@ end
 
       it 'does not match another' do
         expect(App::Internal.clashed_on_other).to be false
+      end
+    end
+
+    describe 'reading by a unique index' do
+      let(:source) do
+        <<~JADE
+          module App exposing (by_email, by_tenant_and_handle)
+
+          import Encode
+          import Sql exposing (
+            Col(..),
+            Expr,
+            NoJoins,
+            NoRequiredCols,
+            Pk,
+            Table,
+            Unique,
+            column,
+            matching,
+            no_joins,
+            pk,
+            table,
+            unique,
+          )
+          import Sql.Query exposing (Select, field, from, select, to_sql, where)
+          import Decode exposing (Value)
+
+
+          #{jade_table('users', { id: 'Int', email: 'String', tenant_id: 'Int' }, alias_: 'u')}
+
+
+          struct Row = { id: Int }
+
+
+          def users_email_key -> Unique(UsersCols, String)
+            unique("users_email_key", ["email"], (v) -> { [Encode.encode(v)] })
+          end
+
+
+          def tenant_email_values(v: (Int, String)) -> List(Value)
+            (t, e) = v
+
+            [Encode.encode(t), Encode.encode(e)]
+          end
+
+
+          def users_tenant_email_key -> Unique(UsersCols, (Int, String))
+            unique("users_tenant_email_key", ["tenant_id", "email"], tenant_email_values)
+          end
+
+
+          def by_email_query -> Select(Row)
+            u <- from(users)
+
+            select(Row(_))
+              |> field(u.id)
+              |> where(matching(users_email_key, "ada@example.com"))
+          end
+
+
+          def by_email -> (String, List(Value))
+            to_sql(by_email_query)
+          end
+
+
+          def by_tenant_query -> Select(Row)
+            u <- from(users)
+
+            select(Row(_))
+              |> field(u.id)
+              |> where(matching(users_tenant_email_key, (7, "ada@example.com")))
+          end
+
+
+          def by_tenant_and_handle -> (String, List(Value))
+            to_sql(by_tenant_query)
+          end
+        JADE
+      end
+
+      before { test_compiler.require('app', source) }
+
+      it 'renders the index columns as the predicate' do
+        expect(App::Internal.by_email._1)
+          .to eql 'SELECT u.id FROM users u WHERE email = ?'
+        expect(App::Internal.by_email._2).to eql ['ada@example.com']
+      end
+
+      it 'keeps a composite index in its declared order' do
+        expect(App::Internal.by_tenant_and_handle._1)
+          .to eql 'SELECT u.id FROM users u WHERE tenant_id = ? AND email = ?'
+        expect(App::Internal.by_tenant_and_handle._2).to eql [7, 'ada@example.com']
       end
     end
 
@@ -1698,6 +1791,7 @@ module App exposing (
   insert_many,
   insert_paul,
   insert_paul_returning,
+  patients_name_key_values,
   rename_paul,
   update_all_nothing,
   update_all_nothing_returning,
@@ -1906,8 +2000,13 @@ def delete_archived -> (String, List(Value))
 end
 
 
-def patients_name_key -> Unique(c)
-  unique("patients_name_key", ["name"])
+def patients_name_key -> Unique(c, String)
+  unique("patients_name_key", ["name"], patients_name_key_values)
+end
+
+
+def patients_name_key_values(v: String) -> List(Value)
+  [Encode.encode(v)]
 end
 
 

@@ -86,6 +86,22 @@ def users_email_key -> Unique(UsersCols)
 end
 ```
 
+`matching` builds the predicate for a read by that index, and the key type
+comes from the index, so a composite cannot be given in the wrong order:
+
+```jade
+where(matching(users_email_key, "ada@example.com"))
+# WHERE email = ?
+
+where(matching(users_tenant_email_key, (7, "ada@example.com")))
+# WHERE tenant_id = ? AND email = ?
+```
+
+Pair it with `Sql.Query.fetch_maybe`, which is `fetch_one` with no row as an
+answer rather than an error. More than one is still `TooManyRows`: nothing is
+dropped to make the type fit, and the index is what makes that case
+unreachable.
+
 `UniqueViolation` carries the constraint name Postgres reports, so `violated`
 routes it without matching a string:
 

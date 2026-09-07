@@ -21,9 +21,9 @@ module Jade
           end
         JADE
 
-        App::Internal.make_col.then do |expr|
-          expect(expr.sql).to eql 'p.name'
-          expect(expr.params).to eql []
+        App.make_col.then do |expr|
+          expect(expr['sql']).to eql 'p.name'
+          expect(expr['params']).to eql []
         end
       end
     end
@@ -46,26 +46,26 @@ module Jade
           end
         JADE
 
-        App::Internal.predicate
+        App.predicate
       end
 
       it 'encodes an Int' do
         encodes('Int', '42').then do |expr|
-          expect(expr.sql).to eql 'p.x = ?'
-          expect(expr.params).to eql [42]
+          expect(expr['sql']).to eql 'p.x = ?'
+          expect(expr['params']).to eql [42]
         end
       end
 
       it 'encodes a String' do
-        expect(encodes('String', '"paul"').params).to eql ['paul']
+        expect(encodes('String', '"paul"')['params']).to eql ['paul']
       end
 
       it 'encodes Just(n) recursively' do
-        expect(encodes('Maybe(Int)', 'Just(12)').params).to eql [12]
+        expect(encodes('Maybe(Int)', 'Just(12)')['params']).to eql [12]
       end
 
       it 'encodes Nothing as NULL' do
-        expect(encodes('Maybe(Int)', 'Nothing').params).to eql [nil]
+        expect(encodes('Maybe(Int)', 'Nothing')['params']).to eql [nil]
       end
     end
 
@@ -82,9 +82,9 @@ module Jade
           end
         JADE
 
-        App::Internal.predicate.then do |expr|
-          expect(expr.sql).to eql 'p.age = ?'
-          expect(expr.params).to eql [18]
+        App.predicate.then do |expr|
+          expect(expr['sql']).to eql 'p.age = ?'
+          expect(expr['params']).to eql [18]
         end
       end
     end
@@ -118,16 +118,16 @@ module Jade
           end
         JADE
 
-        App::Internal.after_now.then do |expr|
-          expect(expr.sql).to eql 's.expires_at > now()'
-          expect(expr.params).to eql []
+        App.after_now.then do |expr|
+          expect(expr['sql']).to eql 's.expires_at > now()'
+          expect(expr['params']).to eql []
         end
-        App::Internal.at_least.then do |expr|
-          expect(expr.sql).to eql 't.amount >= ?'
-          expect(expr.params).to eql [100]
+        App.at_least.then do |expr|
+          expect(expr['sql']).to eql 't.amount >= ?'
+          expect(expr['params']).to eql [100]
         end
-        expect(App::Internal.cheap.sql).to eql 't.amount < ?'
-        expect(App::Internal.at_most.sql).to eql 't.amount <= ?'
+        expect(App.cheap['sql']).to eql 't.amount < ?'
+        expect(App.at_most['sql']).to eql 't.amount <= ?'
       end
     end
 
@@ -144,9 +144,9 @@ module Jade
           end
         JADE
 
-        App::Internal.predicate.then do |expr|
-          expect(expr.sql).to eql 'p.age IS NULL'
-          expect(expr.params).to eql []
+        App.predicate.then do |expr|
+          expect(expr['sql']).to eql 'p.age IS NULL'
+          expect(expr['params']).to eql []
         end
       end
     end
@@ -174,10 +174,10 @@ module Jade
           end
         JADE
 
-        expect(App::Internal.different.sql).to eql 'p.name <> ?'
-        expect(App::Internal.different.params).to eql ['Ada']
-        expect(App::Internal.matching.sql).to eql 'p.name LIKE ?'
-        expect(App::Internal.insensitive.sql).to eql 'p.name ILIKE ?'
+        expect(App.different['sql']).to eql 'p.name <> ?'
+        expect(App.different['params']).to eql ['Ada']
+        expect(App.matching['sql']).to eql 'p.name LIKE ?'
+        expect(App.insensitive['sql']).to eql 'p.name ILIKE ?'
       end
 
       it 'parenthesises what it negates' do
@@ -192,7 +192,7 @@ module Jade
           end
         JADE
 
-        expect(App::Internal.predicate.sql).to eql 'NOT (p.a IS NULL AND p.b IS NULL)'
+        expect(App.predicate['sql']).to eql 'NOT (p.a IS NULL AND p.b IS NULL)'
       end
     end
 
@@ -211,9 +211,9 @@ module Jade
           end
         JADE
 
-        App::Internal.predicate.then do |expr|
-          expect(expr.sql).to eql 'p.a = ? AND p.b = ?'
-          expect(expr.params).to eql [1, 2]
+        App.predicate.then do |expr|
+          expect(expr['sql']).to eql 'p.a = ? AND p.b = ?'
+          expect(expr['params']).to eql [1, 2]
         end
       end
     end
@@ -233,9 +233,9 @@ module Jade
           end
         JADE
 
-        App::Internal.predicate.then do |expr|
-          expect(expr.sql).to eql '(p.a = ? OR p.b = ?)'
-          expect(expr.params).to eql [1, 2]
+        App.predicate.then do |expr|
+          expect(expr['sql']).to eql '(p.a = ? OR p.b = ?)'
+          expect(expr['params']).to eql [1, 2]
         end
       end
 
@@ -256,9 +256,9 @@ module Jade
           end
         JADE
 
-        App::Internal.predicate.then do |expr|
-          expect(expr.sql).to eql 'p.x = ? AND (p.a = ? OR p.b = ?)'
-          expect(expr.params).to eql [0, 1, 2]
+        App.predicate.then do |expr|
+          expect(expr['sql']).to eql 'p.x = ? AND (p.a = ? OR p.b = ?)'
+          expect(expr['params']).to eql [0, 1, 2]
         end
       end
     end
@@ -282,9 +282,9 @@ module Jade
           end
         JADE
 
-        expect(App::Internal.against_column.sql).to eql 'p.id = o.person_id'
-        expect(App::Internal.against_column.params).to eql []
-        expect(App::Internal.against_now.sql).to eql 's.expires_at > now()'
+        expect(App.against_column['sql']).to eql 'p.id = o.person_id'
+        expect(App.against_column['params']).to eql []
+        expect(App.against_now['sql']).to eql 's.expires_at > now()'
       end
     end
 
@@ -308,32 +308,32 @@ module Jade
           end
         JADE
 
-        Object.const_get(name.capitalize)::Internal.p
+        Object.const_get(name.capitalize).p
       end
 
       it 'renders BETWEEN for a bounded range' do
         rendered('bounded', '3..7').then do |e|
-          expect(e.sql).to eql 'c.n BETWEEN ? AND ?'
-          expect(e.params).to eql [3, 7]
+          expect(e['sql']).to eql 'c.n BETWEEN ? AND ?'
+          expect(e['params']).to eql [3, 7]
         end
       end
 
       it 'renders a single bound when only one end is given' do
-        expect(rendered('lowonly', 'Range.from(3)').sql).to eql 'c.n >= ?'
-        expect(rendered('highonly', 'Range.to(7)').sql).to eql 'c.n <= ?'
+        expect(rendered('lowonly', 'Range.from(3)')['sql']).to eql 'c.n >= ?'
+        expect(rendered('highonly', 'Range.to(7)')['sql']).to eql 'c.n <= ?'
       end
 
       it 'renders the degenerate ends as constants, like any_of([])' do
         rendered('none', 'Range.empty').then do |e|
-          expect(e.sql).to eql 'FALSE'
-          expect(e.params).to eql []
+          expect(e['sql']).to eql 'FALSE'
+          expect(e['params']).to eql []
         end
 
-        expect(rendered('everything', 'Range.all').sql).to eql 'TRUE'
+        expect(rendered('everything', 'Range.all')['sql']).to eql 'TRUE'
       end
 
       it 'is FALSE for a descending pair, which Range.between calls empty' do
-        expect(rendered('descending', '7..3').sql).to eql 'FALSE'
+        expect(rendered('descending', '7..3')['sql']).to eql 'FALSE'
       end
     end
 
@@ -350,9 +350,9 @@ module Jade
           end
         JADE
 
-        App::Internal.recast.then do |expr|
-          expect(expr.sql).to eql 'p.kind'
-          expect(expr.params).to eql []
+        App.recast.then do |expr|
+          expect(expr['sql']).to eql 'p.kind'
+          expect(expr['params']).to eql []
         end
       end
     end
@@ -410,26 +410,26 @@ module Jade
       before { test_compiler.require('app', source) }
 
       it 'sum wraps a column' do
-        App::Internal.sum_col.then do |expr|
-          expect(expr.sql).to eql 'SUM(p.amount)'
-          expect(expr.params).to eql []
+        App.sum_col.then do |expr|
+          expect(expr['sql']).to eql 'SUM(p.amount)'
+          expect(expr['params']).to eql []
         end
       end
 
       it 'count and count_all' do
-        App::Internal.count_col.then { |e| expect(e.sql).to eql 'COUNT(p.id)' }
-        App::Internal.count_star.then { |e| expect(e.sql).to eql 'COUNT(*)' }
+        App.count_col.then { |e| expect(e['sql']).to eql 'COUNT(p.id)' }
+        App.count_star.then { |e| expect(e['sql']).to eql 'COUNT(*)' }
       end
 
       it 'coalesce wraps a Maybe expr with a default' do
-        App::Internal.coalesced.then do |expr|
-          expect(expr.sql).to eql 'COALESCE(SUM(p.amount), ?)'
-          expect(expr.params).to eql [0]
+        App.coalesced.then do |expr|
+          expect(expr['sql']).to eql 'COALESCE(SUM(p.amount), ?)'
+          expect(expr['params']).to eql [0]
         end
       end
 
       it 'neg negates an Int expr' do
-        App::Internal.negated.then { |e| expect(e.sql).to eql '-(p.amount)' }
+        App.negated.then { |e| expect(e['sql']).to eql '-(p.amount)' }
       end
     end
 
@@ -484,44 +484,44 @@ module Jade
       before { test_compiler.require('app', source) }
 
       it 'array_overlaps emits col && ? with the list bound as one param' do
-        App::Internal.any_tag(["food", "fun"]).then do |expr|
-          expect(expr.sql).to eql 'l.tags && ?'
-          expect(expr.params).to eql [["food", "fun"]]
+        App.any_tag(["food", "fun"]).then do |expr|
+          expect(expr['sql']).to eql 'l.tags && ?'
+          expect(expr['params']).to eql [["food", "fun"]]
         end
       end
 
       it 'array_overlaps binds an empty list as a single empty-array param' do
-        App::Internal.any_tag([]).then do |expr|
-          expect(expr.sql).to eql 'l.tags && ?'
-          expect(expr.params).to eql [[]]
+        App.any_tag([]).then do |expr|
+          expect(expr['sql']).to eql 'l.tags && ?'
+          expect(expr['params']).to eql [[]]
         end
       end
 
       it 'array_has emits ? = ANY(col) with the value before the column params' do
-        App::Internal.has_tag("food").then do |expr|
-          expect(expr.sql).to eql '? = ANY(l.tags)'
-          expect(expr.params).to eql ["food"]
+        App.has_tag("food").then do |expr|
+          expect(expr['sql']).to eql '? = ANY(l.tags)'
+          expect(expr['params']).to eql ["food"]
         end
       end
 
       it 'array_contains emits col @> ?' do
-        App::Internal.both_tags(["food", "fun"]).then do |expr|
-          expect(expr.sql).to eql 'l.tags @> ?'
-          expect(expr.params).to eql [["food", "fun"]]
+        App.both_tags(["food", "fun"]).then do |expr|
+          expect(expr['sql']).to eql 'l.tags @> ?'
+          expect(expr['params']).to eql [["food", "fun"]]
         end
       end
 
       it 'array_contained_by emits col <@ ?' do
-        App::Internal.no_extra_tags(["food", "fun"]).then do |expr|
-          expect(expr.sql).to eql 'l.tags <@ ?'
-          expect(expr.params).to eql [["food", "fun"]]
+        App.no_extra_tags(["food", "fun"]).then do |expr|
+          expect(expr['sql']).to eql 'l.tags <@ ?'
+          expect(expr['params']).to eql [["food", "fun"]]
         end
       end
 
       it 'array_length emits cardinality(col)' do
-        App::Internal.tag_count.then do |expr|
-          expect(expr.sql).to eql 'cardinality(l.tags)'
-          expect(expr.params).to eql []
+        App.tag_count.then do |expr|
+          expect(expr['sql']).to eql 'cardinality(l.tags)'
+          expect(expr['params']).to eql []
         end
       end
     end
@@ -559,23 +559,23 @@ module Jade
       before { test_compiler.require('app', source) }
 
       it 'array_append wraps array_append(col, ?)' do
-        App::Internal.added("food").then do |expr|
-          expect(expr.sql).to eql 'array_append(l.tags, ?)'
-          expect(expr.params).to eql ['food']
+        App.added("food").then do |expr|
+          expect(expr['sql']).to eql 'array_append(l.tags, ?)'
+          expect(expr['params']).to eql ['food']
         end
       end
 
       it 'array_remove wraps array_remove(col, ?)' do
-        App::Internal.removed("food").then do |expr|
-          expect(expr.sql).to eql 'array_remove(l.tags, ?)'
-          expect(expr.params).to eql ['food']
+        App.removed("food").then do |expr|
+          expect(expr['sql']).to eql 'array_remove(l.tags, ?)'
+          expect(expr['params']).to eql ['food']
         end
       end
 
       it 'array_concat emits left || right' do
-        App::Internal.concat_(["food", "fun"]).then do |expr|
-          expect(expr.sql).to eql 'l.tags || ?'
-          expect(expr.params).to eql [["food", "fun"]]
+        App.concat_(["food", "fun"]).then do |expr|
+          expect(expr['sql']).to eql 'l.tags || ?'
+          expect(expr['params']).to eql [["food", "fun"]]
         end
       end
     end
@@ -616,23 +616,23 @@ module Jade
       before { test_compiler.require('app', source) }
 
       it 'jsonb_contains encodes the value as JSON' do
-        App::Internal.has_kind("income").then do |expr|
-          expect(expr.sql).to eql 'r.match @> ?'
-          expect(expr.params).to eql [{ "kind" => "income" }]
+        App.has_kind("income").then do |expr|
+          expect(expr['sql']).to eql 'r.match @> ?'
+          expect(expr['params']).to eql [{ "kind" => "income" }]
         end
       end
 
       it 'jsonb_contains accepts struct literals' do
-        App::Internal.kind_matcher.then do |expr|
-          expect(expr.sql).to eql 'r.match @> ?'
-          expect(expr.params).to eql [{ "kind" => "income" }]
+        App.kind_matcher.then do |expr|
+          expect(expr['sql']).to eql 'r.match @> ?'
+          expect(expr['params']).to eql [{ "kind" => "income" }]
         end
       end
 
       it 'jsonb_path_exists casts the path to jsonpath' do
-        App::Internal.has_path("$.kind ? (@ == \"income\")").then do |expr|
-          expect(expr.sql).to eql 'r.match @? ?::jsonpath'
-          expect(expr.params).to eql ['$.kind ? (@ == "income")']
+        App.has_path("$.kind ? (@ == \"income\")").then do |expr|
+          expect(expr['sql']).to eql 'r.match @? ?::jsonpath'
+          expect(expr['params']).to eql ['$.kind ? (@ == "income")']
         end
       end
     end
@@ -685,22 +685,22 @@ end
       it 'takes the alias from the table, so aliased changes both' do
         test_compiler.require('app', source)
 
-        App::Internal.named_paul_elsewhere.then do |q|
-          expect(q.tables.first.alias_).to eql 'q'
-          expect(q.wheres.first.sql).to eql 'q.name = ?'
+        App.named_paul_elsewhere.then do |q|
+          expect(q['tables'].first['alias_']).to eql 'q'
+          expect(q['wheres'].first['sql']).to eql 'q.name = ?'
         end
       end
 
       it 'records the table and where clause' do
         test_compiler.require('app', source)
 
-        App::Internal.named_paul.then do |q|
-          expect(q.tables.size).to eql 1
-          expect(q.tables.first.name).to eql 'persons'
-          expect(q.tables.first.alias_).to eql 'p'
-          expect(q.wheres.size).to eql 1
-          expect(q.wheres.first.sql).to eql 'p.name = ?'
-          expect(q.wheres.first.params).to eql ['Paul']
+        App.named_paul.then do |q|
+          expect(q['tables'].size).to eql 1
+          expect(q['tables'].first['name']).to eql 'persons'
+          expect(q['tables'].first['alias_']).to eql 'p'
+          expect(q['wheres'].size).to eql 1
+          expect(q['wheres'].first['sql']).to eql 'p.name = ?'
+          expect(q['wheres'].first['params']).to eql ['Paul']
         end
       end
     end
@@ -779,15 +779,15 @@ end
       it 'records the inner join with predicate' do
         test_compiler.require('app', source)
 
-        App::Internal.persons_with_orders.then do |q|
-          expect(q.tables.size).to eql 1
-          expect(q.tables.first.name).to eql 'persons'
-          expect(q.joins.size).to eql 1
-          j = q.joins.first
-          expect(j.kind).to eql Sql::Query::InnerJ[]
-          expect(j.name).to eql 'orders'
-          expect(j.alias_).to eql 'o'
-          expect(j.on.sql).to eql 'p.id = o.person_id'
+        App.persons_with_orders.then do |q|
+          expect(q['tables'].size).to eql 1
+          expect(q['tables'].first['name']).to eql 'persons'
+          expect(q['joins'].size).to eql 1
+          j = q['joins'].first
+          expect(j['kind']).to eql "inner_j"
+          expect(j['name']).to eql 'orders'
+          expect(j['alias_']).to eql 'o'
+          expect(j['on']['sql']).to eql 'p.id = o.person_id'
         end
       end
     end
@@ -835,13 +835,13 @@ end
       it 'overrides the join alias and qualifies its columns' do
         test_compiler.require('app', source)
 
-        App::Internal.parents_and_kids.then do |q|
-          expect(q.tables.first.alias_).to eql 'persons'
-          expect(q.joins.size).to eql 1
-          j = q.joins.first
-          expect(j.name).to eql 'persons'
-          expect(j.alias_).to eql 'c'
-          expect(j.on.sql).to eql 'persons.id = c.parent_id'
+        App.parents_and_kids.then do |q|
+          expect(q['tables'].first['alias_']).to eql 'persons'
+          expect(q['joins'].size).to eql 1
+          j = q['joins'].first
+          expect(j['name']).to eql 'persons'
+          expect(j['alias_']).to eql 'c'
+          expect(j['on']['sql']).to eql 'persons.id = c.parent_id'
         end
       end
     end
@@ -895,10 +895,10 @@ end
       it 'records left_join with strict on-predicate, maybe result' do
         test_compiler.require('app', source)
 
-        App::Internal.persons_with_optional_orders.then do |q|
-          j = q.joins.first
-          expect(j.kind).to eql Sql::Query::LeftJ[]
-          expect(j.on.sql).to eql 'p.id = o.person_id'
+        App.persons_with_optional_orders.then do |q|
+          j = q['joins'].first
+          expect(j['kind']).to eql "left_j"
+          expect(j['on']['sql']).to eql 'p.id = o.person_id'
         end
       end
     end
@@ -953,9 +953,9 @@ end
       it 'compiles when c.id is lifted to Maybe(Int)' do
         test_compiler.require('app', source)
 
-        App::Internal.persons_with_companies.then do |q|
-          j = q.joins.first
-          expect(j.on.sql).to eql 'p.company_id = c.id'
+        App.persons_with_companies.then do |q|
+          j = q['joins'].first
+          expect(j['on']['sql']).to eql 'p.company_id = c.id'
         end
       end
     end
@@ -1010,8 +1010,8 @@ end
       it 'projects the selected columns in declared order' do
         test_compiler.require('app', adults_source)
 
-        App::Internal.adults_query.then do |q|
-          expect(q.result.columns_sql).to eql ['p.id', 'p.name', 'p.age']
+        App.adults_query.then do |q|
+          expect(q['result']['columns_sql']).to eql ['p.id', 'p.name', 'p.age']
         end
       end
     end
@@ -1095,7 +1095,7 @@ end
       it 'emits SELECT, FROM, INNER JOIN, WHERE clauses + params in order' do
         test_compiler.require('app', source)
 
-        sql, params = App::Internal.rendered.then { [it._1, it._2] }
+        sql, params = App.rendered
 
         expect(sql).to eql(
           'SELECT p.id, p.name, o.total ' \
@@ -1160,7 +1160,7 @@ end
       it 'aliases the projected column to the given name' do
         test_compiler.require('app', source)
 
-        expect(App::Internal.rendered._1)
+        expect(App.rendered[0])
           .to eql('SELECT e.id AS id, e.type AS type_ FROM entries e')
       end
     end
@@ -1304,35 +1304,35 @@ end
       before { test_compiler.require('app', source) }
 
       it 'appends ORDER BY with implicit ASC' do
-        sql, _ = App::Internal.sorted_asc.then { [it._1, it._2] }
+        sql, _ = App.sorted_asc
         expect(sql).to eql(
           'SELECT p.id, p.name, p.age FROM persons p ORDER BY p.name'
         )
       end
 
       it 'appends ORDER BY ... DESC' do
-        sql, _ = App::Internal.sorted_desc.then { [it._1, it._2] }
+        sql, _ = App.sorted_desc
         expect(sql).to eql(
           'SELECT p.id, p.name, p.age FROM persons p ORDER BY p.age DESC'
         )
       end
 
       it 'preserves order-by declaration order across mixed directions' do
-        sql, _ = App::Internal.multi_sorted.then { [it._1, it._2] }
+        sql, _ = App.multi_sorted
         expect(sql).to eql(
           'SELECT p.id, p.name, p.age FROM persons p ORDER BY p.age DESC, p.name'
         )
       end
 
       it 'appends GROUP BY with comma-separated columns' do
-        sql, _ = App::Internal.grouped.then { [it._1, it._2] }
+        sql, _ = App.grouped
         expect(sql).to eql(
           'SELECT p.id, p.name, p.age FROM persons p GROUP BY p.age, p.name'
         )
       end
 
       it 'renders ORDER BY before LIMIT/OFFSET' do
-        sql, _ = App::Internal.sorted_then_paged.then { [it._1, it._2] }
+        sql, _ = App.sorted_then_paged
         expect(sql).to eql(
           'SELECT p.id, p.name, p.age ' \
           'FROM persons p ' \
@@ -1385,7 +1385,7 @@ end
           end
         JADE
 
-        expect(Sql::Query::Internal.to_sql(Crossed::Internal.pairs)._1)
+        expect(Sql::Query.to_sql(Crossed.pairs)[0])
           .to eql 'SELECT p.id, v.id FROM patients p, visits v'
       end
     end
@@ -1456,17 +1456,17 @@ end
       before { test_compiler.require('app', source) }
 
       it 'renders EXISTS with SELECT 1, correlated on the outer alias' do
-        expect(sql_of(App::Internal.with_visits)).to eql(
+        expect(sql_of(App.with_visits)).to eql(
           'SELECT p.name FROM patients p ' \
             'WHERE EXISTS (SELECT 1 FROM visits v WHERE v.patient_id = p.id)',
         )
       end
 
       it 'renders NOT EXISTS the same way' do
-        expect(sql_of(App::Internal.without_visits)).to include('WHERE NOT EXISTS (SELECT 1')
+        expect(sql_of(App.without_visits)).to include('WHERE NOT EXISTS (SELECT 1')
       end
 
-      def sql_of(q) = Sql::Query::Internal.to_sql(q)._1
+      def sql_of(q) = Sql::Query.to_sql(q)[0]
     end
 
 
@@ -1570,30 +1570,30 @@ end
       before { test_compiler.require('app', source) }
 
       it 'roots a subquery in its own table, not the outer query\'s' do
-        Sql::Query::Internal.to_sql(App::Internal.unbound_last_seen).then do |built|
-          expect(built._1).to eql 'SELECT p.id, (SELECT v.seen_on FROM visits v ' \
+        Sql::Query.to_sql(App.unbound_last_seen).then do |built|
+          expect(built[0]).to eql 'SELECT p.id, (SELECT v.seen_on FROM visits v ' \
             'WHERE v.patient_id = p.id LIMIT 1) FROM patients p'
         end
       end
 
       it 'lists a table once however many times the chain names it' do
-        Sql::Query::Internal.to_sql(App::Internal.last_seen).then do |built|
-          expect(built._1).not_to include 'visits v, visits v'
+        Sql::Query.to_sql(App.last_seen).then do |built|
+          expect(built[0]).not_to include 'visits v, visits v'
         end
       end
 
       it 'renders the picked column as a correlated subquery' do
-        Sql::Query::Internal.to_sql(App::Internal.last_seen).then do |built|
-          expect(built._1).to eql 'SELECT p.id, (SELECT v.seen_on FROM visits v ' \
+        Sql::Query.to_sql(App.last_seen).then do |built|
+          expect(built[0]).to eql 'SELECT p.id, (SELECT v.seen_on FROM visits v ' \
             'WHERE v.patient_id = p.id ORDER BY v.seen_on DESC LIMIT 1) ' \
             'FROM patients p'
-          expect(built._2).to eql []
+          expect(built[1]).to eql []
         end
       end
 
       it 'renders IN over the picked column' do
-        Sql::Query::Internal.to_sql(App::Internal.seen_patients).then do |built|
-          expect(built._1).to eql 'SELECT p.id FROM patients p ' \
+        Sql::Query.to_sql(App.seen_patients).then do |built|
+          expect(built[0]).to eql 'SELECT p.id FROM patients p ' \
             'WHERE p.id IN (SELECT v.patient_id FROM visits v)'
         end
       end
@@ -1662,7 +1662,7 @@ end
       before { test_compiler.require('app', source) }
 
       it 'renders HAVING after GROUP BY, with its params in clause order' do
-        sql, params = App::Internal.busy.then { [to_sql_of(it), params_of(it)] }
+        sql, params = App.busy.then { [to_sql_of(it), params_of(it)] }
 
         expect(sql).to eql(
           'SELECT v.patient_id FROM visits v GROUP BY v.patient_id HAVING COUNT(*) > ?',
@@ -1671,13 +1671,13 @@ end
       end
 
       it 'renders SELECT DISTINCT' do
-        expect(to_sql_of(App::Internal.distinct_names))
+        expect(to_sql_of(App.distinct_names))
           .to eql 'SELECT DISTINCT v.patient_id FROM visits v'
       end
 
-      def to_sql_of(q) = Sql::Query::Internal.to_sql(q)._1
+      def to_sql_of(q) = Sql::Query.to_sql(q)[0]
 
-      def params_of(q) = Sql::Query::Internal.to_sql(q)._2
+      def params_of(q) = Sql::Query.to_sql(q)[1]
     end
 
     describe 'limit and offset for pagination' do
@@ -1755,24 +1755,24 @@ end
       before { test_compiler.require('app', source) }
 
       it 'appends LIMIT after WHERE' do
-        sql, params = App::Internal.page_one.then { [it._1, it._2] }
+        sql, params = App.page_one
         expect(sql).to eql 'SELECT p.id, p.name FROM persons p LIMIT 10'
         expect(params).to eql []
       end
 
       it 'appends LIMIT then OFFSET' do
-        sql, params = App::Internal.page_two.then { [it._1, it._2] }
+        sql, params = App.page_two
         expect(sql).to eql 'SELECT p.id, p.name FROM persons p LIMIT 10 OFFSET 10'
         expect(params).to eql []
       end
 
       it 'appends only OFFSET when LIMIT is unset' do
-        sql, _ = App::Internal.only_offset.then { [it._1, it._2] }
+        sql, _ = App.only_offset
         expect(sql).to eql 'SELECT p.id, p.name FROM persons p OFFSET 20'
       end
 
       it 'emits no LIMIT/OFFSET when neither is set' do
-        sql, _ = App::Internal.no_paging.then { [it._1, it._2] }
+        sql, _ = App.no_paging
         expect(sql).to eql 'SELECT p.id, p.name FROM persons p'
       end
     end
@@ -2037,37 +2037,37 @@ end
       before { test_compiler.require('app', source) }
 
       it 'insert renders INSERT with codec-driven assigns' do
-        sql, params = App::Internal.insert_paul.then { [it._1, it._2] }
+        sql, params = App.insert_paul
         expect(sql).to eql 'INSERT INTO patients AS p (name, balance) VALUES (?, ?)'
         expect(params).to eql ['Paul', 100]
       end
 
       it 'insert accepts a raw List(Assignment) via Assignable(List(Assignment))' do
-        sql, params = App::Internal.insert_from_assigns.then { [it._1, it._2] }
+        sql, params = App.insert_from_assigns
         expect(sql).to eql 'INSERT INTO patients AS p (name, balance) VALUES (?, ?)'
         expect(params).to eql ['Paul', 100]
       end
 
       it 'update renders UPDATE … WHERE pk = ?' do
-        sql, params = App::Internal.update_paul.then { [it._1, it._2] }
+        sql, params = App.update_paul
         expect(sql).to eql 'UPDATE patients AS p SET name = ?, balance = ? WHERE id = ?'
         expect(params).to eql ['Paul', 100, 42]
       end
 
       it 'updates from a patch that carries no key of its own' do
-        sql, params = App::Internal.rename_paul.then { [it._1, it._2] }
+        sql, params = App.rename_paul
         expect(sql).to eql 'UPDATE patients AS p SET name = ? WHERE id = ?'
         expect(params).to eql ['Saul', 42]
       end
 
       it 'delete renders DELETE … WHERE pk = ?' do
-        sql, params = App::Internal.delete_paul.then { [it._1, it._2] }
+        sql, params = App.delete_paul
         expect(sql).to eql 'DELETE FROM patients AS p WHERE id = ?'
         expect(params).to eql [42]
       end
 
       it 'insert_all renders multi-row VALUES' do
-        sql, params = App::Internal.insert_many.then { [it._1, it._2] }
+        sql, params = App.insert_many
         expect(sql).to eql 'INSERT INTO patients AS p (name, balance) VALUES (?, ?), (?, ?)'
         expect(params).to eql [
           'Paul',  100,
@@ -2076,13 +2076,13 @@ end
       end
 
       it 'update_all renders bulk UPDATE with predicate' do
-        sql, params = App::Internal.update_all_to_zero.then { [it._1, it._2] }
+        sql, params = App.update_all_to_zero
         expect(sql).to eql 'UPDATE patients AS p SET archived = ? WHERE p.balance = ?'
         expect(params).to eql [true, 0]
       end
 
       it 'update_many writes every row in one statement' do
-        sql, params = App::Internal.update_many_balances.then { [it._1, it._2] }
+        sql, params = App.update_many_balances
 
         expect(sql).to eql(
           'UPDATE patients AS p ' \
@@ -2097,35 +2097,35 @@ end
       end
 
       it 'update_all with no assignments reads instead of writing' do
-        sql, params = App::Internal.update_all_nothing.then { [it._1, it._2] }
+        sql, params = App.update_all_nothing
         expect(sql).to eql 'SELECT 1 FROM patients AS p WHERE p.balance = ?'
         expect(params).to eql [0]
       end
 
       it 'update_all with no assignments selects what RETURNING would have' do
-        sql, params = App::Internal.update_all_nothing_returning.then { [it._1, it._2] }
+        sql, params = App.update_all_nothing_returning
         expect(sql).to eql 'SELECT p.id, p.name, p.balance FROM patients AS p WHERE p.balance = ?'
         expect(params).to eql [0]
       end
 
       it 'delete_all renders bulk DELETE with predicate' do
-        sql, params = App::Internal.delete_archived.then { [it._1, it._2] }
+        sql, params = App.delete_archived
         expect(sql).to eql 'DELETE FROM patients AS p WHERE p.archived = ?'
         expect(params).to eql [true]
       end
 
       it 'insert + returning projects the table columns into RETURNING' do
-        sql, _ = App::Internal.insert_paul_returning.then { [it._1, it._2] }
+        sql, _ = App.insert_paul_returning
         expect(sql).to eql 'INSERT INTO patients AS p (name, balance) VALUES (?, ?) RETURNING p.id, p.name, p.balance'
       end
 
       it 'update + returning appends RETURNING with the projected columns' do
-        sql, _ = App::Internal.update_paul_returning.then { [it._1, it._2] }
+        sql, _ = App.update_paul_returning
         expect(sql).to eql 'UPDATE patients AS p SET name = ?, balance = ? WHERE id = ? RETURNING p.id, p.name, p.balance'
       end
 
       it 'delete + returning appends RETURNING with the projected columns' do
-        sql, _ = App::Internal.delete_paul_returning.then { [it._1, it._2] }
+        sql, _ = App.delete_paul_returning
         expect(sql).to eql 'DELETE FROM patients AS p WHERE id = ? RETURNING p.id, p.name, p.balance'
       end
     end
@@ -2207,7 +2207,7 @@ end
       # The caller supplies a tuple and never a column name; the generated
       # values function spreads it in the order the DDL declares.
       it 'orders the key terms by the schema, not by the caller' do
-        sql, params = Comp::Internal.touch.then { [it._1, it._2] }
+        sql, params = Comp.touch
         expect(sql).to eql 'UPDATE memberships SET role = ? WHERE user_id = ? AND group_id = ?'
         expect(params).to eql ['admin', 10, 20]
       end
@@ -2317,8 +2317,8 @@ end
       # The parent columns pipe in; `join` supplies the child\'s, which it is
       # the only one holding.
       it 'builds the same predicate a hand-written lambda would' do
-        Joined::Internal.persons_with_orders.then do |q|
-          expect(q.joins.first.on.sql).to eql 'p.id = o.person_id'
+        Joined.persons_with_orders.then do |q|
+          expect(q['joins'].first['on']['sql']).to eql 'p.id = o.person_id'
         end
       end
     end

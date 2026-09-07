@@ -118,7 +118,7 @@ end
       it 'returns the affected count from the port' do
         all_calls_to(JadeSql::Runtime.port_execute_count) { |t, _sql, _params| t.ok(7) }
 
-        expect(App::Internal.count_via_execute.run).to be_ok(7)
+        expect(App.count_via_execute).to eql ["ok", 7]
         expect(JadeSql::Runtime.port_execute_count).to have_been_called
       end
 
@@ -127,7 +127,7 @@ end
           t.err(JadeSql::SqlErrors.db_error("syntax error"))
         end
 
-        expect(App::Internal.count_via_execute.run).to be_err(look_like("Sql::DbError", "syntax error"))
+        expect(App.count_via_execute).to eql ["err", ["DbError", "syntax error"]]
       end
 
       it 'surfaces a NotFound from port_execute_one' do
@@ -135,7 +135,7 @@ end
           t.err(JadeSql::SqlErrors.not_found)
         end
 
-        expect(App::Internal.find_via_run.run).to be_err(look_like("Sql::NotFound"))
+        expect(App.find_via_run).to eql ["err", ["NotFound"]]
       end
 
       it 'surfaces a TooManyRows from port_execute_one' do
@@ -143,7 +143,7 @@ end
           t.err(JadeSql::SqlErrors.too_many_rows)
         end
 
-        expect(App::Internal.find_via_run.run).to be_err(look_like("Sql::TooManyRows"))
+        expect(App.find_via_run).to eql ["err", ["TooManyRows"]]
       end
     end
 
@@ -153,8 +153,7 @@ end
           t.ok({ "id" => 1, "name" => "Paul", "balance" => 100 })
         end
 
-        result = App::Internal.find_via_run.run
-        expect(result).to be_ok(look_like("App::Patient", id: 1, name: "Paul", balance: 100))
+        expect(App.find_via_run).to eql ["ok", { 'id' => 1, 'name' => "Paul", 'balance' => 100 }]
       end
     end
 
@@ -167,17 +166,17 @@ end
           ])
         end
 
-        result = App::Internal.all_via_run.run
-        expect(result).to be_ok
-        expect(result._1.length).to eql 2
+        status, value = App.all_via_run
+        expect(status).to eql "ok"
+        expect(value.length).to eql 2
       end
 
       it 'returns an empty list when the DB returns no rows' do
         all_calls_to(JadeSql::Runtime.port_execute_many) { |t, _sql, _params| t.ok([]) }
 
-        result = App::Internal.list_via_execute.run
-        expect(result).to be_ok
-        expect(result._1).to eql []
+        status, value = App.list_via_execute
+        expect(status).to eql "ok"
+        expect(value).to eql []
       end
     end
 
@@ -192,8 +191,7 @@ end
           t.ok({ "id" => 1, "name" => "Paul", "balance" => 100 })
         end
 
-        result = App::Internal.paul_via_run.run
-        expect(result).to be_ok(look_like("App::Patient", id: 1, name: "Paul", balance: 100))
+        expect(App.paul_via_run).to eql ["ok", { 'id' => 1, 'name' => "Paul", 'balance' => 100 }]
       end
     end
 

@@ -26,15 +26,15 @@ module Jade
     before { test_compiler.require('app', source) }
 
     it 'renders col IN (?, ?, ?) and threads params' do
-      e = App::Internal.in_some_ids([1, 2, 3])
-      expect(e.sql).to eql 'p.id IN (?, ?, ?)'
-      expect(e.params).to eql [1, 2, 3]
+      e = App.in_some_ids([1, 2, 3])
+      expect(e['sql']).to eql 'p.id IN (?, ?, ?)'
+      expect(e['params']).to eql [1, 2, 3]
     end
 
     it 'renders FALSE for an empty list (PG rejects IN ())' do
-      e = App::Internal.in_some_ids([])
-      expect(e.sql).to eql 'FALSE'
-      expect(e.params).to eql []
+      e = App.in_some_ids([])
+      expect(e['sql']).to eql 'FALSE'
+      expect(e['params']).to eql []
     end
   end
 
@@ -75,15 +75,15 @@ module Jade
           App::Order[2, 100],
           App::Order[3, 200],
         ]
-        grouped = App::Internal.group(orders)
-        expect(App::Internal.lookup(grouped, 100).length).to eql 2
-        expect(App::Internal.lookup(grouped, 200).length).to eql 1
+        grouped = App.group(orders)
+        expect(App.lookup(grouped, 100).length).to eql 2
+        expect(App.lookup(grouped, 200).length).to eql 1
       end
 
       it 'returns [] for missing keys' do
         orders = [App::Order[1, 100]]
-        grouped = App::Internal.group(orders)
-        expect(App::Internal.lookup(grouped, 999)).to eql []
+        grouped = App.group(orders)
+        expect(App.lookup(grouped, 999)).to eql []
       end
     end
 
@@ -151,16 +151,16 @@ module Jade
         orders   = [App::Order[10, 1, 100], App::Order[11, 1, 200], App::Order[12, 2, 50]]
         addrs    = [App::Address[20, 1, "Paris"]]
 
-        result = App::Internal.bundle(patients, orders, addrs)
+        bundles = App.bundle(patients, orders, addrs)
 
-        expect(result[0].patient.name).to eql "Alice"
-        expect(result[0].orders.length).to eql 2
-        expect(result[0].addresses.length).to eql 1
-        expect(result[0].addresses.first.city).to eql "Paris"
+        expect(bundles[0]['patient']['name']).to eql "Alice"
+        expect(bundles[0]['orders'].length).to eql 2
+        expect(bundles[0]['addresses'].length).to eql 1
+        expect(bundles[0]['addresses'].first['city']).to eql "Paris"
 
-        expect(result[1].patient.name).to eql "Bob"
-        expect(result[1].orders.length).to eql 1
-        expect(result[1].addresses).to eql []
+        expect(bundles[1]['patient']['name']).to eql "Bob"
+        expect(bundles[1]['orders'].length).to eql 1
+        expect(bundles[1]['addresses']).to eql []
       end
     end
 
@@ -235,12 +235,12 @@ module Jade
         orders   = [App::Order[10, 1], App::Order[11, 1], App::Order[12, 2]]
         items    = [App::LineItem[100, 10, "a"], App::LineItem[101, 10, "b"], App::LineItem[102, 12, "c"]]
 
-        result = App::Internal.bundle(patients, orders, items)
+        bundles = App.bundle(patients, orders, items)
 
-        expect(result[0].orders.length).to eql 2
-        expect(result[0].orders[0].items.length).to eql 2
-        expect(result[0].orders[1].items).to eql []
-        expect(result[1].orders.first.items.first.sku).to eql "c"
+        expect(bundles[0]['orders'].length).to eql 2
+        expect(bundles[0]['orders'][0]['items'].length).to eql 2
+        expect(bundles[0]['orders'][1]['items']).to eql []
+        expect(bundles[1]['orders'].first['items'].first['sku']).to eql "c"
       end
     end
   end

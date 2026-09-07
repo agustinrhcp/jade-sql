@@ -76,12 +76,12 @@ end
     after { conn.execute("DROP TABLE IF EXISTS accounts") }
 
     it 'returns UniqueViolation carrying the violated constraint name' do
-      expect(App::Internal.add('dup@x.com').run)
-        .to be_err(look_like("Sql::UniqueViolation", "accounts_email_key"))
+      expect(App.add('dup@x.com'))
+        .to eql ["err", ["UniqueViolation", "accounts_email_key"]]
     end
 
     it 'leaves a non-conflicting insert as Ok' do
-      expect(App::Internal.add('fresh@x.com').run).to be_ok(1)
+      expect(App.add('fresh@x.com')).to eql ["ok", 1]
     end
   end
 end

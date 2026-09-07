@@ -119,7 +119,7 @@ end
     before { test_compiler.require('app', source) }
 
     it 'fills created_at and updated_at on insert, with the same instant' do
-      expect(App::Internal.add_stamped('Paul').run).to be_ok(1)
+      expect(App.add_stamped('Paul')).to eql ["ok", 1]
 
       row = conn.select_one("SELECT created_at, updated_at FROM patients WHERE name = 'Paul'")
       expect(row["created_at"]).not_to be_nil
@@ -128,7 +128,7 @@ end
     end
 
     it 'leaves timestamps untouched on a plain insert' do
-      App::Internal.add_plain('Frank').run
+      App.add_plain('Frank')
 
       row = conn.select_one("SELECT created_at, updated_at FROM patients WHERE name = 'Frank'")
       expect(row["created_at"]).to be_nil
@@ -136,11 +136,11 @@ end
     end
 
     it 'keeps a created_at the caller wrote, dropping only the one it added' do
-      App::Internal.add_plain('Zoe').run
+      App.add_plain('Zoe')
       id = conn.select_value("SELECT id FROM patients WHERE name = 'Zoe'")
       at = Time.utc(2020, 1, 2, 3, 4, 5)
 
-      expect(App::Internal.backdate(id, 'Zoe', at.to_i * 1000).run).to be_ok(1)
+      expect(App.backdate(id, 'Zoe', at.to_i * 1000)).to eql ["ok", 1]
 
       row = conn.select_one("SELECT created_at, updated_at FROM patients WHERE id = #{id}")
       expect(row["created_at"].to_i).to eq at.to_i
@@ -148,10 +148,10 @@ end
     end
 
     it 'sets only updated_at on a timestamped update' do
-      App::Internal.add_plain('Ann').run
+      App.add_plain('Ann')
       id = conn.select_value("SELECT id FROM patients WHERE name = 'Ann'")
 
-      expect(App::Internal.touch(id, 'Annie').run).to be_ok(1)
+      expect(App.touch(id, 'Annie')).to eql ["ok", 1]
 
       row = conn.select_one("SELECT name, created_at, updated_at FROM patients WHERE id = #{id}")
       expect(row["name"]).to eq 'Annie'

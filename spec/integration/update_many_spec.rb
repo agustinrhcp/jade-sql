@@ -92,7 +92,7 @@ end
     before { test_compiler.require('app', source) }
 
     def seed(*names)
-      names.each { App::Internal.add(it).run }
+      names.each { App.add(it) }
       conn.select_all('SELECT id FROM patients ORDER BY id').rows.flatten
     end
 
@@ -104,7 +104,7 @@ end
         App::Patient[b, 'Grace H', 20],
       ]
 
-      expect(App::Internal.rewrite(rows).run).to be_ok(2)
+      expect(App.rewrite(rows)).to eql ["ok", 2]
 
       expect(conn.select_all('SELECT id, name, balance FROM patients ORDER BY id').to_a)
         .to eql(
@@ -126,7 +126,7 @@ end
         sql = p[:sql] if p[:sql].start_with?('UPDATE')
       end
 
-      expect(App::Internal.rewrite(rows).run).to be_ok(50)
+      expect(App.rewrite(rows)).to eql ["ok", 50]
 
       expect(sql.length).to be < 200
       expect(conn.select_value('SELECT count(*) FROM patients WHERE name LIKE $1', 'x', ['n%']))

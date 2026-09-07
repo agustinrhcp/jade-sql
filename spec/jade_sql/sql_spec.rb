@@ -1473,7 +1473,7 @@ end
     describe 'a subquery in a value position' do
       let(:source) do
         <<~JADE
-          module App exposing (last_seen, seen_patients)
+          module App exposing (last_seen, seen_patients, unbound_last_seen)
 
           import Encode
           import Sql exposing (
@@ -1484,6 +1484,7 @@ end
             Pk,
             Table,
             column,
+            columns,
             no_joins,
             pk,
             table,
@@ -1522,10 +1523,28 @@ end
           def latest(p: PatientsCols) -> Query(VisitsCols)
             v <- from(visits)
 
-            rows(v)
+            rows(visits)
               |> where(v.patient_id |> Expr.eq(p.id))
               |> order_desc(v.seen_on)
               |> limit(1)
+          end
+
+
+          # `rows` names the table, so the subquery stands on its own even
+          # where the outer query never bound it.
+          def unbound_last_seen -> Select(Row)
+            p <- from(patients)
+
+            select(Row(_, _))
+              |> field(p.id)
+              |> field(
+                subquery(
+                  rows(visits)
+                    |> where(columns(visits).patient_id |> Expr.eq(p.id))
+                    |> limit(1),
+                  .seen_on,
+                ),
+              )
           end
 
 
@@ -1549,6 +1568,19 @@ end
       end
 
       before { test_compiler.require('app', source) }
+
+      it 'roots a subquery in its own table, not the outer query\'s' do
+        Sql::Query::Internal.to_sql(App::Internal.unbound_last_seen).then do |built|
+          expect(built._1).to eql 'SELECT p.id, (SELECT v.seen_on FROM visits v ' \
+            'WHERE v.patient_id = p.id LIMIT 1) FROM patients p'
+        end
+      end
+
+      it 'lists a table once however many times the chain names it' do
+        Sql::Query::Internal.to_sql(App::Internal.last_seen).then do |built|
+          expect(built._1).not_to include 'visits v, visits v'
+        end
+      end
 
       it 'renders the picked column as a correlated subquery' do
         Sql::Query::Internal.to_sql(App::Internal.last_seen).then do |built|

@@ -375,7 +375,7 @@ import Sql.Query exposing (
 def latest(p: PatientsCols) -> Query(VisitsCols)
   v <- from(visits)
 
-  rows(v)
+  rows(visits)
     |> where(v.patient_id |> Expr.eq(p.id))
     |> order_desc(v.seen_on)
     |> limit(1)
@@ -391,9 +391,14 @@ where(p.id |> in_subquery(from(visits), .patient_id))
 # WHERE p.id IN (SELECT v.patient_id FROM visits v)
 ```
 
-`rows(cols)` is `select`'s unprojected twin: it starts a query that carries the
-columns rather than a projection, so a subquery is written in an ordinary bind
-chain. The column is picked by a function rather than projected, because
+`rows(t)` is `select`'s unprojected twin: it starts a query that carries the
+table's columns rather than a projection, so a subquery is written in an
+ordinary bind chain. It names the table rather than borrowing columns, so the
+query it starts always renders its own `FROM` — one that borrowed would read
+the outer query's table instead, which is legal SQL asking a different
+question. Naming a table the chain already bound costs nothing, since a table
+is listed once however many times it is named. The column is picked by a
+function rather than projected, because
 `Select(a)` does not say how many columns it has, and a subquery in a value
 position may only have one. `subquery` returns `Expr(Maybe(a))`, since a
 subquery matching no rows is NULL.

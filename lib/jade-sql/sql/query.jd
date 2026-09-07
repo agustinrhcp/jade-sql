@@ -101,7 +101,7 @@ def q_and_then(q: Query(a), fn: a -> Query(b)) -> Query(b)
   next_ = q.result |> fn
 
   Query(
-    q.tables ++ next_.tables,
+    merge_tables(q.tables, next_.tables),
     q.joins ++ next_.joins,
     q.wheres ++ next_.wheres,
     q.groups ++ next_.groups,
@@ -112,6 +112,23 @@ def q_and_then(q: Query(a), fn: a -> Query(b)) -> Query(b)
     q.distinct_ || next_.distinct_,
     next_.result,
   )
+end
+
+
+# One entry per name-and-alias. Two `from`s of different tables still cross
+# join, and the same table under two aliases is still two tables; only the
+# exact repeat collapses, and that repeat was a duplicate-alias error before.
+def merge_tables(prev: List(TableRef), next_: List(TableRef)) -> List(TableRef)
+  List.fold(
+    next_,
+    prev,
+    (seen, t) -> { List.any?(seen, (s) -> { same_table?(s, t) }) ? seen : seen ++ [t] },
+  )
+end
+
+
+def same_table?(a: TableRef, b: TableRef) -> Bool
+  a.name == b.name && a.alias_ == b.alias_
 end
 
 
@@ -231,9 +248,15 @@ end
 #
 #   v <- from(visits)
 #
-#   rows(v) |> where(...) |> order_desc(v.seen_on) |> limit(1)
-def rows(cols: c) -> Query(c)
-  Query([], [], [], [], [], [], Nothing, Nothing, False, cols)
+#   rows(visits) |> where(...) |> order_desc(v.seen_on) |> limit(1)
+#
+# It names the table rather than the columns, so the query it starts stands on
+# its own. A query that only borrowed columns would render without a `FROM`
+# and read the outer query's table instead, which is legal SQL and a different
+# question. Naming the same table the chain already bound costs nothing: a
+# table is listed once however many times it is named.
+def rows(t: Table(c, m, k, o, r, s)) -> Query(c)
+  from(t)
 end
 
 

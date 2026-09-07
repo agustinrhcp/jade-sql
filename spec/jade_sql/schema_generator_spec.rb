@@ -5,6 +5,42 @@ require 'jade-sql/bin/generate_schema'
 describe JadeSql::SchemaGenerator do
   subject(:generated) { described_class.generate(sql) }
 
+  # The write specs build their tables with `jade_table` rather than from
+  # DDL, so a column shape the helper and the generator disagree on is a shape
+  # nothing exercises. `RequiredPatientsCols` is deliberately not compared:
+  # the helper excludes the key by convention, the generator by reading the
+  # DDL for what fills it.
+  context 'agreeing with the spec fixture helper' do
+    include JadeTables
+
+    let(:sql) do
+      <<~SQL
+        CREATE TABLE public.patients (
+            id bigint NOT NULL,
+            name character varying NOT NULL,
+            balance integer
+        );
+
+        ALTER TABLE ONLY public.patients
+            ADD CONSTRAINT patients_pkey PRIMARY KEY (id);
+      SQL
+    end
+
+    let(:fixture) do
+      jade_table('patients', { id: 'Int', name: 'String', balance: 'Maybe(Int)' })
+    end
+
+    def struct_block(text, name)
+      text[/^struct #{name} = \{.*?\n\}$/m] || text[/^struct #{name} = \{[^\n]*\}$/]
+    end
+
+    %w[PatientsCols PatientsLeftCols PatientsSetCols].each do |name|
+      it "emits #{name} the way the helper does" do
+        expect(struct_block(generated, name)).to eql struct_block(fixture, name)
+      end
+    end
+  end
+
   context 'a single table with NOT NULL and nullable columns' do
     let(:sql) do
       <<~SQL
@@ -83,6 +119,16 @@ describe JadeSql::SchemaGenerator do
           id: Expr(Maybe(Int)),
           name: Expr(Maybe(String)),
           balance: Expr(Maybe(Int))
+        }
+      STRUCT
+    end
+
+    it 'emits a set struct: NOT NULL -> Col(T), nullable -> Col(Maybe(T))' do
+      expect(generated).to include(<<~STRUCT.strip)
+        struct PatientsSetCols = {
+          id: Col(Int),
+          name: Col(String),
+          balance: Col(Maybe(Int))
         }
       STRUCT
     end

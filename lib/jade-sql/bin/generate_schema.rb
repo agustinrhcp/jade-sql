@@ -370,9 +370,16 @@ module JadeSql
         .sort
     end
 
+    # A nullable column reads, writes and decodes as `Maybe`. `LeftCols` is
+    # the exception: a left join makes every column nullable, whatever the
+    # DDL says.
+    def col_type(c)
+      c.nullable ? "Maybe(#{c.jade_type})" : c.jade_type
+    end
+
     def emit_strict_cols(t)
       fields = t.columns
-        .map { |c| "  #{field_name(c.name)}: Expr(#{c.nullable ? "Maybe(#{c.jade_type})" : c.jade_type})" }
+        .map { "  #{field_name(it.name)}: Expr(#{col_type(it)})" }
         .join(",\n")
 
       "struct #{camel(t.name)}Cols = {\n#{fields}\n}"
@@ -415,7 +422,7 @@ module JadeSql
     # SQL.
     def emit_set_cols(t)
       t.columns
-        .map { "  #{field_name(it.name)}: Col(#{it.jade_type})" }
+        .map { "  #{field_name(it.name)}: Col(#{col_type(it)})" }
         .join(",\n")
         .then { "struct #{camel(t.name)}SetCols = {\n#{it}\n}" }
     end
@@ -443,7 +450,7 @@ module JadeSql
 
     def emit_row(t)
       fields = t.columns
-        .map { |c| "  #{field_name(c.name)}: #{c.nullable ? "Maybe(#{c.jade_type})" : c.jade_type}" }
+        .map { "  #{field_name(it.name)}: #{col_type(it)}" }
         .join(",\n")
 
       "struct #{camel(t.name)}Row = {\n#{fields}\n}"

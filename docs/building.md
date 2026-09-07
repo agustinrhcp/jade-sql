@@ -351,6 +351,58 @@ select(Totals(_, _))
 For `CASE WHEN` and arithmetic, fall back to the raw-`Expr`
 escape hatch until they get a typed builder.
 
+### Subqueries
+
+`exists` and `not_exists` ask whether a related row is there, `subquery` reads
+a single value out of one, and `in_subquery` matches a column against one a
+subquery selects. All four take an unprojected `Query`, which `rows` builds.
+
+Each is named for the SQL it renders. There is no `not_in`: `NOT IN` against a
+subquery yielding a NULL returns no rows at all, so `not_exists` is the form to
+reach for.
+
+```jade
+import Sql.Query exposing (
+  from,
+  in_subquery,
+  limit,
+  order_desc,
+  rows,
+  subquery,
+  where,
+)
+
+def latest(p: PatientsCols) -> Query(VisitsCols)
+  v <- from(visits)
+
+  rows(visits)
+    |> where(v.patient_id |> Expr.eq(p.id))
+    |> order_desc(v.seen_on)
+    |> limit(1)
+end
+
+select(Row(_, _))
+  |> field(p.id)
+  |> field(subquery(latest(p), .seen_on))
+# SELECT p.id, (SELECT v.seen_on FROM visits v WHERE v.patient_id = p.id
+#               ORDER BY v.seen_on DESC LIMIT 1) FROM patients p
+
+where(p.id |> in_subquery(from(visits), .patient_id))
+# WHERE p.id IN (SELECT v.patient_id FROM visits v)
+```
+
+`rows(t)` is `select`'s unprojected twin: it starts a query that carries the
+table's columns rather than a projection, so a subquery is written in an
+ordinary bind chain. It names the table rather than borrowing columns, so the
+query it starts always renders its own `FROM` — one that borrowed would read
+the outer query's table instead, which is legal SQL asking a different
+question. Naming a table the chain already bound costs nothing, since a table
+is listed once however many times it is named. The column is picked by a
+function rather than projected, because
+`Select(a)` does not say how many columns it has, and a subquery in a value
+position may only have one. `subquery` returns `Expr(Maybe(a))`, since a
+subquery matching no rows is NULL.
+
 ### Postgres arrays
 
 Typed predicates on `text[]` / `int[]` / `uuid[]` columns. All bind

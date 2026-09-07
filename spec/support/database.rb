@@ -9,7 +9,7 @@ module JadeSql
   module TestDb
     extend self
 
-    TABLES = %w[patients].freeze
+    TABLES = %w[patients visits].freeze
 
     SCHEMA_SQL = <<~SQL.freeze
       CREATE TABLE patients (
@@ -23,6 +23,12 @@ module JadeSql
         created_at timestamp,
         updated_at timestamp
       );
+
+      CREATE TABLE visits (
+        id         serial PRIMARY KEY,
+        patient_id integer NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
+        seen_on    date
+      );
     SQL
 
     def setup!
@@ -34,7 +40,7 @@ module JadeSql
         database: ENV.fetch('JADE_SQL_TEST_DB', 'jade_sql_test'),
         host: ENV.fetch('PGHOST', '/tmp'),
       )
-      connection.execute("DROP TABLE IF EXISTS patients")
+      connection.execute("DROP TABLE IF EXISTS #{TABLES.reverse.join(', ')}")
       connection.execute(SCHEMA_SQL)
       @setup = true
     end

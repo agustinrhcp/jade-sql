@@ -1908,37 +1908,37 @@ end
 
       it 'insert renders INSERT with codec-driven assigns' do
         sql, params = App::Internal.insert_paul.then { [it._1, it._2] }
-        expect(sql).to eql 'INSERT INTO patients (name, balance) VALUES (?, ?)'
+        expect(sql).to eql 'INSERT INTO patients AS p (name, balance) VALUES (?, ?)'
         expect(params).to eql ['Paul', 100]
       end
 
       it 'insert accepts a raw List(Assignment) via Assignable(List(Assignment))' do
         sql, params = App::Internal.insert_from_assigns.then { [it._1, it._2] }
-        expect(sql).to eql 'INSERT INTO patients (name, balance) VALUES (?, ?)'
+        expect(sql).to eql 'INSERT INTO patients AS p (name, balance) VALUES (?, ?)'
         expect(params).to eql ['Paul', 100]
       end
 
       it 'update renders UPDATE … WHERE pk = ?' do
         sql, params = App::Internal.update_paul.then { [it._1, it._2] }
-        expect(sql).to eql 'UPDATE patients SET name = ?, balance = ? WHERE id = ?'
+        expect(sql).to eql 'UPDATE patients AS p SET name = ?, balance = ? WHERE id = ?'
         expect(params).to eql ['Paul', 100, 42]
       end
 
       it 'updates from a patch that carries no key of its own' do
         sql, params = App::Internal.rename_paul.then { [it._1, it._2] }
-        expect(sql).to eql 'UPDATE patients SET name = ? WHERE id = ?'
+        expect(sql).to eql 'UPDATE patients AS p SET name = ? WHERE id = ?'
         expect(params).to eql ['Saul', 42]
       end
 
       it 'delete renders DELETE … WHERE pk = ?' do
         sql, params = App::Internal.delete_paul.then { [it._1, it._2] }
-        expect(sql).to eql 'DELETE FROM patients WHERE id = ?'
+        expect(sql).to eql 'DELETE FROM patients AS p WHERE id = ?'
         expect(params).to eql [42]
       end
 
       it 'insert_all renders multi-row VALUES' do
         sql, params = App::Internal.insert_many.then { [it._1, it._2] }
-        expect(sql).to eql 'INSERT INTO patients (name, balance) VALUES (?, ?), (?, ?)'
+        expect(sql).to eql 'INSERT INTO patients AS p (name, balance) VALUES (?, ?), (?, ?)'
         expect(params).to eql [
           'Paul',  100,
           'Frank', 200
@@ -1947,7 +1947,7 @@ end
 
       it 'update_all renders bulk UPDATE with predicate' do
         sql, params = App::Internal.update_all_to_zero.then { [it._1, it._2] }
-        expect(sql).to eql 'UPDATE patients SET archived = ? WHERE balance = ?'
+        expect(sql).to eql 'UPDATE patients AS p SET archived = ? WHERE p.balance = ?'
         expect(params).to eql [true, 0]
       end
 
@@ -1955,10 +1955,10 @@ end
         sql, params = App::Internal.update_many_balances.then { [it._1, it._2] }
 
         expect(sql).to eql(
-          'UPDATE patients AS jade_tgt ' \
+          'UPDATE patients AS p ' \
           'SET name = jade_src.name, balance = jade_src.balance ' \
           'FROM json_populate_recordset(null::patients, ?::json) AS jade_src ' \
-          'WHERE jade_tgt.id = jade_src.id',
+          'WHERE p.id = jade_src.id',
         )
         expect(params).to eql [
           '[{"id":1,"name":"Ada","balance":10},' \
@@ -1968,35 +1968,35 @@ end
 
       it 'update_all with no assignments reads instead of writing' do
         sql, params = App::Internal.update_all_nothing.then { [it._1, it._2] }
-        expect(sql).to eql 'SELECT 1 FROM patients WHERE balance = ?'
+        expect(sql).to eql 'SELECT 1 FROM patients AS p WHERE p.balance = ?'
         expect(params).to eql [0]
       end
 
       it 'update_all with no assignments selects what RETURNING would have' do
         sql, params = App::Internal.update_all_nothing_returning.then { [it._1, it._2] }
-        expect(sql).to eql 'SELECT id, name, balance FROM patients WHERE balance = ?'
+        expect(sql).to eql 'SELECT p.id, p.name, p.balance FROM patients AS p WHERE p.balance = ?'
         expect(params).to eql [0]
       end
 
       it 'delete_all renders bulk DELETE with predicate' do
         sql, params = App::Internal.delete_archived.then { [it._1, it._2] }
-        expect(sql).to eql 'DELETE FROM patients WHERE archived = ?'
+        expect(sql).to eql 'DELETE FROM patients AS p WHERE p.archived = ?'
         expect(params).to eql [true]
       end
 
       it 'insert + returning projects the table columns into RETURNING' do
         sql, _ = App::Internal.insert_paul_returning.then { [it._1, it._2] }
-        expect(sql).to eql 'INSERT INTO patients (name, balance) VALUES (?, ?) RETURNING id, name, balance'
+        expect(sql).to eql 'INSERT INTO patients AS p (name, balance) VALUES (?, ?) RETURNING p.id, p.name, p.balance'
       end
 
       it 'update + returning appends RETURNING with the projected columns' do
         sql, _ = App::Internal.update_paul_returning.then { [it._1, it._2] }
-        expect(sql).to eql 'UPDATE patients SET name = ?, balance = ? WHERE id = ? RETURNING id, name, balance'
+        expect(sql).to eql 'UPDATE patients AS p SET name = ?, balance = ? WHERE id = ? RETURNING p.id, p.name, p.balance'
       end
 
       it 'delete + returning appends RETURNING with the projected columns' do
         sql, _ = App::Internal.delete_paul_returning.then { [it._1, it._2] }
-        expect(sql).to eql 'DELETE FROM patients WHERE id = ? RETURNING id, name, balance'
+        expect(sql).to eql 'DELETE FROM patients AS p WHERE id = ? RETURNING p.id, p.name, p.balance'
       end
     end
 

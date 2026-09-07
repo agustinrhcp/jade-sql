@@ -527,7 +527,8 @@ import Sql exposing(Selector)
 import Sql.Query exposing(select, field)
 import Sql.Write exposing(insert, returning, to_sql)
 
-# INSERT INTO patients (name, mrn) VALUES (?, ?) RETURNING id, name, mrn
+# INSERT INTO patients (name, mrn) VALUES (?, ?)
+#   RETURNING patients.id, patients.name, patients.mrn
 np
 |> insert(patients)
 |> returning((p) -> {

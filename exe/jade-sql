@@ -51,17 +51,24 @@ HELP = <<~USAGE
   Run `jade-sql schema --help` for schema options.
 USAGE
 
-case (command = ARGV.shift)
-in 'schema'
-  run_schema(ARGV)
+begin
+  case (command = ARGV.shift)
+  in 'schema'
+    run_schema(ARGV)
 
-in 'version' | '-v' | '--version'
-  puts JadeSql::VERSION
+  in 'version' | '-v' | '--version'
+    puts JadeSql::VERSION
 
-in nil | 'help' | '-h' | '--help'
-  puts HELP
+  in nil | 'help' | '-h' | '--help'
+    puts HELP
 
-else
-  warn "jade-sql: unknown command '#{command}' (try `jade-sql help`)"
+  else
+    warn "jade-sql: unknown command '#{command}' (try `jade-sql help`)"
+    exit 1
+  end
+rescue RuntimeError => e
+  # What the DDL holds that the generator cannot read. The message names it;
+  # a backtrace through the emitters would only bury that.
+  warn "jade-sql: #{e.message}"
   exit 1
 end

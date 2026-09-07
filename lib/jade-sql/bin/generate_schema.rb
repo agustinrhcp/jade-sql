@@ -81,6 +81,23 @@ module JadeSql
       format(emit(parsed, module_name))
     end
 
+    # The generator emitted something Jade cannot read. Nothing downstream can
+    # do better than say so here: the file would be written, the run would
+    # succeed, and the error would surface on the next compile with nothing
+    # pointing back at the DDL that caused it.
+    class UnparseableSchema < StandardError
+      def initialize(text, errors)
+        super(<<~MSG)
+          The generated schema is not valid Jade. This is a generator bug —
+          please report the DDL that produced it.
+
+          #{Array(errors).map { "  #{it.respond_to?(:message) ? it.message : it}" }.join("\n")}
+
+          #{text.lines.first(40).map { "  #{it}" }.join.rstrip}
+        MSG
+      end
+    end
+
     # Run jade-fmt over the emitted source so the written schema.jd matches
     # what the formatter would produce — keeps the generator output stable
     # across formatter improvements and avoids spurious diffs when users
@@ -93,7 +110,7 @@ module JadeSql
         .then do
           case it
           in ::Jade::Ok(result) then result.end_with?("\n") ? result : "#{result}\n"
-          in ::Jade::Err(_) then text  # parse error — return unformatted; downstream compile will surface it
+          in ::Jade::Err(errors) then raise UnparseableSchema.new(text, errors)
           end
         end
     end
@@ -606,13 +623,45 @@ module JadeSql
     end
 
     def emit_enums
-      (@enums || {})
-        .values
-        .map { |e| "type #{camel(e.name)}\n  = #{e.labels.map { camel(it) }.join("\n  | ")}" }
+      (@enums || {}).values.map { emit_enum(it) }
     end
 
+    def emit_enum(e)
+      e.labels
+        .map { variant(e, it) }
+        .then { |variants| collision(e, variants) || variants }
+        .then { "type #{camel(e.name)}\n  = #{it.join("\n  | ")}" }
+    end
+
+    # A Postgres label is any text, a Jade constructor is not. Two labels that
+    # differ only where the punctuation was — 'not started' and 'not_started' —
+    # camel to one name, which Jade would report against the generated file
+    # rather than against the DDL that holds both.
+    def collision(e, variants)
+      variants
+        .tally
+        .select { |_, n| n > 1 }
+        .then do |dupes|
+          next nil if dupes.empty?
+
+          raise "Enum #{e.name} has labels that name one constructor: " \
+                "#{dupes.keys.join(', ')}"
+        end
+    end
+
+    def variant(e, label)
+      camel(label).then do |name|
+        next name if name.match?(/\A[A-Z][A-Za-z0-9]*\z/)
+
+        raise "Enum #{e.name} has a label that cannot be a Jade constructor: " \
+              "#{label.inspect}"
+      end
+    end
+
+    # Splits on punctuation as well as underscores, so a label carrying a space
+    # or a dash still names a constructor.
     def camel(snake)
-      snake.split('_').map(&:capitalize).join
+      snake.split(/[^a-zA-Z0-9]+/).reject(&:empty?).map(&:capitalize).join
     end
   end
 end

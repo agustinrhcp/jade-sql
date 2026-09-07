@@ -725,4 +725,72 @@ describe JadeSql::SchemaGenerator do
       expect(generated).to include('NoJoins, NoRequiredCols, EventsSetCols)')
     end
   end
+
+  context 'a Postgres enum' do
+    def schema_for(*labels)
+      described_class.generate(<<~SQL)
+        CREATE TYPE public.visit_status AS ENUM (#{labels.map { "'#{it}'" }.join(', ')});
+
+        CREATE TABLE public.visits (
+            id bigint NOT NULL,
+            status public.visit_status NOT NULL
+        );
+      SQL
+    end
+
+    it 'names one constructor per label' do
+      expect(schema_for('scheduled', 'done')).to include(<<~TYPE.strip)
+        type VisitStatus
+          = Scheduled
+          | Done
+      TYPE
+    end
+
+    # A label is any text Postgres accepts, and Rails apps write them with
+    # spaces. Splitting on underscores alone left the space in the
+    # constructor, so the generated module did not parse.
+    it 'names a constructor for a label carrying punctuation' do
+      expect(schema_for('not started', 'in-progress')).to include(<<~TYPE.strip)
+        type VisitStatus
+          = NotStarted
+          | InProgress
+      TYPE
+    end
+
+    it 'refuses a label no constructor can be named after' do
+      expect { schema_for('2fa') }
+        .to raise_error(/cannot be a Jade constructor: "2fa"/)
+    end
+
+    it 'refuses two labels that name one constructor' do
+      expect { schema_for('not started', 'not_started') }
+        .to raise_error(/labels that name one constructor: NotStarted/)
+    end
+  end
+
+  # The generator used to hand back its own unparseable output and let the
+  # next compile find it, which put the error a build away from the DDL that
+  # caused it. A composite foreign key still emits a broken `on` record; this
+  # is what makes that say so at generation time.
+  context 'output Jade cannot parse' do
+    let(:sql) do
+      <<~SQL
+        CREATE TABLE public.parents (a integer NOT NULL, b integer NOT NULL);
+        CREATE TABLE public.kids (a integer NOT NULL, b integer NOT NULL);
+
+        ALTER TABLE ONLY public.parents
+            ADD CONSTRAINT parents_pkey PRIMARY KEY (a, b);
+        ALTER TABLE ONLY public.kids
+            ADD CONSTRAINT kids_fk FOREIGN KEY (a, b) REFERENCES public.parents(a, b);
+      SQL
+    end
+
+    it 'raises rather than writing it' do
+      expect { generated }
+        .to raise_error(
+          JadeSql::SchemaGenerator::UnparseableSchema,
+          /not valid Jade.*Unexpected token/m,
+        )
+    end
+  end
 end

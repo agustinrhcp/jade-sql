@@ -165,11 +165,11 @@ end
     it 'decodes a fetched row into the caller struct' do
       conn.execute("INSERT INTO patients (name, balance) VALUES ('Paul', 100)")
 
-      result = App::Internal.find_by_name('Paul').run
+      status, value = App.find_by_name('Paul')
 
-      expect(result).to be_ok
-      expect(result._1.name).to eql 'Paul'
-      expect(result._1.balance).to eql 100
+      expect(status).to eql "ok"
+      expect(value['name']).to eql 'Paul'
+      expect(value['balance']).to eql 100
     end
 
     it 'decodes numeric exactly as Decimal and double precision as Float' do
@@ -178,21 +178,19 @@ end
       )
 
       # numeric 0.1750 -> exact Decimal(175, -3); no Float rounding
-      expect(App::Internal.rate_coefficient('Ada').run).to be_ok(175)
-      expect(App::Internal.rate_exponent('Ada').run).to be_ok(-3)
+      expect(App.rate_coefficient('Ada')).to eql ["ok", 175]
+      expect(App.rate_exponent('Ada')).to eql ["ok", -3]
       # double precision stays a Float
-      expect(App::Internal.weight_of('Ada').run).to be_ok(62.5)
+      expect(App.weight_of('Ada')).to eql ["ok", 62.5]
     end
 
     it 'returns NotFound when no row matches' do
-      expect(App::Internal.find_by_name('Nobody').run)
-        .to be_err(look_like('Sql::NotFound'))
+      expect(App.find_by_name('Nobody'))
+        .to eql ["err", ["NotFound"]]
     end
 
     it 'persists an inserted row via execute' do
-      result = App::Internal.insert_patient('Frank', 200).run
-
-      expect(result).to be_ok(1)
+      expect(App.insert_patient('Frank', 200)).to eql ["ok", 1]
       expect(conn.select_value("SELECT balance FROM patients WHERE name = 'Frank'"))
         .to eql 200
     end
@@ -202,28 +200,28 @@ end
         "INSERT INTO patients (name, balance, tags) VALUES ('Ann', 0, '{vip,beta}')",
       )
 
-      result = App::Internal.load_tags('Ann').run
+      status, value = App.load_tags('Ann')
 
-      expect(result).to be_ok
-      expect(result._1.tags).to eql %w[vip beta]
+      expect(status).to eql "ok"
+      expect(value['tags']).to eql %w[vip beta]
     end
 
     it 'binds params correctly when a string literal contains a ?' do
       conn.execute("INSERT INTO patients (name, balance) VALUES ('Paul', 100)")
 
-      result = App::Internal.literal_q('Paul').run
+      status, value = App.literal_q('Paul')
 
-      expect(result).to be_ok
-      expect(result._1.name).to eql 'Paul'
+      expect(status).to eql "ok"
+      expect(value['name']).to eql 'Paul'
     end
 
     it 'fetches many rows in order' do
       conn.execute("INSERT INTO patients (name, balance) VALUES ('A', 1), ('B', 2)")
 
-      result = App::Internal.list_names.run
+      status, value = App.list_names
 
-      expect(result).to be_ok
-      expect(result._1.map(&:name)).to eql %w[A B]
+      expect(status).to eql "ok"
+      expect(value.map { it['name'] }).to eql %w[A B]
     end
   end
 end

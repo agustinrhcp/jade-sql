@@ -156,42 +156,38 @@ end
     end
 
     it 'commits every statement when the task succeeds' do
-      expect(App::Internal.commit_two.run).to be_ok
+      expect(App.commit_two[0]).to eql "ok"
       expect(patient_count).to eql 2
     end
 
     it 'commits a single-statement transaction' do
-      expect(App::Internal.single_count.run).to be_ok(1)
+      expect(App.single_count).to eql ["ok", 1]
       expect(patient_count).to eql 1
     end
 
     it 'rolls back every statement and re-raises when the task errs' do
-      result = App::Internal.rollback_on_err.run
-
-      expect(result).to be_err(look_like('Sql::NotFound'))
+      expect(App.rollback_on_err).to eql ["err", ["NotFound"]]
       expect(patient_count).to eql 0
     end
 
     it 'commits a nested transaction along with the outer one' do
-      expect(App::Internal.nested_commit.run).to be_ok
+      expect(App.nested_commit[0]).to eql "ok"
       expect(patient_count).to eql 2
     end
 
     it 'rolls back work a nested transaction already committed' do
-      result = App::Internal.nested_rollback.run
-
-      expect(result).to be_err(look_like('Sql::NotFound'))
+      expect(App.nested_rollback).to eql ["err", ["NotFound"]]
       expect(patient_count).to eql 0
     end
 
     it 'rolls back only the nested transaction when its error is recovered' do
-      expect(App::Internal.inner_only_rollback.run).to be_ok
+      expect(App.inner_only_rollback[0]).to eql "ok"
       expect(patient_names).to eql %w[after outer]
     end
 
     it 'takes part in a surrounding ActiveRecord transaction' do
       ::ActiveRecord::Base.transaction do
-        expect(App::Internal.single_count.run).to be_ok(1)
+        expect(App.single_count).to eql ["ok", 1]
         raise ::ActiveRecord::Rollback
       end
 

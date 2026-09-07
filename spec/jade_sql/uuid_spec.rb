@@ -46,15 +46,15 @@ module Jade
       before { test_compiler.require('app', source) }
 
       it 'accepts a canonical 8-4-4-4-12 form' do
-        expect(App::Internal.parse_good).to eql Jade::Maybe::Just[Sql::Uuid::Uuid["550e8400-e29b-41d4-a716-446655440000"]]
+        expect(App.parse_good).to eql "550e8400-e29b-41d4-a716-446655440000"
       end
 
       it 'rejects a non-uuid string' do
-        expect(App::Internal.parse_bad).to eql Jade::Maybe::Nothing[]
+        expect(App.parse_bad).to be_nil
       end
 
       it 'normalises uppercase to lowercase on roundtrip' do
-        expect(App::Internal.str_good).to eql "550e8400-e29b-41d4-a716-446655440000"
+        expect(App.str_good).to eql "550e8400-e29b-41d4-a716-446655440000"
       end
     end
 
@@ -86,8 +86,7 @@ module Jade
           t.ok({ "value" => "00000000-0000-4000-8000-000000000000" })
         end
 
-        result = App::Internal.gen_v4.run
-        expect(result).to be_ok("00000000-0000-4000-8000-000000000000")
+        expect(App.gen_v4).to eql ["ok", "00000000-0000-4000-8000-000000000000"]
       end
 
       it 'v7 emits the value from the port wrapped as a Uuid' do
@@ -95,8 +94,7 @@ module Jade
           t.ok({ "value" => "00000000-0000-7000-8000-000000000000" })
         end
 
-        result = App::Internal.gen_v7.run
-        expect(result).to be_ok("00000000-0000-7000-8000-000000000000")
+        expect(App.gen_v7).to eql ["ok", "00000000-0000-7000-8000-000000000000"]
       end
 
     end
@@ -157,31 +155,31 @@ module Jade
       before { test_compiler.require('app', source) }
 
       it 'encodes the canonical form to a 22-char url-safe base64 string' do
-        result = App::Internal.to_b64_known
-        expect(result.length).to eql 22
-        expect(result).to match(/\A[A-Za-z0-9_-]+\z/)
+        b64 = App.to_b64_known
+        expect(b64.length).to eql 22
+        expect(b64).to match(/\A[A-Za-z0-9_-]+\z/)
       end
 
       it 'round-trips canonical -> b64 -> canonical' do
-        expect(App::Internal.round_trip("550e8400-e29b-41d4-a716-446655440000"))
+        expect(App.round_trip("550e8400-e29b-41d4-a716-446655440000"))
           .to eql "550e8400-e29b-41d4-a716-446655440000"
-        expect(App::Internal.round_trip("00000000-0000-0000-0000-000000000000"))
+        expect(App.round_trip("00000000-0000-0000-0000-000000000000"))
           .to eql "00000000-0000-0000-0000-000000000000"
-        expect(App::Internal.round_trip("ffffffff-ffff-ffff-ffff-ffffffffffff"))
+        expect(App.round_trip("ffffffff-ffff-ffff-ffff-ffffffffffff"))
           .to eql "ffffffff-ffff-ffff-ffff-ffffffffffff"
       end
 
       it 'parses a known b64 form back to the expected canonical Uuid' do
-        expect(App::Internal.from_b64_good)
-          .to eql Jade::Maybe::Just["550e8400-e29b-41d4-a716-446655440000"]
+        expect(App.from_b64_good)
+          .to eql "550e8400-e29b-41d4-a716-446655440000"
       end
 
       it 'rejects non-base64 input' do
-        expect(App::Internal.from_b64_bad).to eql Jade::Maybe::Nothing[]
+        expect(App.from_b64_bad).to be_nil
       end
 
       it 'rejects b64 of the wrong byte length' do
-        expect(App::Internal.from_b64_wrong_size).to eql Jade::Maybe::Nothing[]
+        expect(App.from_b64_wrong_size).to be_nil
       end
     end
 
@@ -207,7 +205,7 @@ module Jade
       before { test_compiler.require('app', source) }
 
       it 'encodes to the lowercase string form' do
-        expect(App::Internal.encoded).to eql "550e8400-e29b-41d4-a716-446655440000"
+        expect(App.encoded).to eql "550e8400-e29b-41d4-a716-446655440000"
       end
     end
   end

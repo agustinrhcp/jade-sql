@@ -65,11 +65,11 @@ module Jade
     after { conn.execute("DROP TABLE IF EXISTS journal_entries") }
 
     it 'decodes the type column into the type_ field' do
-      result = App::Internal.load.run
+      status, value = App.load
 
-      expect(result).to be_ok
-      expect(result._1.length).to eql 1
-      expect(result._1.first.type_).to eql 'income'
+      expect(status).to eql "ok"
+      expect(value.length).to eql 1
+      expect(value.first['type_']).to eql 'income'
     end
   end
 end

@@ -90,7 +90,7 @@ end
     def remaining = conn.execute("SELECT name FROM patients ORDER BY id").map { it['name'] }
 
     it 'deletes only the rows the subquery does not match' do
-      expect(App::Internal.delete_unvisited.run).to be_ok(1)
+      expect(App.delete_unvisited).to eql ["ok", 1]
       expect(remaining).to eql ['Seen']
     end
 
@@ -98,7 +98,7 @@ end
       conn.execute("DELETE FROM visits")
       conn.execute("INSERT INTO visits (patient_id) VALUES (2)")
 
-      expect(App::Internal.delete_visited.run).to be_ok(1)
+      expect(App.delete_visited).to eql ["ok", 1]
       expect(remaining).to eql ['Seen']
     end
   end

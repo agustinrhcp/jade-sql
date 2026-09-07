@@ -145,7 +145,7 @@ def update_many(rows_: List((k, a)), t: Table(c, m, k, o, r, s)) -> Write(Int, c
     TableRef(t.name, t.alias_),
     t.alias_ |> t.cols,
     [source_assigns(t.pk, rows)],
-    [pk_join(t.pk.columns)],
+    [pk_join(t.alias_, t.pk.columns)],
     Selector([], []),
     Just(source_of(t.name, rows)),
   )
@@ -210,10 +210,10 @@ def touched_cols(rows: List(List(Assignment))) -> List(String)
 end
 
 
-def pk_join(pk_columns: List(String)) -> Expr(Bool)
+def pk_join(alias_: String, pk_columns: List(String)) -> Expr(Bool)
   Expr(
     pk_columns
-      |> List.map((col) -> { "jade_tgt." ++ col ++ " = jade_src." ++ col })
+      |> List.map((col) -> { alias_ ++ "." ++ col ++ " = jade_src." ++ col })
       |> String.join(" AND "),
     [],
   )
@@ -357,14 +357,15 @@ def set_params_for(rows: List(List(Assignment))) -> List(Value)
 end
 
 
-# A FROM'd UPDATE needs the target aliased: json_populate_recordset gives
-# the source every column the table has, so a bare `id = jade_src.id` is
-# ambiguous.
-def target_ref(m: Write(ret, c)) -> String
-  case m.from_
-  in Nothing then m.table.name
-  in Just(_) then m.table.name ++ " AS jade_tgt"
-  end
+# The target carries the same alias the column accessors were built with, so
+# a predicate reads the same in a write as it does in a query and nothing has
+# to be rewritten after the fact. It is also what keeps `id = jade_src.id`
+# unambiguous under a FROM, since json_populate_recordset gives the source
+# every column the table has.
+def target(m: Write(ret, c)) -> String
+  m.table.alias_ == m.table.name
+    ? m.table.name
+    : m.table.name ++ " AS " ++ m.table.alias_
 end
 
 
@@ -396,19 +397,14 @@ def where_params(wheres: List(Expr(Bool))) -> List(Value)
 end
 
 
-def strip_table_alias(sql: String, alias_: String) -> String
-  String.replace(sql, alias_ ++ ".", "")
-end
-
-
 def render_insert(m: Write(ret, c)) -> (String, List(Value))
   cols_str = insert_cols_str(m.rows)
   values_str = m.rows
     |> List.map(render_row)
     |> String.join(", ")
-  returning_ = strip_table_alias(returning_clause(m.returning_selector), m.table.alias_)
+  returning_ = returning_clause(m.returning_selector)
   sql = "INSERT INTO "
-    ++ m.table.name
+    ++ target(m)
     ++ " "
     ++ cols_str
     ++ " VALUES "
@@ -427,14 +423,11 @@ end
 
 
 def render_no_op_update(m: Write(ret, c)) -> (String, List(Value))
-  where = strip_table_alias(where_sql(m.wheres), m.table.alias_)
+  where = where_sql(m.wheres)
   cols = List.empty?(m.returning_selector.columns_sql)
     ? "1"
-    : strip_table_alias(
-        String.join(m.returning_selector.columns_sql, ", "),
-        m.table.alias_,
-      )
-  sql = "SELECT " ++ cols ++ " FROM " ++ m.table.name ++ where
+    : String.join(m.returning_selector.columns_sql, ", ")
+  sql = "SELECT " ++ cols ++ " FROM " ++ target(m) ++ where
 
   Tuple.Tuple2(sql, m.returning_selector.params ++ where_params(m.wheres))
 end
@@ -444,14 +437,11 @@ def render_update_set(
   m: Write(ret, c),
   sets: List(String),
 ) -> (String, List(Value))
-  set_clause = strip_table_alias(
-    "SET " ++ String.join(sets, ", "),
-    m.table.alias_,
-  )
-  where = strip_table_alias(where_sql(m.wheres), m.table.alias_)
-  returning_ = strip_table_alias(returning_clause(m.returning_selector), m.table.alias_)
+  set_clause = "SET " ++ String.join(sets, ", ")
+  where = where_sql(m.wheres)
+  returning_ = returning_clause(m.returning_selector)
   sql = "UPDATE "
-    ++ target_ref(m)
+    ++ target(m)
     ++ " "
     ++ set_clause
     ++ from_clause(m.from_)
@@ -471,10 +461,10 @@ end
 
 
 def render_delete(m: Write(ret, c)) -> (String, List(Value))
-  where = strip_table_alias(where_sql(m.wheres), m.table.alias_)
-  returning_ = strip_table_alias(returning_clause(m.returning_selector), m.table.alias_)
+  where = where_sql(m.wheres)
+  returning_ = returning_clause(m.returning_selector)
   sql = "DELETE FROM "
-    ++ m.table.name
+    ++ target(m)
     ++ where
     ++ returning_
 

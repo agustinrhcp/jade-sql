@@ -1777,6 +1777,74 @@ end
       end
     end
 
+    # `filter` narrows the rows a statement selects, and an INSERT selects
+    # none. It used to be accepted on every kind and dropped by whichever
+    # renderer had no use for it, so a tenancy wrapper applied to an insert
+    # type-checked and emitted an unscoped INSERT.
+    describe 'a clause meant for one kind of write' do
+      # A module per example: two sources compiled under one name in one
+      # process give back whichever loaded first.
+      def write_app(name, body)
+        <<~JADE
+          module #{name} exposing (go)
+
+          import Sql exposing (
+            Col(..),
+            Expr,
+            NoJoins,
+            Pk,
+            Table,
+            assign,
+            column,
+            eq,
+            no_joins,
+            pk,
+            table,
+          )
+          import Sql.Write exposing (
+            Existing,
+            New,
+            Write,
+            delete_all,
+            filter,
+            insert,
+          )
+          import Decode exposing (Value)
+          import Encode
+
+
+          #{jade_table('patients', { id: 'Int', name: 'String' })}
+
+
+          #{body}
+        JADE
+      end
+
+      it 'narrows a delete' do
+        expect {
+          test_compiler.require('narrow_delete', write_app('NarrowDelete', <<~JADE.strip))
+            def go -> Write(Existing, Int, PatientsCols)
+              patients
+                |> delete_all((p) -> { p.id |> eq(1) })
+                |> filter((p) -> { p.name |> eq("Ada") })
+            end
+          JADE
+        }.not_to raise_error
+      end
+
+      it 'refuses to narrow an insert' do
+        expect {
+          test_compiler.require('narrow_insert', write_app('NarrowInsert', <<~JADE.strip))
+            def go -> Write(New, Int, PatientsCols)
+              [assign("name", "Ada")]
+                |> insert(patients)
+                |> filter((p) -> { p.name |> eq("Ada") })
+            end
+          JADE
+        }.to raise_error(Jade::CompilationError, /Existing.*New|New.*Existing/m)
+      end
+    end
+
     describe 'codec-driven writes' do
       let(:source) do
         <<~JADE
@@ -2232,7 +2300,7 @@ import Sql exposing (
   table,
   unkeyed,
 )
-import Sql.Write exposing (Write, update)
+import Sql.Write exposing (Existing, Write, update)
 
 
 #{jade_table('events', { payload: 'String' }, key: 'NoKey')}
@@ -2251,7 +2319,7 @@ def patch_assigns(p: Patch) -> List(Assignment)
 end
 
 
-def touch -> Write(Int, EventsCols)
+def touch -> Write(Existing, Int, EventsCols)
   update(Patch("x"), events, 42)
 end
         JADE

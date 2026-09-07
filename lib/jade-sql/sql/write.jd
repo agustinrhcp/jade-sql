@@ -1,4 +1,6 @@
 module Sql.Write exposing (
+  Existing,
+  New,
   Write,
   delete,
   execute,
@@ -41,7 +43,18 @@ type WriteKind
   | DeleteK
 
 
-struct Write(ret, c) = {
+# Which rows the statement is about, as a phantom, so a clause meant for one
+# kind cannot be attached to the other. `filter` narrows a selection of rows
+# that are already there; `on_conflict` answers for rows being created. Both
+# used to be accepted by every kind and dropped at render by whichever
+# renderer had no use for them.
+type Existing = ExistingOnly
+
+
+type New = NewOnly
+
+
+struct Write(w, ret, c) = {
   kind: WriteKind,
   table: TableRef,
   cols: c,
@@ -52,7 +65,7 @@ struct Write(ret, c) = {
 }
 
 
-def insert(value: a, t: Table(c, m, k, o, r, s)) -> Write(Int, c)
+def insert(value: a, t: Table(c, m, k, o, r, s)) -> Write(New, Int, c)
   Write(
     InsertK,
     TableRef(t.name, t.alias_),
@@ -65,7 +78,7 @@ def insert(value: a, t: Table(c, m, k, o, r, s)) -> Write(Int, c)
 end
 
 
-def insert_all(values: List(a), t: Table(c, m, k, o, r, s)) -> Write(Int, c)
+def insert_all(values: List(a), t: Table(c, m, k, o, r, s)) -> Write(New, Int, c)
   Write(
     InsertK,
     TableRef(t.name, t.alias_),
@@ -78,7 +91,7 @@ def insert_all(values: List(a), t: Table(c, m, k, o, r, s)) -> Write(Int, c)
 end
 
 
-def update(value: a, t: Table(c, m, k, o, r, s), key: k) -> Write(Int, c)
+def update(value: a, t: Table(c, m, k, o, r, s), key: k) -> Write(Existing, Int, c)
   Write(
     UpdateK,
     TableRef(t.name, t.alias_),
@@ -91,7 +104,7 @@ def update(value: a, t: Table(c, m, k, o, r, s), key: k) -> Write(Int, c)
 end
 
 
-def delete(t: Table(c, m, k, o, r, s), key: k) -> Write(Int, c)
+def delete(t: Table(c, m, k, o, r, s), key: k) -> Write(Existing, Int, c)
   Write(
     DeleteK,
     TableRef(t.name, t.alias_),
@@ -104,7 +117,7 @@ def delete(t: Table(c, m, k, o, r, s), key: k) -> Write(Int, c)
 end
 
 
-def filter(m: Write(ret, c), build: c -> Expr(Bool)) -> Write(ret, c)
+def filter(m: Write(Existing, ret, c), build: c -> Expr(Bool)) -> Write(Existing, ret, c)
   Write(
     m.kind,
     m.table,
@@ -121,7 +134,7 @@ def update_all(
   t: Table(c, m, k, o, r, s),
   pred_fn: c -> Expr(Bool),
   build: c, s -> List(Assignment),
-) -> Write(Int, c)
+) -> Write(Existing, Int, c)
   cols_ = t.alias_ |> t.cols
   pred = cols_ |> pred_fn
 
@@ -137,7 +150,7 @@ def update_all(
 end
 
 
-def update_many(rows_: List((k, a)), t: Table(c, m, k, o, r, s)) -> Write(Int, c)
+def update_many(rows_: List((k, a)), t: Table(c, m, k, o, r, s)) -> Write(Existing, Int, c)
   rows = rows_ |> List.map((r) -> { keyed_assigns(t.pk, r) })
 
   Write(
@@ -220,7 +233,7 @@ def pk_join(alias_: String, pk_columns: List(String)) -> Expr(Bool)
 end
 
 
-def delete_all(t: Table(c, m, k, o, r, s), pred_fn: c -> Expr(Bool)) -> Write(Int, c)
+def delete_all(t: Table(c, m, k, o, r, s), pred_fn: c -> Expr(Bool)) -> Write(Existing, Int, c)
   cols_ = t.alias_ |> t.cols
   pred = cols_ |> pred_fn
 
@@ -236,7 +249,7 @@ def delete_all(t: Table(c, m, k, o, r, s), pred_fn: c -> Expr(Bool)) -> Write(In
 end
 
 
-def returning(m: Write(a, c), build: c -> Query(Selector(b))) -> Write(b, c)
+def returning(m: Write(w, a, c), build: c -> Query(Selector(b))) -> Write(w, b, c)
   Write(
     m.kind,
     m.table,
@@ -362,7 +375,7 @@ end
 # to be rewritten after the fact. It is also what keeps `id = jade_src.id`
 # unambiguous under a FROM, since json_populate_recordset gives the source
 # every column the table has.
-def target(m: Write(ret, c)) -> String
+def target(m: Write(w, ret, c)) -> String
   m.table.alias_ == m.table.name
     ? m.table.name
     : m.table.name ++ " AS " ++ m.table.alias_
@@ -397,7 +410,7 @@ def where_params(wheres: List(Expr(Bool))) -> List(Value)
 end
 
 
-def render_insert(m: Write(ret, c)) -> (String, List(Value))
+def render_insert(m: Write(w, ret, c)) -> (String, List(Value))
   cols_str = insert_cols_str(m.rows)
   values_str = m.rows
     |> List.map(render_row)
@@ -415,14 +428,14 @@ def render_insert(m: Write(ret, c)) -> (String, List(Value))
 end
 
 
-def render_update(m: Write(ret, c)) -> (String, List(Value))
+def render_update(m: Write(w, ret, c)) -> (String, List(Value))
   sets = set_sqls_for(m.rows)
 
   List.empty?(sets) ? render_no_op_update(m) : render_update_set(m, sets)
 end
 
 
-def render_no_op_update(m: Write(ret, c)) -> (String, List(Value))
+def render_no_op_update(m: Write(w, ret, c)) -> (String, List(Value))
   where = where_sql(m.wheres)
   cols = List.empty?(m.returning_selector.columns_sql)
     ? "1"
@@ -434,7 +447,7 @@ end
 
 
 def render_update_set(
-  m: Write(ret, c),
+  m: Write(w, ret, c),
   sets: List(String),
 ) -> (String, List(Value))
   set_clause = "SET " ++ String.join(sets, ", ")
@@ -460,7 +473,7 @@ end
 
 
 
-def render_delete(m: Write(ret, c)) -> (String, List(Value))
+def render_delete(m: Write(w, ret, c)) -> (String, List(Value))
   where = where_sql(m.wheres)
   returning_ = returning_clause(m.returning_selector)
   sql = "DELETE FROM "
@@ -472,7 +485,7 @@ def render_delete(m: Write(ret, c)) -> (String, List(Value))
 end
 
 
-def to_sql(m: Write(ret, c)) -> (String, List(Value))
+def to_sql(m: Write(w, ret, c)) -> (String, List(Value))
   case m.kind
   in InsertK then render_insert(m)
   in UpdateK then render_update(m)
@@ -481,14 +494,14 @@ def to_sql(m: Write(ret, c)) -> (String, List(Value))
 end
 
 
-implements ToSql(Write(ret, c)) with
+implements ToSql(Write(w, ret, c)) with
   to_sql: to_sql
 end
 
 
 # The number of rows the statement affected. Any `RETURNING` clause is
 # rendered and discarded.
-def execute(m: Write(ret, c)) -> Task(Int, SqlError)
+def execute(m: Write(w, ret, c)) -> Task(Int, SqlError)
   to_sql(m) |> Sql.execute_raw
 end
 
@@ -496,13 +509,13 @@ end
 # Decodes the single row a `returning` write gives back — the id of an
 # insert, the new state of an update. A write with no `returning` selects
 # nothing, so this errors with `NotFound`.
-def fetch_one(m: Write(ret, c)) -> Task(ret, SqlError)
+def fetch_one(m: Write(w, ret, c)) -> Task(ret, SqlError)
   to_sql(m) |> Sql.fetch_one_raw
 end
 
 
 # The same for a write that returns many rows, as `insert_all` and
 # `update_all` do.
-def fetch_many(m: Write(ret, c)) -> Task(List(ret), SqlError)
+def fetch_many(m: Write(w, ret, c)) -> Task(List(ret), SqlError)
   to_sql(m) |> Sql.fetch_many_raw
 end

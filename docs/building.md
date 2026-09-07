@@ -619,6 +619,12 @@ caller that has not bound them can still add one — enough to write a
 tenancy wrapper that scopes a keyed write, rather than funnelling every
 scoped write through the `_all` forms.
 
+On a write it narrows the rows the statement selects, and an `INSERT` selects
+none, so it takes a `Write(Existing, ret, c)` — what `update`, `update_all`,
+`update_many`, `delete` and `delete_all` build. `insert` and `insert_all`
+build a `Write(New, ret, c)`, and handing one to `filter` is a type error
+rather than a clause that renders as nothing.
+
 `insert` / `insert_all` / `update` / `delete` need `Assignable(a)`, and
 nothing else. `update_all`/`delete_all` build the SET / WHERE clauses
 directly from the column accessors — no codec.

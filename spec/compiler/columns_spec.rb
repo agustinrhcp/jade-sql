@@ -8,13 +8,13 @@ module JadeSql
   describe 'checking a written struct against its table' do
     include_context 'with test compiler'
 
-    def app(struct_fields, call)
+    def app(struct_fields, call, kind = 'New')
       <<~JADE.strip
 module App exposing (go)
 
 import Encode
 import Sql exposing (Col(..), Expr, NoJoins, Pk, Table, column, no_joins, pk, table)
-import Sql.Write exposing (Write, insert, insert_all, update)
+import Sql.Write exposing (Existing, New, Write, insert, insert_all, update)
 
 
 #{jade_table('patients', { id: 'Int', name: 'String', balance: 'Maybe(Int)' }, pk: 'patients_pk')}
@@ -30,7 +30,7 @@ def patients_pk -> Pk(PatientsCols, Int)
 end
 
 
-def go -> Write(Int, PatientsCols)
+def go -> Write(#{kind}, Int, PatientsCols)
   #{call}
 end
       JADE
@@ -62,7 +62,7 @@ end
     end
 
     it 'checks update the same way, past the key argument' do
-      expect { test_compiler.require('app', app(bad_fields, 'update(Patient("Ada", Just(1)), patients, 1)')) }
+      expect { test_compiler.require('app', app(bad_fields, 'update(Patient("Ada", Just(1)), patients, 1)', 'Existing')) }
         .to raise_error(/nmae has no column/)
     end
 
@@ -72,7 +72,7 @@ end
     end
 
     it 'leaves update alone, since the row it writes to already has them' do
-      expect { test_compiler.require('app', app(no_name_fields, 'update(Patient(1, Just(1)), patients, 1)')) }
+      expect { test_compiler.require('app', app(no_name_fields, 'update(Patient(1, Just(1)), patients, 1)', 'Existing')) }
         .not_to raise_error
     end
 
@@ -84,7 +84,7 @@ module App exposing (go)
 import Clock exposing (Instant)
 import Encode
 import Sql exposing (Col(..), Expr, NoJoins, Pk, Table, column, no_joins, pk, table)
-import Sql.Write exposing (Write, insert, timestamped)
+import Sql.Write exposing (Existing, New, Write, insert, timestamped)
 
 
 #{jade_table(
@@ -102,7 +102,7 @@ def patients_pk -> Pk(PatientsCols, Int)
 end
 
 
-def go -> Write(Int, PatientsCols)
+def go -> Write(New, Int, PatientsCols)
   #{call}
 end
         JADE
@@ -140,7 +140,7 @@ import Sql exposing (
   set,
   table,
 )
-import Sql.Write exposing (Write, update_all)
+import Sql.Write exposing (Existing, New, Write, update_all)
 
 
 #{jade_table('patients', { id: 'Int', nickname: 'Maybe(String)' }, pk: 'patients_pk')}
@@ -151,7 +151,7 @@ def patients_pk -> Pk(PatientsCols, Int)
 end
 
 
-def go -> Write(Int, PatientsCols)
+def go -> Write(Existing, Int, PatientsCols)
   update_all(
     patients,
     (c) -> { c.id |> eq(1) },
@@ -188,7 +188,7 @@ import Sql exposing (
   pk,
   table,
 )
-import Sql.Write exposing (Write, insert)
+import Sql.Write exposing (Existing, New, Write, insert)
 
 
 #{jade_table('events', { id: 'Int', note: 'Maybe(String)' }, pk: 'events_pk')}
@@ -202,7 +202,7 @@ def events_pk -> Pk(EventsCols, Int)
 end
 
 
-def go -> Write(Int, EventsCols)
+def go -> Write(New, Int, EventsCols)
   insert(Event(Nothing), events)
 end
         JADE
@@ -220,7 +220,7 @@ module App exposing (go)
 
 import Encode
 import Sql exposing (Col(..), Expr, NoJoins, Pk, Table, column, no_joins, pk, table)
-import Sql.Write exposing (Write, insert)
+import Sql.Write exposing (Existing, New, Write, insert)
 
 
 #{jade_table('entries', { type_: 'String' })}
@@ -229,7 +229,7 @@ import Sql.Write exposing (Write, insert)
 struct Entry = { type_: String }
 
 
-def go -> Write(Int, EntriesCols)
+def go -> Write(New, Int, EntriesCols)
   insert(Entry("debit"), entries)
 end
         JADE
@@ -247,7 +247,7 @@ module App exposing (go)
 
 import Encode
 import Sql exposing (Col(..), Expr, NoJoins, Pk, Table, column, no_joins, pk, table)
-import Sql.Write exposing (Write, insert)
+import Sql.Write exposing (Existing, New, Write, insert)
 
 
 #{jade_table('patients', { name: 'String' })}
@@ -256,12 +256,12 @@ import Sql.Write exposing (Write, insert)
 struct Patient = { nmae: String }
 
 
-def save(v: a, t: Table(c, m, k, o, r, s)) -> Write(Int, c)
+def save(v: a, t: Table(c, m, k, o, r, s)) -> Write(New, Int, c)
   insert(v, t)
 end
 
 
-def go -> Write(Int, PatientsCols)
+def go -> Write(New, Int, PatientsCols)
   save(Patient("Ada"), patients)
 end
         JADE
@@ -294,7 +294,7 @@ import Sql exposing (
   pk,
   table,
 )
-import Sql.Write exposing (Write, insert)
+import Sql.Write exposing (Existing, New, Write, insert)
 
 
 #{jade_table('invoices', { payer_type: 'String', payer_id: 'Int' })}
@@ -337,7 +337,7 @@ def payer_id(p: Payer) -> Int
 end
 
 
-def go -> Write(Int, InvoicesCols)
+def go -> Write(New, Int, InvoicesCols)
   insert(NewInvoice(Patient(7)), invoices)
 end
         JADE

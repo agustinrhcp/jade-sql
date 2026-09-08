@@ -66,9 +66,8 @@ describe JadeSql::SchemaGenerator do
           PatientsSetCols,
           RequiredPatientsCols,
           patients,
-          patients_pk,
+          patients_pkey,
           patients_row,
-          patients_set_cols,
         )
       JADE
     end
@@ -91,10 +90,12 @@ describe JadeSql::SchemaGenerator do
   Pk,
   Selector,
   Table,
+  Unique,
   column,
   no_joins,
   pk,
   table,
+  unique,
 )')
       expect(generated).to include('import Encode')
     end
@@ -396,8 +397,8 @@ describe JadeSql::SchemaGenerator do
         Orders OrdersCols OrdersLeftCols OrdersRow(..) OrdersSetCols Persons
         PersonsCols PersonsLeftCols PersonsRow(..) PersonsSetCols
         RequiredOrdersCols RequiredPersonsCols
-        orders orders_pk orders_row orders_set_cols
-        persons persons_pk persons_row persons_set_cols
+        orders orders_pkey orders_row
+        persons persons_pkey persons_row
       ]
     end
 
@@ -776,8 +777,15 @@ describe JadeSql::SchemaGenerator do
   context 'output Jade cannot parse' do
     let(:sql) do
       <<~SQL
-        CREATE TABLE public.parents (a integer NOT NULL, b integer NOT NULL);
-        CREATE TABLE public.kids (a integer NOT NULL, b integer NOT NULL);
+        CREATE TABLE public.parents (
+            a integer NOT NULL,
+            b integer NOT NULL
+        );
+
+        CREATE TABLE public.kids (
+            a integer NOT NULL,
+            b integer NOT NULL
+        );
 
         ALTER TABLE ONLY public.parents
             ADD CONSTRAINT parents_pkey PRIMARY KEY (a, b);

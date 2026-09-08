@@ -8,8 +8,8 @@ require 'jade-sql/runtime'
 module Jade
   # `upsert_all` targets the primary key, and the primary key is a unique
   # index like any other — Postgres arbitrates on it by column and reports its
-  # constraint name when one is violated. `by_pk` is what hands both to a
-  # write, so nothing is generated for it.
+  # constraint name when one is violated, so it is generated under the name
+  # the DDL gives it.
   describe 'a conflict on the primary key', :integration do
     include_context 'with test compiler'
     include_context 'with database'
@@ -19,6 +19,7 @@ module Jade
       <<~JADE
 module App exposing (name_of, seed, upsert, violation)
 
+import Sql
 import Sql exposing (
   Assignable,
   Assignment(..),
@@ -30,7 +31,6 @@ import Sql exposing (
   SqlError,
   Table,
   assign,
-  by_pk,
   column,
   eq,
   no_joins,
@@ -46,6 +46,11 @@ import Encode
 
 
 #{jade_table('patients', { id: 'Int', name: 'String' })}
+
+
+def patients_pkey -> Sql.Unique(PatientsCols, Int)
+  Sql.unique("patients_pkey", ["id"], (v) -> { [Encode.encode(v)] })
+end
 
 
 struct Row = {
@@ -69,7 +74,7 @@ end
 def upsert -> Task(Int, SqlError)
   row(1, "new")
     |> insert(patients)
-    |> on_conflict(by_pk(patients), do_update((s) -> { [set_excluded(s.name)] }))
+    |> on_conflict(patients_pkey, do_update((s) -> { [set_excluded(s.name)] }))
     |> execute
 end
 

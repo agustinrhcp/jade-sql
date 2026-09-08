@@ -635,13 +635,11 @@ NewUser("ada@example.com", "ada")
 # ... ON CONFLICT (email) DO UPDATE SET handle = EXCLUDED.handle
 ```
 
-`by_pk(t)` is the table's primary key as a conflict target, which is what
-`upsert_all` reaches for. A primary key is a unique index like any other, so
-nothing is generated for it — the `Pk` already carries the constraint name,
-the columns and the values:
+A primary key is a unique index like any other, so it is generated as one
+under the name the DDL gives it — which is what `upsert_all` targets:
 
 ```jade
-row |> insert(users) |> on_conflict(by_pk(users), do_update((s) -> { ... }))
+row |> insert(users) |> on_conflict(users_pkey, do_update((s) -> { ... }))
 # ... ON CONFLICT (id) DO UPDATE SET ...
 ```
 

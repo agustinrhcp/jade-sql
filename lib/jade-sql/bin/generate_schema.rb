@@ -424,7 +424,9 @@ module JadeSql
         emit_table_fn(t),
       ]
         .then { keyed?(t) ? it + [emit_pk_fn(t), emit_pk_values_fn(t)] : it }
-        .then { it + t.uniques.flat_map { |u| [emit_unique_fn(t, u), emit_unique_values_fn(t, u)] } }
+        .then do
+          it + all_uniques(t).flat_map { |u| [emit_unique_fn(t, u), emit_unique_values_fn(t, u)] }
+        end
         .then { it + [emit_row_projector(t)] }
     end
 
@@ -447,15 +449,13 @@ module JadeSql
             "#{camel(t.name)}LeftCols",
             *("Required#{camel(t.name)}Cols" if required_columns(t).any?),
             "#{camel(t.name)}SetCols",
-            "#{t.name}_set_cols",
             "#{camel(t.name)}Row(..)",
             *("#{camel(t.name)}On(..)" if t.fks.any?),
             t.name,
           ]
         end
       names += tables.map { |t| "#{t.name}_row" }
-      names += keyed.map { |t| "#{t.name}_pk" }
-      names += tables.flat_map { |t| t.uniques.flat_map { |u| [u.name, "#{u.name}_values"] } }
+      names += tables.flat_map { |t| all_uniques(t).map(&:name) }
       names += (@enums || {}).values.map { "#{camel(it.name)}(..)" }
       exposed = names.sort.join(", ")
 
@@ -472,7 +472,7 @@ module JadeSql
         *("NoJoins" if bare.any?),
         *("NoKey" if unkeyed),
         *("NoRequiredCols" if tables.any? { required_columns(it).empty? }),
-        *("Unique" if tables.any? { it.uniques.any? }),
+        *("Unique" if tables.any? { all_uniques(it).any? }),
       ].sort
       fns = [
         "column",
@@ -481,7 +481,7 @@ module JadeSql
         *("no_joins" if bare.any?),
         *("pk" if keyed.any?),
         *("unkeyed" if unkeyed),
-        *("unique" if tables.any? { it.uniques.any? }),
+        *("unique" if tables.any? { all_uniques(it).any? }),
       ].sort
       sql_import = "import Sql exposing(#{(types + fns).join(', ')})"
       query_import = ["import Sql.Query exposing(Select, field_as, select)"]
@@ -723,6 +723,13 @@ module JadeSql
         .map { |name| t.columns.find { |c| c.name == name } }
         .map { |c| c.nullable ? "Maybe(#{c.jade_type})" : c.jade_type }
         .then { it.one? ? it.first : "(#{it.join(', ')})" }
+    end
+
+    # The primary key is a unique index, and `ON CONFLICT` arbitrates on it the
+    # way it does on any other. Postgres names it in the DDL, so it is emitted
+    # under that name rather than under one of ours.
+    def all_uniques(t)
+      keyed?(t) ? [Unique[t.pk_name, t.pk_columns]] + t.uniques : t.uniques
     end
 
     def emit_pk_fn(t)

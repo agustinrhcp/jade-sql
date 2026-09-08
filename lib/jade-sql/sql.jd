@@ -18,7 +18,6 @@ module Sql exposing (
   ToSql,
   aliased,
   and,
-  by_pk,
   any_of,
   array_append,
   array_concat,
@@ -159,9 +158,7 @@ type NoKey = NoKey
 
 
 # The primary key of a table: the constraint that declares it, its key columns
-# in DDL order, and how to spread a key value across them. The name is the one
-# Postgres reports on a conflict, so `by_pk` can be matched against a
-# `UniqueViolation` the same way a generated index is.
+# in DDL order, and how to spread a key value across them.
 #
 #   pk("patients_pkey", ["id"], (v) -> { [Encode.encode(v)] })
 def pk(name: String, key_cols: List(String), values: k -> List(Value)) -> Pk(c, k)
@@ -207,15 +204,6 @@ def unique(name: String, cols: List(String), values: k -> List(Value)) -> Unique
   Unique(name, cols, values)
 end
 
-
-# A table's primary key as a conflict target, which is what `upsert_all`
-# reaches for. It is a unique index like any other, so nothing is generated
-# for it — the `Pk` already carries the name, the columns and the values:
-#
-#   insert(row, users) |> on_conflict(by_pk(users), do_nothing)
-def by_pk(t: Table(c, m, k, o, r, s)) -> Unique(c, k)
-  Unique(t.pk.name, t.pk.columns, t.pk.values)
-end
 
 
 # `email = ?`, or every column of a composite index joined by AND. The key

@@ -47,6 +47,13 @@ module JadeSql
       /\Atimestamp\b/ => "Clock.Instant",
       /\Auuid\b/ => "Uuid",
       /\A(?:big|small)?serial\b/ => "Int",
+
+      # These arrive as their text form on the `exec_query` path the runtime
+      # uses, so `String` is what they decode as.
+      /\Acitext\b/ => "String",
+      /\Ainet\b/ => "String",
+      /\Acidr\b/ => "String",
+      /\Amacaddr8?\b/ => "String",
     }.freeze
 
     EXTRA_IMPORTS = {
@@ -64,7 +71,7 @@ module JadeSql
     # column out — a DEFAULT clause, an identity or serial sequence. Not the
     # same question as `nullable`: a NOT NULL column with a default is still
     # optional to write.
-    Column = Data.define(:name, :jade_type, :nullable, :defaulted)
+    Column = Data.define(:name, :jade_type, :nullable, :defaulted, :generated)
 
     def generate(sql, tables: nil, columns: nil, module_name: 'Schema')
       @enums = parse_enums(sql).to_h { [it.name, it] }
@@ -164,7 +171,11 @@ module JadeSql
         .map { |line| parse_column(line, table_name) }
     end
 
-    IDENTITY = /\bGENERATED\s+\w+\s+AS\s+IDENTITY\b/i
+    IDENTITY = /\bGENERATED\s+(?:ALWAYS|BY\s+DEFAULT)\s+AS\s+IDENTITY\b/i
+
+    # Computed from the other columns. Inserting into one is an error rather
+    # than redundant, so it can never be required.
+    GENERATED_STORED = /\bGENERATED\s+ALWAYS\s+AS\s+\(.*\)\s+STORED\b/im
     SERIAL = /\A(?:big|small)?serial\b/i
 
     # Modifiers can come in either order (`NOT NULL DEFAULT 0` and
@@ -178,7 +189,7 @@ module JadeSql
       type_part = strip_modifiers(rest)
 
       jade_type = enum_type(type_part) || TYPE_MAP
-        .find { |sql_pat, _| sql_pat.match?(type_part.downcase) }
+        .find { |sql_pat, _| sql_pat.match?(unqualified(type_part).downcase) }
         &.last
 
       raise "Unknown SQL type for #{table_name}.#{name}: #{type_part.inspect}" unless jade_type
@@ -188,6 +199,7 @@ module JadeSql
         jade_type,
         !rest.match?(/\bNOT\s+NULL\b/i),
         rest.match?(/\bDEFAULT\b/i) || rest.match?(IDENTITY) || type_part.match?(SERIAL),
+        rest.match?(GENERATED_STORED) ? true : false,
       ]
     end
 
@@ -197,7 +209,14 @@ module JadeSql
         .sub(/\s+GENERATED\s+.+\z/i, '')
         .sub(/\s+COLLATE\s+.+\z/i, '')
         .sub(/\s*\bNOT\s+NULL\b/i, '')
+        .then { strip_length(it) }
         .strip
+    end
+
+    # The array patterns end in `[]` and so tolerate nothing before it, which
+    # would type `character varying(255)[]` as its own element.
+    def strip_length(type_part)
+      type_part.sub(/\((?:\d+(?:\s*,\s*\d+)?)\)/, '')
     end
 
     # A Rails structure.sql gives a serial column its default in a separate
@@ -207,7 +226,8 @@ module JadeSql
     #     ALTER COLUMN id SET DEFAULT nextval(...);
     ALTER_DEFAULT = /
       ALTER\ TABLE\s+(?:ONLY\s+)?(?:\w+\.)?"?(\w+)"?\s+
-      ALTER\ COLUMN\s+"?(\w+)"?\s+SET\ DEFAULT
+      ALTER\ COLUMN\s+"?(\w+)"?\s+
+      (?:SET\ DEFAULT|ADD\ GENERATED\s+(?:ALWAYS|BY\ DEFAULT)\s+AS\ IDENTITY)
     /imx
 
     def parse_alter_defaults(sql)
@@ -419,7 +439,7 @@ module JadeSql
     # The columns an insert has to write: NOT NULL, with nothing on the
     # database side to fill them in.
     def required_columns(t)
-      t.columns.reject { it.nullable || it.defaulted }
+      t.columns.reject { it.nullable || it.defaulted || it.generated }
     end
 
     def emit_required_cols(t)
@@ -625,6 +645,11 @@ module JadeSql
     end
 
     # A column typed by a CREATE TYPE enum, with or without its schema prefix.
+    # An extension type carries the schema that owns it: `public.citext`.
+    def unqualified(type_part)
+      type_part.sub(/\A\w+\./, "")
+    end
+
     def enum_type(type_part)
       type_part
         .sub(/\A\w+\./, "")

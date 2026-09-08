@@ -31,8 +31,16 @@ Type map: `bigint`/`integer`/`smallint` → `Int`, `numeric`/`decimal` →
 `Decimal` (jade's stdlib exact decimal), `double precision`/`real` →
 `Float`, `varchar`/`text`/`char` → `String`, `boolean` → `Bool`,
 `jsonb`/`json` → `Decode.Value`, `date` → `Calendar.Date`, `timestamp` →
-`Clock.Instant`, `uuid` → `Uuid` (from `Sql.Uuid`). Unknown types fail
-loudly with the table+column name.
+`Clock.Instant`, `uuid` → `Uuid` (from `Sql.Uuid`), `citext`/`inet`/`cidr`/
+`macaddr` → `String`. Unknown types fail loudly with the table+column name.
+
+A `citext` column compares case-insensitively, and its Jade type does not say
+so — `Expr(String)` is what an ordinary `text` column gets too. That is the
+database's own opacity rather than something the schema drops: nothing in a
+query tells you either. It matters in one place. `where(c.email |> eq(input))`
+is case-insensitive, because Postgres does the comparing; the same comparison
+written in Jade over a fetched row is not. Compare in the query, or fold the
+case yourself once it has left.
 
 `numeric`/`decimal` map to the stdlib `Decimal` — an exact base-10 value
 (`coefficient * 10^exponent`), never `Float`, so no precision is lost.

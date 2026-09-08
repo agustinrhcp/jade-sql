@@ -161,9 +161,9 @@ end
         JADE
       end
 
-      # `set` used to recover the column name by splitting the rendered SQL on
-      # a dot, so this produced `SET nickname, ?) = ?` and nobody found out
-      # until Postgres did.
+      # A column name recovered from rendered SQL rather than carried by `Col`
+      # would make this `SET nickname, ?) = ?`, which nothing but Postgres
+      # would object to.
       it 'will not take an expression where a column belongs' do
         expect { test_compiler.require('app', not_a_column) }
           .to raise_error(Jade::CompilationError)

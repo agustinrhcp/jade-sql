@@ -1599,6 +1599,146 @@ end
       end
     end
 
+    describe 'a unique index, by name' do
+      let(:source) do
+        <<~JADE
+          module App exposing (clashed_on_email, clashed_on_other)
+
+          import Encode
+          import Sql exposing (
+            SqlError(..),
+            Unique,
+            unique,
+          )
+
+
+          def users_email_key -> Unique(c, String)
+            unique("users_email_key", ["email"], (v) -> { [Encode.encode(v)] })
+          end
+
+
+          def clashed(e: SqlError) -> Bool
+            case e
+            in UniqueViolation(i) then i == users_email_key.name
+            else False
+            end
+          end
+
+
+          def clashed_on_email -> Bool
+            clashed(UniqueViolation("users_email_key"))
+          end
+
+
+          def clashed_on_other -> Bool
+            clashed(UniqueViolation("users_handle_key"))
+          end
+        JADE
+      end
+
+      before { test_compiler.require('app', source) }
+
+      it 'matches the violation it names' do
+        expect(App.clashed_on_email).to be true
+      end
+
+      it 'does not match another' do
+        expect(App.clashed_on_other).to be false
+      end
+    end
+
+    describe 'reading by a unique index' do
+      let(:source) do
+        <<~JADE
+          module App exposing (by_email, by_tenant_and_handle)
+
+          import Encode
+          import Sql exposing (
+            Col(..),
+            Expr,
+            NoJoins,
+            NoRequiredCols,
+            Pk,
+            Table,
+            Unique,
+            column,
+            matching,
+            no_joins,
+            pk,
+            table,
+            unique,
+          )
+          import Sql.Query exposing (Select, field, from, select, to_sql, where)
+          import Decode exposing (Value)
+
+
+          #{jade_table('users', { id: 'Int', email: 'String', tenant_id: 'Int' }, alias_: 'u')}
+
+
+          struct Row = { id: Int }
+
+
+          def users_email_key -> Unique(UsersCols, String)
+            unique("users_email_key", ["email"], (v) -> { [Encode.encode(v)] })
+          end
+
+
+          def tenant_email_values(v: (Int, String)) -> List(Value)
+            (t, e) = v
+
+            [Encode.encode(t), Encode.encode(e)]
+          end
+
+
+          def users_tenant_email_key -> Unique(UsersCols, (Int, String))
+            unique("users_tenant_email_key", ["tenant_id", "email"], tenant_email_values)
+          end
+
+
+          def by_email_query -> Select(Row)
+            u <- from(users)
+
+            select(Row(_))
+              |> field(u.id)
+              |> where(matching(users_email_key, "ada@example.com"))
+          end
+
+
+          def by_email -> (String, List(Value))
+            to_sql(by_email_query)
+          end
+
+
+          def by_tenant_query -> Select(Row)
+            u <- from(users)
+
+            select(Row(_))
+              |> field(u.id)
+              |> where(matching(users_tenant_email_key, (7, "ada@example.com")))
+          end
+
+
+          def by_tenant_and_handle -> (String, List(Value))
+            to_sql(by_tenant_query)
+          end
+        JADE
+      end
+
+      before { test_compiler.require('app', source) }
+
+      it 'renders the index columns as the predicate' do
+        expect(App::Internal.by_email._1)
+          .to eql 'SELECT u.id FROM users u WHERE email = ?'
+        expect(App::Internal.by_email._2).to eql ['ada@example.com']
+      end
+
+      it 'keeps a composite index in its declared order' do
+        expect(App::Internal.by_tenant_and_handle._1)
+          .to eql 'SELECT u.id FROM users u WHERE tenant_id = ? AND email = ?'
+        expect(App::Internal.by_tenant_and_handle._2).to eql [7, 'ada@example.com']
+      end
+    end
+
     describe 'having and distinct' do
       let(:source) do
         <<~JADE
@@ -1789,6 +1929,7 @@ module App exposing (
   insert_no_assigns,
   insert_paul,
   insert_paul_returning,
+  patients_name_key_values,
   rename_paul,
   update_all_nothing,
   update_all_nothing_returning,
@@ -1796,6 +1937,8 @@ module App exposing (
   update_many_balances,
   update_paul,
   update_paul_returning,
+  upsert_nothing,
+  upsert_update,
 )
 
 import Sql exposing (
@@ -1807,22 +1950,28 @@ import Sql exposing (
   Pk,
   Selector,
   Table,
+  Unique,
   assign,
   column,
   eq,
   no_joins,
   pk,
   set,
+  set_excluded,
   table,
   to_assigns,
+  unique,
 )
 import Sql.Query exposing (Query, field, select)
 import Sql.Write exposing (
   Write,
   delete,
   delete_all,
+  do_nothing,
+  do_update,
   insert,
   insert_all,
+  on_conflict,
   returning,
   to_sql,
   update,
@@ -2002,6 +2151,35 @@ def delete_archived -> (String, List(Value))
 end
 
 
+def patients_name_key -> Unique(c, String)
+  unique("patients_name_key", ["name"], patients_name_key_values)
+end
+
+
+def patients_name_key_values(v: String) -> List(Value)
+  [Encode.encode(v)]
+end
+
+
+def upsert_nothing -> (String, List(Value))
+  NewPatient("Paul", 100)
+    |> insert(patients)
+    |> on_conflict(patients_name_key, do_nothing)
+    |> to_sql
+end
+
+
+def upsert_update -> (String, List(Value))
+  NewPatient("Paul", 100)
+    |> insert(patients)
+    |> on_conflict(
+      patients_name_key,
+      do_update((s) -> { [set_excluded(s.balance)] }),
+    )
+    |> to_sql
+end
+
+
 def insert_paul_returning -> (String, List(Value))
   NewPatient("Paul", 100)
     |> insert(patients)
@@ -2048,6 +2226,20 @@ end
       end
 
       before { test_compiler.require('app', source) }
+
+      it 'renders ON CONFLICT DO NOTHING against the named index' do
+        sql, params = App.upsert_nothing
+        expect(sql).to eql 'INSERT INTO patients AS p (name, balance) VALUES (?, ?) ' \
+          'ON CONFLICT (name) DO NOTHING'
+        expect(params).to eql ['Paul', 100]
+      end
+
+      it 'renders ON CONFLICT DO UPDATE, taking the value from EXCLUDED' do
+        sql, params = App.upsert_update
+        expect(sql).to eql 'INSERT INTO patients AS p (name, balance) VALUES (?, ?) ' \
+          'ON CONFLICT (name) DO UPDATE SET balance = EXCLUDED.balance'
+        expect(params).to eql ['Paul', 100]
+      end
 
       it 'insert renders INSERT with codec-driven assigns' do
         sql, params = App.insert_paul
@@ -2275,7 +2467,7 @@ def patch_assigns(p: Patch) -> List(Assignment)
 end
 
 
-def touch -> Write(Int, EventsCols)
+def touch -> Write(Int, EventsCols, EventsSetCols)
   update(Patch("x"), events, 42)
 end
         JADE

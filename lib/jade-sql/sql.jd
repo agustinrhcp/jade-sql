@@ -13,6 +13,8 @@ module Sql exposing (
   SqlError(..),
   Table,
   TableRef(..),
+  Unique,
+  matching,
   ToSql,
   aliased,
   and,
@@ -33,6 +35,7 @@ module Sql exposing (
   count_all,
   db_now,
   eq,
+  excluded,
   execute,
   execute_raw,
   fetch_many_raw,
@@ -56,11 +59,13 @@ module Sql exposing (
   or,
   pk,
   set,
+  set_excluded,
   set_expr,
   sum,
   table,
   to_assigns,
   transaction,
+  unique,
   unkeyed,
   unsafe_cast,
   within,
@@ -184,6 +189,34 @@ end
 struct Col(a) = { name: String }
 
 
+# A unique index, by the name Postgres reports when it is violated. Phantom
+# in the column struct, so an index cannot be used with a table it is not on.
+# The generator emits one per unique index and per table-level UNIQUE.
+struct Unique(c, k) = {
+  name: String,
+  columns: List(String),
+  values: k -> List(Value)
+}
+
+
+def unique(name: String, cols: List(String), values: k -> List(Value)) -> Unique(c, k)
+  Unique(name, cols, values)
+end
+
+
+# `email = ?`, or every column of a composite index joined by AND. The key
+# type comes from the index, so the wrong one does not compile and a
+# composite cannot be given in the wrong order.
+def matching(u: Unique(c, k), key: k) -> Expr(Bool)
+  Expr(
+    u.columns
+      |> List.map((col) -> { col ++ " = ?" })
+      |> String.join(" AND "),
+    key |> u.values,
+  )
+end
+
+
 struct Assignment = {
   col: String,
   value_sql: String,
@@ -206,6 +239,18 @@ end
 #   [c.tags |> set_expr(array_append(c.tags, tag))]
 def set_expr(col: Col(a), value: Expr(a)) -> Assignment
   Assignment(col.name, value.sql, value.params)
+end
+
+
+# The row that could not be inserted, for the `DO UPDATE` arm of an upsert.
+def excluded(col: Col(a)) -> Expr(a)
+  Expr("EXCLUDED." ++ col.name, [])
+end
+
+
+# `email = EXCLUDED.email`, which is what an upsert wants nearly every time.
+def set_excluded(col: Col(a)) -> Assignment
+  Assignment(col.name, "EXCLUDED." ++ col.name, [])
 end
 
 
@@ -538,8 +583,9 @@ def aliased(t: Table(c, m, k, o, r, s), alias_: String) -> Table(c, m, k, o, r, 
 end
 
 
-# `UniqueViolation` carries the violated constraint name, so a caller routes
-# it to a field error without matching on the database's message text.
+# `UniqueViolation` carries the violated constraint name. Compare it against
+# a generated index rather than a literal: `i == users_email_key.name` stops
+# compiling when the index is renamed, where a literal quietly stops matching.
 type SqlError
   = DbError(String)
   | NotFound

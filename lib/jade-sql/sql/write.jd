@@ -1,5 +1,10 @@
 module Sql.Write exposing (
+  Action(..),
+  Conflict(..),
+  do_nothing,
+  do_update,
   Write,
+  on_conflict,
   delete,
   execute,
   fetch_many,
@@ -26,6 +31,7 @@ import Sql exposing (
   SqlError,
   Pk,
   Table,
+  Unique,
   TableRef(..),
   set,
   to_assigns,
@@ -41,78 +47,117 @@ type WriteKind
   | DeleteK
 
 
-struct Write(ret, c) = {
+struct Write(ret, c, s) = {
   kind: WriteKind,
   table: TableRef,
   cols: c,
+  set_cols: s,
   rows: List(List(Assignment)),
   wheres: List(Expr(Bool)),
   returning_selector: Selector(ret),
-  from_: Maybe(Expr(Bool))
+  from_: Maybe(Expr(Bool)),
+  conflict: Maybe(Conflict)
 }
 
 
-def insert(value: a, t: Table(c, m, k, o, r, s)) -> Write(Int, c)
+# `ON CONFLICT (cols) DO NOTHING` or `DO UPDATE SET ...`. The columns are the
+# conflict target, taken from a `Unique`, so the index it names is the one the
+# database will actually use to detect the conflict.
+type Conflict
+  = DoNothing(List(String))
+  | DoUpdate(List(String), List(Assignment))
+
+
+# What to do with a row that collides, as a value: `do_nothing`, or
+# `do_update` with what to write instead. Both name the SQL they render.
+type Action(s)
+  = DoNothingA
+  | DoUpdateA(s -> List(Assignment))
+
+
+def do_nothing -> Action(s)
+  DoNothingA
+end
+
+
+# The build receives the table's `SET` columns. Reach for `set_excluded` to
+# take a value from the row that could not be inserted.
+def do_update(build: s -> List(Assignment)) -> Action(s)
+  DoUpdateA(build)
+end
+
+
+def insert(value: a, t: Table(c, m, k, o, r, s)) -> Write(Int, c, s)
   Write(
     InsertK,
     TableRef(t.name, t.alias_),
     t.alias_ |> t.cols,
+    t.set_cols,
     [to_assigns(value)],
     [],
     Selector([], []),
-     Nothing,
+    Nothing,
+    Nothing,
   )
 end
 
 
-def insert_all(values: List(a), t: Table(c, m, k, o, r, s)) -> Write(Int, c)
+def insert_all(values: List(a), t: Table(c, m, k, o, r, s)) -> Write(Int, c, s)
   Write(
     InsertK,
     TableRef(t.name, t.alias_),
     t.alias_ |> t.cols,
+    t.set_cols,
     List.map(values, (v) -> { to_assigns(v) }),
     [],
     Selector([], []),
-     Nothing,
+    Nothing,
+    Nothing,
   )
 end
 
 
-def update(value: a, t: Table(c, m, k, o, r, s), key: k) -> Write(Int, c)
+def update(value: a, t: Table(c, m, k, o, r, s), key: k) -> Write(Int, c, s)
   Write(
     UpdateK,
     TableRef(t.name, t.alias_),
     t.alias_ |> t.cols,
+    t.set_cols,
     [without_created_at(without_key(t.pk, to_assigns(value)))],
     [key_predicate(t.pk, key)],
     Selector([], []),
-     Nothing,
+    Nothing,
+    Nothing,
   )
 end
 
 
-def delete(t: Table(c, m, k, o, r, s), key: k) -> Write(Int, c)
+def delete(t: Table(c, m, k, o, r, s), key: k) -> Write(Int, c, s)
   Write(
     DeleteK,
     TableRef(t.name, t.alias_),
     t.alias_ |> t.cols,
+    t.set_cols,
     [],
     [key_predicate(t.pk, key)],
     Selector([], []),
-     Nothing,
+    Nothing,
+    Nothing,
   )
 end
 
 
-def filter(m: Write(ret, c), build: c -> Expr(Bool)) -> Write(ret, c)
+def filter(m: Write(ret, c, s), build: c -> Expr(Bool)) -> Write(ret, c, s)
   Write(
     m.kind,
     m.table,
     m.cols,
+    m.set_cols,
     m.rows,
     m.wheres ++ [m.cols |> build],
     m.returning_selector,
     m.from_,
+    m.conflict,
   )
 end
 
@@ -121,7 +166,7 @@ def update_all(
   t: Table(c, m, k, o, r, s),
   pred_fn: c -> Expr(Bool),
   build: c, s -> List(Assignment),
-) -> Write(Int, c)
+) -> Write(Int, c, s)
   cols_ = t.alias_ |> t.cols
   pred = cols_ |> pred_fn
 
@@ -129,25 +174,29 @@ def update_all(
     UpdateK,
     TableRef(t.name, t.alias_),
     cols_,
+    t.set_cols,
     [build(cols_, t.set_cols)],
     [pred],
     Selector([], []),
-     Nothing,
+    Nothing,
+    Nothing,
   )
 end
 
 
-def update_many(rows_: List((k, a)), t: Table(c, m, k, o, r, s)) -> Write(Int, c)
+def update_many(rows_: List((k, a)), t: Table(c, m, k, o, r, s)) -> Write(Int, c, s)
   rows = rows_ |> List.map((r) -> { keyed_assigns(t.pk, r) })
 
   Write(
     UpdateK,
     TableRef(t.name, t.alias_),
     t.alias_ |> t.cols,
+    t.set_cols,
     [source_assigns(t.pk, rows)],
     [pk_join(t.alias_, t.pk.columns)],
     Selector([], []),
     Just(source_of(t.name, rows)),
+    Nothing,
   )
 end
 
@@ -220,7 +269,7 @@ def pk_join(alias_: String, pk_columns: List(String)) -> Expr(Bool)
 end
 
 
-def delete_all(t: Table(c, m, k, o, r, s), pred_fn: c -> Expr(Bool)) -> Write(Int, c)
+def delete_all(t: Table(c, m, k, o, r, s), pred_fn: c -> Expr(Bool)) -> Write(Int, c, s)
   cols_ = t.alias_ |> t.cols
   pred = cols_ |> pred_fn
 
@@ -228,23 +277,43 @@ def delete_all(t: Table(c, m, k, o, r, s), pred_fn: c -> Expr(Bool)) -> Write(In
     DeleteK,
     TableRef(t.name, t.alias_),
     cols_,
+    t.set_cols,
     [],
     [pred],
     Selector([], []),
-     Nothing,
+    Nothing,
+    Nothing,
   )
 end
 
 
-def returning(m: Write(a, c), build: c -> Query(Selector(b))) -> Write(b, c)
+# `ON CONFLICT (email) DO NOTHING`, or `... DO UPDATE SET ...`. The target
+# comes from a `Unique`, so the index named is one the database has, and the
+# action says which of the two it is:
+#
+#   insert(row, users) |> on_conflict(users_email_key, do_nothing)
+#   insert(row, users) |> on_conflict(users_email_key, do_update((s) -> { ... }))
+def on_conflict(m: Write(ret, c, s), u: Unique(c, uk), action: Action(s)) -> Write(ret, c, s)
+  case action
+  in DoNothingA then { m | conflict: Just(DoNothing(u.columns)) }
+
+  in DoUpdateA(build)
+  then { m | conflict: Just(DoUpdate(u.columns, build(m.set_cols))) }
+  end
+end
+
+
+def returning(m: Write(a, c, s), build: c -> Query(Selector(b))) -> Write(b, c, s)
   Write(
     m.kind,
     m.table,
     m.cols,
+    m.set_cols,
     m.rows,
     m.wheres,
     build(m.cols).result,
     m.from_,
+    m.conflict,
   )
 end
 
@@ -362,7 +431,7 @@ end
 # to be rewritten after the fact. It is also what keeps `id = jade_src.id`
 # unambiguous under a FROM, since json_populate_recordset gives the source
 # every column the table has.
-def target(m: Write(ret, c)) -> String
+def target(m: Write(ret, c, s)) -> String
   m.table.alias_ == m.table.name
     ? m.table.name
     : m.table.name ++ " AS " ++ m.table.alias_
@@ -397,19 +466,49 @@ def where_params(wheres: List(Expr(Bool))) -> List(Value)
 end
 
 
-def render_insert(m: Write(ret, c)) -> (String, List(Value))
+def render_insert(m: Write(ret, c, s)) -> (String, List(Value))
   List.empty?(m.rows) ? render_nothing : render_insert_rows(m)
 end
 
 
-def render_insert_rows(m: Write(ret, c)) -> (String, List(Value))
+def render_insert_rows(m: Write(ret, c, s)) -> (String, List(Value))
   sql = "INSERT INTO "
     ++ target(m)
     ++ " "
     ++ insert_body(m.rows)
+    ++ conflict_clause(m.conflict)
     ++ returning_clause(m.returning_selector)
 
-  Tuple.Tuple2(sql, insert_params(m.rows) ++ m.returning_selector.params)
+  Tuple.Tuple2(
+    sql,
+    insert_params(m.rows) ++ conflict_params(m.conflict) ++ m.returning_selector.params,
+  )
+end
+
+
+def conflict_clause(c: Maybe(Conflict)) -> String
+  case c
+  in Nothing then ""
+
+  in Just(DoNothing(cols)) then
+    " ON CONFLICT (" ++ String.join(cols, ", ") ++ ") DO NOTHING"
+
+  in Just(DoUpdate(cols, assigns)) then
+    " ON CONFLICT ("
+      ++ String.join(cols, ", ")
+      ++ ") DO UPDATE SET "
+      ++ String.join(List.map(assigns, (a) -> { a.col ++ " = " ++ a.value_sql }), ", ")
+  end
+end
+
+
+def conflict_params(c: Maybe(Conflict)) -> List(Value)
+  case c
+  in Just(DoUpdate(_, assigns)) then
+    List.fold(assigns, [], (acc, a) -> { acc ++ a.params })
+
+  else []
+  end
 end
 
 
@@ -427,7 +526,7 @@ def insert_body(rows: List(List(Assignment))) -> String
 end
 
 
-def render_update(m: Write(ret, c)) -> (String, List(Value))
+def render_update(m: Write(ret, c, s)) -> (String, List(Value))
   sets = set_sqls_for(m.rows)
 
   List.empty?(sets) ? render_nothing : render_update_set(m, sets)
@@ -452,7 +551,7 @@ end
 
 
 def render_update_set(
-  m: Write(ret, c),
+  m: Write(ret, c, s),
   sets: List(String),
 ) -> (String, List(Value))
   set_clause = "SET " ++ String.join(sets, ", ")
@@ -478,7 +577,7 @@ end
 
 
 
-def render_delete(m: Write(ret, c)) -> (String, List(Value))
+def render_delete(m: Write(ret, c, s)) -> (String, List(Value))
   where = where_sql(m.wheres)
   returning_ = returning_clause(m.returning_selector)
   sql = "DELETE FROM "
@@ -490,7 +589,7 @@ def render_delete(m: Write(ret, c)) -> (String, List(Value))
 end
 
 
-def to_sql(m: Write(ret, c)) -> (String, List(Value))
+def to_sql(m: Write(ret, c, s)) -> (String, List(Value))
   case m.kind
   in InsertK then render_insert(m)
   in UpdateK then render_update(m)
@@ -499,14 +598,14 @@ def to_sql(m: Write(ret, c)) -> (String, List(Value))
 end
 
 
-implements ToSql(Write(ret, c)) with
+implements ToSql(Write(ret, c, s)) with
   to_sql: to_sql
 end
 
 
 # The number of rows the statement affected. Any `RETURNING` clause is
 # rendered and discarded.
-def execute(m: Write(ret, c)) -> Task(Int, SqlError)
+def execute(m: Write(ret, c, s)) -> Task(Int, SqlError)
   to_sql(m) |> Sql.execute_raw
 end
 
@@ -514,13 +613,13 @@ end
 # Decodes the single row a `returning` write gives back — the id of an
 # insert, the new state of an update. A write with no `returning` selects
 # nothing, so this errors with `NotFound`.
-def fetch_one(m: Write(ret, c)) -> Task(ret, SqlError)
+def fetch_one(m: Write(ret, c, s)) -> Task(ret, SqlError)
   to_sql(m) |> Sql.fetch_one_raw
 end
 
 
 # The same for a write that returns many rows, as `insert_all` and
 # `update_all` do.
-def fetch_many(m: Write(ret, c)) -> Task(List(ret), SqlError)
+def fetch_many(m: Write(ret, c, s)) -> Task(List(ret), SqlError)
   to_sql(m) |> Sql.fetch_many_raw
 end

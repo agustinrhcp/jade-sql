@@ -31,6 +31,29 @@ and one migration is better than three.
   rather than a projection. It is what lets a subquery be written in a bind
   chain, so `where`, `order_desc` and `limit` need no function forms of their
   own.
+- `Sql.matching(users_email_key, key)` builds the predicate for a read by a
+  unique index. `Unique(c, k)` carries the key type, so the wrong key does not
+  compile and a composite cannot be given in the wrong order.
+
+- `Sql.Query.fetch_at_most_one` is `fetch_one` with no row as an answer rather than
+  an error. More than one is still `TooManyRows`: nothing is dropped to make
+  the type fit.
+
+- `Sql.Write.on_conflict_do_nothing` and `on_conflict_do_update` render
+  `ON CONFLICT (cols) DO NOTHING` and `DO UPDATE SET ...`, which is what
+  `find_or_create_by`, `upsert` and `upsert_all` all compile to. The conflict
+  target is a `Unique` from the generated schema rather than a column list
+  written out again, so it names an index the database has.
+  `Sql.set_excluded(col)` is `col = EXCLUDED.col`, and `Sql.excluded(col)` is
+  the proposed row's value as an ordinary `Expr`.
+
+- The generator emits every unique index as a named `Unique(c)`, from both
+  spellings: a table-level `UNIQUE (...)` and a standalone
+  `CREATE UNIQUE INDEX`. Matching a
+  `UniqueViolation` against `users_email_key.name` rather than a literal means
+  renaming the index and regenerating breaks the call site instead of leaving
+  it quietly never matching. Partial indexes are skipped, since they
+  constrain only the rows their `WHERE` matches.
 
 - `Sql.Query.exists` and `not_exists` render a correlated subquery as
   `EXISTS (SELECT 1 FROM …)`. They take an unprojected `Query`, since `EXISTS`

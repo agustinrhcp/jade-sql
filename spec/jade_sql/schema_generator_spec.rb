@@ -768,10 +768,10 @@ describe JadeSql::SchemaGenerator do
     end
   end
 
-  # The generator used to hand back its own unparseable output and let the
-  # next compile find it, which put the error a build away from the DDL that
-  # caused it. A composite foreign key still emits a broken `on` record; this
-  # is what makes that say so at generation time.
+  # Emitting something Jade cannot parse has to fail here, where the DDL that
+  # caused it can still be named — a build later, against the generated file,
+  # nothing points back at it. A composite foreign key emits a broken `on`
+  # record, which is what this reaches that path with.
   context 'output Jade cannot parse' do
     let(:sql) do
       <<~SQL

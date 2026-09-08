@@ -6,13 +6,14 @@ require 'jade-sql'
 require 'jade-sql/runtime'
 
 module Jade
-  # A write's predicate may name the table it writes to and a table it only
-  # reads, and the two have to stay told apart. Rendering, not executing, is
-  # what used to lose that: the qualifier was stripped out of the finished
-  # string, subquery and all, so `patients.id` inside a correlated NOT EXISTS
-  # became a bare `id` that bound to the subquery's own table. Postgres plans
-  # that as a One-Time Filter, which empties the table or spares all of it.
-  # Only running the statement against real rows tells the two apart.
+  # A write's predicate may name both the table it writes to and a table it
+  # only reads, and the two have to stay told apart. A qualifier that goes
+  # missing from one of them still renders, still runs, and asks a different
+  # question: `patients.id` inside a correlated NOT EXISTS, reduced to a bare
+  # `id`, binds to the subquery's own table, and Postgres plans it as a
+  # One-Time Filter that empties the table or spares all of it. Rendering
+  # specs cannot see the difference — only running the statement against real
+  # rows can.
   describe 'a write whose predicate correlates a subquery', :integration do
     include_context 'with test compiler'
     include_context 'with database'

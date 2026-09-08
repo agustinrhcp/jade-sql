@@ -843,10 +843,8 @@ describe JadeSql::SchemaGenerator do
     end
   end
 
-  # What `structure.sql` actually spells, taken from pg_dump rather than from
-  # the shapes a migration is written in. Each of these types correctly and
-  # produces a column an insert must not write, or a column whose Jade type
-  # the database can return.
+  # The spellings pg_dump writes, which are not the ones a migration is
+  # written in.
   context 'the shapes pg_dump writes' do
     let(:sql) do
       <<~SQL
@@ -873,9 +871,8 @@ describe JadeSql::SchemaGenerator do
 
     def required_struct = generated[/struct RequiredThingsCols = \{.*?\n\}/m]
 
-    # Both identity spellings, and pg_dump writes them as their own statement
-    # rather than inline. A sequence fills these, so an insert supplying one is
-    # supplying a key it does not own.
+    # A sequence fills these, so an insert supplying one supplies a key it
+    # does not own.
     it 'asks an insert for neither identity column' do
       expect(required_struct).not_to include('id')
       expect(required_struct).not_to include('legacy_id')
@@ -887,13 +884,10 @@ describe JadeSql::SchemaGenerator do
       STRUCT
     end
 
-    # Inserting into a generated column is an error, not merely redundant.
     it 'asks an insert for no generated column' do
       expect(required_struct).not_to include('full_name')
     end
 
-    # The array patterns end in `[]`, so a length between the type and the
-    # brackets would otherwise type the column as its own element.
     it 'reads an array that carries a length' do
       expect(generated).to include('tags: Expr(Maybe(List(String)))')
     end
@@ -904,16 +898,14 @@ describe JadeSql::SchemaGenerator do
       expect(generated).to include('seen: Expr(Maybe(Clock.Instant))')
     end
 
-    # Both arrive as their text form on the `exec_query` path the runtime
-    # uses. `citext` is what Rails apps give an email column.
     it 'reads the text-shaped extension and network types' do
       expect(generated).to include('email: Expr(Maybe(String))')
       expect(generated).to include('signup_ip: Expr(Maybe(String))')
     end
   end
 
-  # A type Jade has no answer for stops the run where the DDL can be named,
-  # rather than guessing at something that will fail at decode instead.
+  # Guessing buys a column that fails at decode instead of a message naming
+  # the DDL.
   context 'a type with no Jade equivalent' do
     %w[interval tsvector bytea money daterange xml].each do |type|
       it "refuses #{type}" do

@@ -26,7 +26,7 @@ struct Patient = {
 
 
 def patients_pk -> Pk(PatientsCols, Int)
-  pk(["id"], (v) -> { [Encode.encode(v)] })
+  pk("pkey", ["id"], (v) -> { [Encode.encode(v)] })
 end
 
 
@@ -119,7 +119,7 @@ struct Patient = { name: String }
 
 
 def patients_pk -> Pk(PatientsCols, Int)
-  pk(["id"], (v) -> { [Encode.encode(v)] })
+  pk("pkey", ["id"], (v) -> { [Encode.encode(v)] })
 end
 
 
@@ -168,7 +168,7 @@ import Sql.Write exposing (Write, update_all)
 
 
 def patients_pk -> Pk(PatientsCols, Int)
-  pk(["id"], (v) -> { [Encode.encode(v)] })
+  pk("pkey", ["id"], (v) -> { [Encode.encode(v)] })
 end
 
 
@@ -219,7 +219,7 @@ struct Event = { note: Maybe(String) }
 
 
 def events_pk -> Pk(EventsCols, Int)
-  pk(["id"], (v) -> { [Encode.encode(v)] })
+  pk("pkey", ["id"], (v) -> { [Encode.encode(v)] })
 end
 
 

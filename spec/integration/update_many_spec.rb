@@ -71,7 +71,7 @@ end
 
 
 def patients_pk -> Pk(PatientsCols, Int)
-  pk(["id"], (v) -> { [Encode.encode(v)] })
+  pk("pkey", ["id"], (v) -> { [Encode.encode(v)] })
 end
 
 

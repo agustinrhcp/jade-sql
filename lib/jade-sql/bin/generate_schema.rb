@@ -66,7 +66,7 @@ module JadeSql
 
     # Column names that collide with Jade keywords get a trailing underscore
     # in the struct field; the SQL column reference keeps the real name.
-    Table = Data.define(:name, :columns, :pk_columns, :fks, :uniques)
+    Table = Data.define(:name, :columns, :pk_columns, :pk_name, :fks, :uniques)
     # `defaulted` is what the database fills in when an INSERT leaves the
     # column out — a DEFAULT clause, an identity or serial sequence. Not the
     # same question as `nullable`: a NOT NULL column with a default is still
@@ -83,7 +83,11 @@ module JadeSql
       defaults = parse_alter_defaults(sql)
       parsed = bodies
         .map { |name, body|
-          Table[name, parse_columns(body, name), pks[name] || [], fks[name], uniques[name]]
+          Table[
+            name, parse_columns(body, name),
+            pks[name]&.columns || [], pks[name]&.name || '',
+            fks[name], uniques[name],
+          ]
         }
         .map { |t| t.with(columns: apply_defaults(t.columns, defaults[t.name] || [])) }
         .then { |ts| ts.map { |t| t.with(fks: relations(t, ts)) } }
@@ -348,10 +352,12 @@ module JadeSql
       end
     end
 
+    Pk = Data.define(:name, :columns)
+
     def parse_pks(sql)
       sql
-        .scan(/ALTER TABLE (?:ONLY\s+)?(?:\w+\.)?(\w+)\s+ADD CONSTRAINT \w+ PRIMARY KEY \(([^)]+)\)/i)
-        .to_h { |name, cols| [name, cols.split(',').map { |c| c.strip.delete('"') }] }
+        .scan(/ALTER TABLE (?:ONLY\s+)?(?:\w+\.)?(\w+)\s+ADD CONSTRAINT (\w+) PRIMARY KEY \(([^)]+)\)/i)
+        .to_h { |table, name, cols| [table, Pk[name, cols.split(',').map { it.strip.delete('"') }]] }
     end
 
     def emit(tables, module_name)
@@ -724,7 +730,7 @@ module JadeSql
 
       <<~JADE.strip
         def #{t.name}_pk -> Pk(#{camel(t.name)}Cols, #{key_type(t)})
-          pk([#{cols}], #{t.name}_pk_values)
+          pk(#{t.pk_name.inspect}, [#{cols}], #{t.name}_pk_values)
         end
       JADE
     end

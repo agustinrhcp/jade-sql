@@ -156,7 +156,7 @@ describe JadeSql::SchemaGenerator do
     it 'emits the key as a value typed to the table it came from' do
       expect(generated).to include(<<~FN.strip)
         def patients_pk -> Pk(PatientsCols, Int)
-          pk(["id"], patients_pk_values)
+          pk("patients_pkey", ["id"], patients_pk_values)
         end
 
 
@@ -312,7 +312,7 @@ describe JadeSql::SchemaGenerator do
     it 'spreads a composite key across its columns, in DDL order' do
       expect(generated).to include(<<~FN.strip)
         def memberships_pk -> Pk(MembershipsCols, (Int, Int))
-          pk(["user_id", "group_id"], memberships_pk_values)
+          pk("memberships_pkey", ["user_id", "group_id"], memberships_pk_values)
         end
 
 

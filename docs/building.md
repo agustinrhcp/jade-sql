@@ -77,7 +77,7 @@ def patients -> Table(PatientsCols, PatientsLeftCols)
 end
 
 def patients_pk -> Pk(PatientsCols, Int)
-  pk(["id"], patients_pk_values)
+  pk("pkey", ["id"], patients_pk_values)
 end
 ```
 
@@ -633,6 +633,16 @@ NewUser("ada@example.com", "ada")
   |> insert(users)
   |> on_conflict(users_email_key, do_update((s) -> { [set_excluded(s.handle)] }))
 # ... ON CONFLICT (email) DO UPDATE SET handle = EXCLUDED.handle
+```
+
+`by_pk(t)` is the table's primary key as a conflict target, which is what
+`upsert_all` reaches for. A primary key is a unique index like any other, so
+nothing is generated for it — the `Pk` already carries the constraint name,
+the columns and the values:
+
+```jade
+row |> insert(users) |> on_conflict(by_pk(users), do_update((s) -> { ... }))
+# ... ON CONFLICT (id) DO UPDATE SET ...
 ```
 
 `set_excluded(col)` renders `col = EXCLUDED.col`, which is what an upsert wants

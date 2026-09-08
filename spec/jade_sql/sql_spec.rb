@@ -664,7 +664,7 @@ import Sql.Query exposing (Query, from, where)
 
 
 def persons_pk -> Pk(PersonsCols, Int)
-  pk(["id"], (v) -> { [Encode.encode(v)] })
+  pk("pkey", ["id"], (v) -> { [Encode.encode(v)] })
 end
 
 
@@ -819,7 +819,7 @@ import Sql.Query exposing (Query, from, join)
 
 
 def persons_pk -> Pk(PersonsCols, Int)
-  pk(["id"], (v) -> { [Encode.encode(v)] })
+  pk("pkey", ["id"], (v) -> { [Encode.encode(v)] })
 end
 
 
@@ -876,12 +876,12 @@ import Sql.Query exposing (Query, from, left_join)
 
 
 def persons_pk -> Pk(PersonsCols, Int)
-  pk(["id"], (v) -> { [Encode.encode(v)] })
+  pk("pkey", ["id"], (v) -> { [Encode.encode(v)] })
 end
 
 
 def orders_pk -> Pk(OrdersCols, Int)
-  pk(["id"], (v) -> { [Encode.encode(v)] })
+  pk("pkey", ["id"], (v) -> { [Encode.encode(v)] })
 end
 
 
@@ -934,12 +934,12 @@ import Sql.Query exposing (Query, from, join)
 
 
 def persons_pk -> Pk(PersonsCols, Int)
-  pk(["id"], (v) -> { [Encode.encode(v)] })
+  pk("pkey", ["id"], (v) -> { [Encode.encode(v)] })
 end
 
 
 def companies_pk -> Pk(CompaniesCols, Int)
-  pk(["id"], (v) -> { [Encode.encode(v)] })
+  pk("pkey", ["id"], (v) -> { [Encode.encode(v)] })
 end
 
 
@@ -993,7 +993,7 @@ struct Person = {
 
 
 def persons_pk -> Pk(PersonsCols, Int)
-  pk(["id"], (v) -> { [Encode.encode(v)] })
+  pk("pkey", ["id"], (v) -> { [Encode.encode(v)] })
 end
 
 
@@ -1065,12 +1065,12 @@ struct Row = {
 
 
 def persons_pk -> Pk(PersonsCols, Int)
-  pk(["id"], (v) -> { [Encode.encode(v)] })
+  pk("pkey", ["id"], (v) -> { [Encode.encode(v)] })
 end
 
 
 def orders_pk -> Pk(OrdersCols, Int)
-  pk(["id"], (v) -> { [Encode.encode(v)] })
+  pk("pkey", ["id"], (v) -> { [Encode.encode(v)] })
 end
 
 
@@ -1139,7 +1139,7 @@ struct Row = {
 
 
 def entries_pk -> Pk(EntriesCols, Int)
-  pk(["id"], (v) -> { [Encode.encode(v)] })
+  pk("pkey", ["id"], (v) -> { [Encode.encode(v)] })
 end
 
 
@@ -1216,7 +1216,7 @@ struct Person = {
 
 
 def persons_pk -> Pk(PersonsCols, Int)
-  pk(["id"], (v) -> { [Encode.encode(v)] })
+  pk("pkey", ["id"], (v) -> { [Encode.encode(v)] })
 end
 
 
@@ -1852,7 +1852,7 @@ struct Person = {
 
 
 def persons_pk -> Pk(PersonsCols, Int)
-  pk(["id"], (v) -> { [Encode.encode(v)] })
+  pk("pkey", ["id"], (v) -> { [Encode.encode(v)] })
 end
 
 
@@ -2026,7 +2026,7 @@ end
 
 
 def patients_pk -> Pk(PatientsCols, Int)
-  pk(["id"], (v) -> { [Encode.encode(v)] })
+  pk("pkey", ["id"], (v) -> { [Encode.encode(v)] })
 end
 
 
@@ -2400,7 +2400,7 @@ end
 
 
 def memberships_pk -> Pk(MembershipsCols, (Int, Int))
-  pk(["user_id", "group_id"], memberships_pk_values)
+  pk("pkey", ["user_id", "group_id"], memberships_pk_values)
 end
 
 
@@ -2509,7 +2509,7 @@ import Sql.Query exposing (Query, from, join)
   'orders',
   { person_id: 'Int' },
   alias_: 'o',
-  pk: "pk([\"person_id\"], (v) -> { [Encode.encode(v)] })",
+  pk: "pk(\"pkey\", [\"person_id\"], (v) -> { [Encode.encode(v)] })",
 )}
 
 

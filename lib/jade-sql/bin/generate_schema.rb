@@ -360,15 +360,21 @@ module JadeSql
       fns = [
         "column",
         "table",
-        *(%w[eq nullable] if joined.any?),
+        *("nullable" if joined.any?),
         *("no_joins" if bare.any?),
         *("pk" if keyed.any?),
         *("unkeyed" if unkeyed),
       ].sort
       sql_import = "import Sql exposing(#{(types + fns).join(', ')})"
       query_import = ["import Sql.Query exposing(Select, field_as, select)"]
+      # A join predicate compares two columns, which is `Sql.Expr`'s side of
+      # the operator split rather than `Sql`'s value-taking one.
+      expr_import = joined.any? ? ["import Sql.Expr as Expr"] : []
       encode_import = keyed.any? ? ["import Decode", "import Encode"] : []
-      imports = [sql_import, *query_import, *encode_import, *extra_imports_for(tables)]
+      imports = [
+        sql_import, *query_import, *expr_import, *encode_import,
+        *extra_imports_for(tables),
+      ]
 
       <<~JADE.strip
         module #{module_name} exposing(#{exposed})
@@ -518,7 +524,7 @@ module JadeSql
       return nil if t.fks.empty?
 
       fields = t.fks
-        .map { "  #{it.name}: #{camel(t.name)}Cols -> (#{camel(it.other)}Cols -> Expr(Bool))" }
+        .map { "  #{field_name(it.name)}: #{camel(t.name)}Cols -> (#{camel(it.other)}Cols -> Expr(Bool))" }
         .join(",\n")
 
       "struct #{camel(t.name)}On = {\n#{fields}\n}"
@@ -545,8 +551,11 @@ module JadeSql
       !mine && theirs ? "#{ref} |> nullable" : ref
     end
 
+    # A relation is named after its foreign key with the `_id` dropped, so
+    # `import_id` gives `import` — a name a Jade field cannot have. The
+    # trailing underscore is the same one a reserved column gets.
     def on_fn_name(t, rel)
-      "#{t.name}_on_#{rel.name}"
+      "#{t.name}_on_#{field_name(rel.name)}"
     end
 
     # Named rather than inlined in the constructor for the same reason the key
@@ -557,7 +566,7 @@ module JadeSql
         <<~JADE.strip
           def #{on_fn_name(t, rel)}(a: #{camel(t.name)}Cols) -> #{camel(rel.other)}Cols -> Expr(Bool)
             (b) -> {
-              eq(#{side("a", rel.own_column, rel.own_null, rel.other_null)}, #{side("b", rel.other_column, rel.other_null, rel.own_null)})
+              Expr.eq(#{side("a", rel.own_column, rel.own_null, rel.other_null)}, #{side("b", rel.other_column, rel.other_null, rel.own_null)})
             }
           end
         JADE

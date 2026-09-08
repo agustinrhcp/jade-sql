@@ -8,13 +8,13 @@ module JadeSql
   describe 'checking a written struct against its table' do
     include_context 'with test compiler'
 
-    def app(struct_fields, call)
+    def app(struct_fields, call, name = 'App')
       <<~JADE.strip
-module App exposing (go)
+module #{name} exposing (go)
 
 import Encode
 import Sql exposing (Col(..), Expr, NoJoins, Pk, Table, column, no_joins, pk, table)
-import Sql.Write exposing (Write, insert, insert_all, update)
+import Sql.Write exposing (Write, insert, insert_all, update, update_many)
 
 
 #{jade_table('patients', { id: 'Int', name: 'String', balance: 'Maybe(Int)' }, pk: 'patients_pk')}
@@ -44,6 +44,27 @@ end
     it 'accepts a struct whose fields are all columns of the table' do
       expect { test_compiler.require('app', app(good_fields, 'insert(Patient("Ada", Just(1)), patients)')) }
         .not_to raise_error
+    end
+
+    # `update_many` takes the caller's struct as one half of each
+    # key-and-value pair, so the check has to reach through the pair to find
+    # it.
+    it 'reads the struct out of update_many\'s key-and-value pairs' do
+      expect {
+        test_compiler.require(
+          'many_bad',
+          app(bad_fields, '[(1, Patient("Ada", Just(1)))] |> update_many(patients)', 'ManyBad'),
+        )
+      }.to raise_error(/nmae has no column/)
+    end
+
+    it 'accepts an update_many whose struct is all columns of the table' do
+      expect {
+        test_compiler.require(
+          'many_good',
+          app(good_fields, '[(1, Patient("Ada", Just(1)))] |> update_many(patients)', 'ManyGood'),
+        )
+      }.not_to raise_error
     end
 
     it 'names the field the table has no column for' do
@@ -161,9 +182,9 @@ end
         JADE
       end
 
-      # `set` used to recover the column name by splitting the rendered SQL on
-      # a dot, so this produced `SET nickname, ?) = ?` and nobody found out
-      # until Postgres did.
+      # A column name recovered from rendered SQL rather than carried by `Col`
+      # would make this `SET nickname, ?) = ?`, which nothing but Postgres
+      # would object to.
       it 'will not take an expression where a column belongs' do
         expect { test_compiler.require('app', not_a_column) }
           .to raise_error(Jade::CompilationError)

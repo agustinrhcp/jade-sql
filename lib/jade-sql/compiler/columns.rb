@@ -11,19 +11,25 @@ module JadeSql
       TABLE = 'Sql.Table'
       EXPR = 'Sql.Expr'
       LIST = 'List.List'
+      TUPLE2 = 'Tuple.Tuple2'
       ASSIGNABLE = 'Sql.Assignable'
       STAMPED = 'Sql.Write.Stamped'
       STAMPS = %w[created_at updated_at].freeze
 
-      # Where the written value is, where the table is, whether the value
-      # arrives wrapped in a list, and whether the row is being created —
-      # only then does a column the database cannot fill have to be written.
+      # Where the written value is, where the table is, what the value arrives
+      # wrapped in, and whether the row is being created — only then does a
+      # column the database cannot fill have to be written.
+      #
+      # Every write taking a struct of the caller's is here. `update_all` and
+      # `delete_all` are not, because they build their SET and WHERE from the
+      # table's own `c` and `s` — there is no struct to compare.
       Target = Data.define(:value_at, :table_at, :wrapper, :creates)
 
       TARGETS = {
         'Sql.Write.insert' => Target[0, 1, :bare, true],
         'Sql.Write.insert_all' => Target[0, 1, :list, true],
         'Sql.Write.update' => Target[0, 1, :bare, false],
+        'Sql.Write.update_many' => Target[0, 1, :keyed_list, false],
       }.freeze
 
       def watches = TARGETS.keys
@@ -173,6 +179,19 @@ module JadeSql
       def unwrap(type, wrapper)
         case [wrapper, type]
         in [:list, Type::Application(constructor: Type::Constructor(name: LIST), args: [inner])]
+          inner
+
+        # `update_many` takes the key alongside the value, so the struct is the
+        # second half of each pair rather than the element itself.
+        in [
+          :keyed_list,
+          Type::Application(
+            constructor: Type::Constructor(name: LIST),
+            args: [Type::Application(
+              constructor: Type::Constructor(name: TUPLE2), args: [_, inner]
+            )],
+          )
+        ]
           inner
 
         else type

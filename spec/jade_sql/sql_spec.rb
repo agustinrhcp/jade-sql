@@ -1786,6 +1786,7 @@ module App exposing (
   delete_paul_returning,
   insert_from_assigns,
   insert_many,
+  insert_no_assigns,
   insert_paul,
   insert_paul_returning,
   rename_paul,
@@ -1903,6 +1904,18 @@ end
 
 def insert_from_assigns -> (String, List(Value))
   [assign("name", "Paul"), assign("balance", 100)]
+    |> insert(patients)
+    |> to_sql
+end
+
+
+def no_assigns -> List(Assignment)
+  []
+end
+
+
+def insert_no_assigns -> (String, List(Value))
+  no_assigns
     |> insert(patients)
     |> to_sql
 end
@@ -2096,16 +2109,27 @@ end
         ]
       end
 
-      it 'update_all with no assignments reads instead of writing' do
-        sql, params = App.update_all_nothing
-        expect(sql).to eql 'SELECT 1 FROM patients AS p WHERE p.balance = ?'
-        expect(params).to eql [0]
+      # A row that names no columns is a row of defaults, which is what was
+      # asked for. `() VALUES ()` is not SQL.
+      it 'insert of a row that names no columns writes the defaults' do
+        sql, params = App.insert_no_assigns
+        expect(sql).to eql 'INSERT INTO patients AS p DEFAULT VALUES'
+        expect(params).to eql []
       end
 
-      it 'update_all with no assignments selects what RETURNING would have' do
+      # It used to keep the caller's predicate and render
+      # `SELECT 1 FROM patients AS p WHERE p.balance = ?`, which matches, so
+      # `exec_update` counted a row updated for an update that never ran.
+      it 'update_all with no assignments matches nothing' do
+        sql, params = App.update_all_nothing
+        expect(sql).to eql 'SELECT 1 WHERE FALSE'
+        expect(params).to eql []
+      end
+
+      it 'update_all with no assignments has nothing for RETURNING to return' do
         sql, params = App.update_all_nothing_returning
-        expect(sql).to eql 'SELECT p.id, p.name, p.balance FROM patients AS p WHERE p.balance = ?'
-        expect(params).to eql [0]
+        expect(sql).to eql 'SELECT 1 WHERE FALSE'
+        expect(params).to eql []
       end
 
       it 'delete_all renders bulk DELETE with predicate' do

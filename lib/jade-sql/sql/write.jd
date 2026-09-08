@@ -398,38 +398,56 @@ end
 
 
 def render_insert(m: Write(ret, c)) -> (String, List(Value))
-  cols_str = insert_cols_str(m.rows)
-  values_str = m.rows
-    |> List.map(render_row)
-    |> String.join(", ")
-  returning_ = returning_clause(m.returning_selector)
+  List.empty?(m.rows) ? render_nothing : render_insert_rows(m)
+end
+
+
+def render_insert_rows(m: Write(ret, c)) -> (String, List(Value))
   sql = "INSERT INTO "
     ++ target(m)
     ++ " "
-    ++ cols_str
-    ++ " VALUES "
-    ++ values_str
-    ++ returning_
+    ++ insert_body(m.rows)
+    ++ returning_clause(m.returning_selector)
 
   Tuple.Tuple2(sql, insert_params(m.rows) ++ m.returning_selector.params)
+end
+
+
+# `DEFAULT VALUES` for the one row that names no columns: that is a row of
+# defaults, which is what was asked for, and `() VALUES ()` is not SQL. Not
+# the same as having no rows at all, which writes nothing.
+def insert_body(rows: List(List(Assignment))) -> String
+  case rows
+  in [[]] then "DEFAULT VALUES"
+
+  else insert_cols_str(rows)
+    ++ " VALUES "
+    ++ String.join(List.map(rows, render_row), ", ")
+  end
 end
 
 
 def render_update(m: Write(ret, c)) -> (String, List(Value))
   sets = set_sqls_for(m.rows)
 
-  List.empty?(sets) ? render_no_op_update(m) : render_update_set(m, sets)
+  List.empty?(sets) ? render_nothing : render_update_set(m, sets)
 end
 
 
-def render_no_op_update(m: Write(ret, c)) -> (String, List(Value))
-  where = where_sql(m.wheres)
-  cols = List.empty?(m.returning_selector.columns_sql)
-    ? "1"
-    : String.join(m.returning_selector.columns_sql, ", ")
-  sql = "SELECT " ++ cols ++ " FROM " ++ target(m) ++ where
-
-  Tuple.Tuple2(sql, m.returning_selector.params ++ where_params(m.wheres))
+# A write with nothing to write. A changeset whose fields all held their old
+# values, and an empty batch, are both ordinary — so this affects no rows and
+# reports so, rather than failing.
+#
+# It has to be a statement, because `to_sql` owes its caller one. `WHERE FALSE`
+# is the whole point: the previous no-op update kept the caller's predicate and
+# rendered `SELECT ... WHERE id = ?`, which `exec_update` counts as a row
+# updated. It matched, so it reported 1, took no lock, and a `returning` read
+# handed back the row as it stood before the update that never happened.
+#
+# The predicate's parameters go with it. A statement that does not bind them
+# must not carry them.
+def render_nothing -> (String, List(Value))
+  Tuple.Tuple2("SELECT 1 WHERE FALSE", [])
 end
 
 

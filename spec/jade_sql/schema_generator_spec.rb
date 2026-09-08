@@ -1,5 +1,6 @@
 require 'spec_helper'
 
+require 'jade-sql'
 require 'jade-sql/bin/generate_schema'
 
 describe JadeSql::SchemaGenerator do
@@ -278,13 +279,13 @@ describe JadeSql::SchemaGenerator do
     it 'lifts the non-nullable side, since a nullable key is Expr(Maybe(a))' do
       expect(generated).to include(<<~JADE.strip)
         def patients_on_phone(a: PatientsCols) -> (PhonesCols -> Expr(Bool))
-          (b) -> { eq(a.phone_id, b.id |> nullable) }
+          (b) -> { Expr.eq(a.phone_id, b.id |> nullable) }
         end
       JADE
 
       expect(generated).to include(<<~JADE.strip)
         def phones_on_patients(a: PhonesCols) -> (PatientsCols -> Expr(Bool))
-          (b) -> { eq(a.id |> nullable, b.phone_id) }
+          (b) -> { Expr.eq(a.id |> nullable, b.phone_id) }
         end
       JADE
     end
@@ -791,6 +792,54 @@ describe JadeSql::SchemaGenerator do
           JadeSql::SchemaGenerator::UnparseableSchema,
           /not valid Jade.*Unexpected token/m,
         )
+    end
+  end
+
+  # A generated schema has to compile, and only compiling it says so. The `on`
+  # record is where that bites: it is the one place the generator writes a
+  # curried type and a column-to-column comparison, and both have a spelling
+  # the rest of the file never exercises.
+  context 'a schema whose tables reference each other' do
+    let(:sql) do
+      <<~SQL
+        CREATE TABLE public.imports (
+            id integer NOT NULL,
+            note text
+        );
+
+        CREATE TABLE public.transactions (
+            id integer NOT NULL,
+            import_id integer NOT NULL
+        );
+
+        ALTER TABLE ONLY public.imports
+            ADD CONSTRAINT imports_pkey PRIMARY KEY (id);
+        ALTER TABLE ONLY public.transactions
+            ADD CONSTRAINT transactions_pkey PRIMARY KEY (id);
+        ALTER TABLE ONLY public.transactions
+            ADD CONSTRAINT transactions_import_fk FOREIGN KEY (import_id) REFERENCES public.imports(id);
+      SQL
+    end
+
+    include_context 'with test compiler'
+
+    it 'compiles' do
+      test_compiler.write('schema', generated)
+
+      expect { test_compiler.compiler.require('schema') }.not_to raise_error
+    end
+
+    # A join predicate compares two columns, and `Sql.eq` takes a value.
+    it 'compares the two columns with the expression-taking operator' do
+      expect(generated).to include('Expr.eq(a.import_id, b.id)')
+      expect(generated).to include('import Sql.Expr as Expr')
+    end
+
+    # `import_id` names its relation `import`, which no Jade field can be
+    # called. It takes the same trailing underscore a reserved column gets.
+    it 'renames a relation whose name is a keyword' do
+      expect(generated).to include('import_: TransactionsCols')
+      expect(generated).to include('def transactions_on_import_(')
     end
   end
 end

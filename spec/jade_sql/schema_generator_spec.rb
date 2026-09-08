@@ -920,4 +920,130 @@ describe JadeSql::SchemaGenerator do
       end
     end
   end
+  context 'unique indexes' do
+    let(:sql) do
+      <<~SQL
+        CREATE TABLE public.users (
+            id bigint NOT NULL,
+            email character varying NOT NULL,
+            tenant_id bigint NOT NULL,
+            handle character varying
+        );
+
+        ALTER TABLE ONLY public.users
+            ADD CONSTRAINT users_pkey PRIMARY KEY (id);
+
+        ALTER TABLE ONLY public.users
+            ADD CONSTRAINT users_email_key UNIQUE (email);
+
+        CREATE UNIQUE INDEX index_users_on_tenant_and_handle ON public.users USING btree (tenant_id, handle);
+
+        CREATE UNIQUE INDEX index_users_on_handle_active ON public.users USING btree (handle) WHERE (handle IS NOT NULL);
+      SQL
+    end
+
+    it 'names a table-level UNIQUE constraint' do
+      expect(generated).to include(<<~JADE.strip)
+        def users_email_key -> Unique(UsersCols, String)
+          unique("users_email_key", ["email"], users_email_key_values)
+        end
+      JADE
+    end
+
+    it 'names a standalone unique index, with its columns in order' do
+      expect(generated).to include(<<~JADE.strip)
+        def index_users_on_tenant_and_handle -> Unique(UsersCols, (Int, Maybe(String)))
+          unique(
+            "index_users_on_tenant_and_handle",
+            ["tenant_id", "handle"],
+            index_users_on_tenant_and_handle_values,
+          )
+        end
+      JADE
+    end
+
+    # A partial index constrains only the rows its WHERE matches, so a
+    # conflict target built from it is not the one the database enforces.
+    it 'skips a partial index' do
+      expect(generated).not_to include('index_users_on_handle_active')
+    end
+
+    it 'types a composite key as a tuple, nullable columns included' do
+      expect(generated).to include(<<~JADE.strip)
+        def index_users_on_tenant_and_handle_values(
+          v: (Int, Maybe(String)),
+        ) -> List(Decode.Value)
+      JADE
+    end
+
+    it 'exposes them and imports what they need' do
+      expect(generated).to include('users_email_key,')
+      expect(generated).to include('  Unique,')
+      expect(generated).to include('  unique,')
+    end
+  end
+
+
+  # Postgres infers a conflict target by the column underneath an operator
+  # class, a sort order, a NULLS placement or a collation — all four were
+  # verified against a live server as `ON CONFLICT (col)` arbiters. An
+  # expression is the one thing it cannot reduce to a column, and `Unique`
+  # promises columns a read can bind values to.
+  context 'an index whose columns carry more than their names' do
+    let(:sql) do
+      <<~SQL
+        CREATE TABLE public.users (
+            id bigint NOT NULL,
+            email text NOT NULL,
+            code text NOT NULL,
+            tenant_id integer NOT NULL,
+            created_at timestamp without time zone,
+            deleted_at timestamp without time zone
+        );
+
+        ALTER TABLE ONLY public.users
+            ADD CONSTRAINT users_pkey PRIMARY KEY (id);
+        ALTER TABLE ONLY public.users
+            ADD CONSTRAINT users_tenant_key UNIQUE NULLS NOT DISTINCT (tenant_id, email);
+
+        CREATE UNIQUE INDEX idx_lower ON public.users USING btree (lower((email)::text));
+        CREATE UNIQUE INDEX idx_ops ON public.users USING btree (code text_pattern_ops);
+        CREATE UNIQUE INDEX idx_desc ON public.users USING btree (tenant_id, created_at DESC NULLS LAST);
+        CREATE UNIQUE INDEX idx_coll ON public.users USING btree (code COLLATE "C");
+        CREATE UNIQUE INDEX idx_partial ON public.users USING btree (email) WHERE (deleted_at IS NULL);
+      SQL
+    end
+
+    it 'reads the column under an operator class' do
+      expect(generated).to include(%q{unique("idx_ops", ["code"], idx_ops_values)})
+    end
+
+    it 'reads the columns under a sort order and a NULLS placement' do
+      expect(generated).to include(%q{unique("idx_desc", ["tenant_id", "created_at"], idx_desc_values)})
+    end
+
+    it 'reads the column under a collation' do
+      expect(generated).to include(%q{unique("idx_coll", ["code"], idx_coll_values)})
+    end
+
+    # `NULLS NOT DISTINCT` sits before the paren on a constraint and after it
+    # on an index, so the two spellings of one fact used to disagree.
+    it 'reads a constraint declaring NULLS NOT DISTINCT' do
+      expect(generated).to include(
+        %q{unique("users_tenant_key", ["tenant_id", "email"], users_tenant_key_values)},
+      )
+    end
+
+    # The column list has to run to the paren that closes it: stopping at the
+    # first `)` yields `["lower((email"`, which renders
+    # `ON CONFLICT (lower((email) DO NOTHING`.
+    it 'skips an expression index rather than emitting half of it' do
+      expect(generated).not_to include('idx_lower')
+      expect(generated).not_to include('lower(')
+    end
+
+    it 'skips a partial index, which constrains only the rows it matches' do
+      expect(generated).not_to include('idx_partial')
+    end
+  end
 end

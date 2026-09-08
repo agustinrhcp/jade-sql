@@ -85,6 +85,46 @@ Strict cols mirror NOT NULL constraints; the maybe version wraps every
 field in `Maybe` for left-join projections. The default alias is the
 table name; override per-call with `aliased` (see joins below).
 
+Every unique index becomes a name too, from both spellings: a table-level
+`UNIQUE (...)` and a standalone `CREATE UNIQUE INDEX`.
+
+```jade
+def users_email_key -> Unique(UsersCols)
+  unique("users_email_key", ["email"])
+end
+```
+
+`matching` builds the predicate for a read by that index, and the key type
+comes from the index, so a composite cannot be given in the wrong order:
+
+```jade
+where(matching(users_email_key, "ada@example.com"))
+# WHERE email = ?
+
+where(matching(users_tenant_email_key, (7, "ada@example.com")))
+# WHERE tenant_id = ? AND email = ?
+```
+
+Pair it with `Sql.Query.fetch_at_most_one`, which takes no row as an answer
+rather than an error. More than one is still `TooManyRows`: nothing is dropped
+to make the type fit, and the index is what makes that case unreachable.
+
+`UniqueViolation` carries the constraint name Postgres reports, so a write
+routes its own failure:
+
+```jade
+case err
+in UniqueViolation(i) then i == users_email_key.name ? EmailTaken : Other
+end
+```
+
+Rename the index, regenerate, and the call site stops compiling rather than
+quietly never matching again, which is what a string literal there would do. `Unique(c)` is phantom in the column struct, so
+an index cannot be used with a table it is not on.
+
+A partial index is skipped: it constrains only the rows its `WHERE` matches,
+so a conflict target built from it is not the one the database enforces.
+
 `patients_pk` names the table's primary key. `Pk(c, k)` is phantom in the
 column struct, so a key can only be used with the table it came from, and
 carries the key's own type — `Int` here, a tuple for a composite key,
@@ -572,6 +612,37 @@ appointments
 |> delete_all((a) -> { a.cancelled |> eq(True) })
 |> to_sql
 ```
+
+### Upserts
+
+`on_conflict` takes a `Unique` as the conflict target, so the index named is
+one the database has, and an action saying which of the two forms it is. The
+write already knows its table, so `do_update` receives the `SET` columns
+without being handed the table again:
+
+```jade
+import Sql exposing (set_excluded)
+import Sql.Write exposing (do_nothing, do_update, insert, on_conflict)
+
+NewUser("ada@example.com", "ada")
+  |> insert(users)
+  |> on_conflict(users_email_key, do_nothing)
+# INSERT INTO users AS users (email, handle) VALUES (?, ?) ON CONFLICT (email) DO NOTHING
+
+NewUser("ada@example.com", "ada")
+  |> insert(users)
+  |> on_conflict(users_email_key, do_update((s) -> { [set_excluded(s.handle)] }))
+# ... ON CONFLICT (email) DO UPDATE SET handle = EXCLUDED.handle
+```
+
+`set_excluded(col)` renders `col = EXCLUDED.col`, which is what an upsert wants
+nearly every time. For anything else, `excluded(col)` is the proposed row's
+value as an ordinary `Expr`, so `set_expr(s.count_, excluded(s.count_))` and
+arithmetic over it compose as usual.
+
+The build receives the table's `SET` columns, which is why the table is passed
+again: a `Write` carries its columns aliased for the statement, and the left of
+a `SET` takes no alias.
 
 ### RETURNING
 

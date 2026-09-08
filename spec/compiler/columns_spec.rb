@@ -30,7 +30,7 @@ def patients_pk -> Pk(PatientsCols, Int)
 end
 
 
-def go -> Write(Int, PatientsCols)
+def go -> Write(Int, PatientsCols, PatientsSetCols)
   #{call}
 end
       JADE
@@ -123,7 +123,7 @@ def patients_pk -> Pk(PatientsCols, Int)
 end
 
 
-def go -> Write(Int, PatientsCols)
+def go -> Write(Int, PatientsCols, PatientsSetCols)
   #{call}
 end
         JADE
@@ -172,7 +172,7 @@ def patients_pk -> Pk(PatientsCols, Int)
 end
 
 
-def go -> Write(Int, PatientsCols)
+def go -> Write(Int, PatientsCols, PatientsSetCols)
   update_all(
     patients,
     (c) -> { c.id |> eq(1) },
@@ -223,7 +223,7 @@ def events_pk -> Pk(EventsCols, Int)
 end
 
 
-def go -> Write(Int, EventsCols)
+def go -> Write(Int, EventsCols, EventsSetCols)
   insert(Event(Nothing), events)
 end
         JADE
@@ -250,7 +250,7 @@ import Sql.Write exposing (Write, insert)
 struct Entry = { type_: String }
 
 
-def go -> Write(Int, EntriesCols)
+def go -> Write(Int, EntriesCols, EntriesSetCols)
   insert(Entry("debit"), entries)
 end
         JADE
@@ -277,12 +277,12 @@ import Sql.Write exposing (Write, insert)
 struct Patient = { nmae: String }
 
 
-def save(v: a, t: Table(c, m, k, o, r, s)) -> Write(Int, c)
+def save(v: a, t: Table(c, m, k, o, r, s)) -> Write(Int, c, s)
   insert(v, t)
 end
 
 
-def go -> Write(Int, PatientsCols)
+def go -> Write(Int, PatientsCols, PatientsSetCols)
   save(Patient("Ada"), patients)
 end
         JADE
@@ -358,7 +358,7 @@ def payer_id(p: Payer) -> Int
 end
 
 
-def go -> Write(Int, InvoicesCols)
+def go -> Write(Int, InvoicesCols, InvoicesSetCols)
   insert(NewInvoice(Patient(7)), invoices)
 end
         JADE

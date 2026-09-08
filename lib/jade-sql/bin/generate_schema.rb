@@ -66,7 +66,7 @@ module JadeSql
 
     # Column names that collide with Jade keywords get a trailing underscore
     # in the struct field; the SQL column reference keeps the real name.
-    Table = Data.define(:name, :columns, :pk_columns, :fks)
+    Table = Data.define(:name, :columns, :pk_columns, :fks, :uniques)
     # `defaulted` is what the database fills in when an INSERT leaves the
     # column out — a DEFAULT clause, an identity or serial sequence. Not the
     # same question as `nullable`: a NOT NULL column with a default is still
@@ -79,9 +79,12 @@ module JadeSql
       bodies = select_tables(bodies, tables) if tables
       pks = parse_pks(sql)
       fks = parse_fks(sql)
+      uniques = parse_uniques(sql)
       defaults = parse_alter_defaults(sql)
       parsed = bodies
-        .map { |name, body| Table[name, parse_columns(body, name), pks[name] || [], fks[name]] }
+        .map { |name, body|
+          Table[name, parse_columns(body, name), pks[name] || [], fks[name], uniques[name]]
+        }
         .map { |t| t.with(columns: apply_defaults(t.columns, defaults[t.name] || [])) }
         .then { |ts| ts.map { |t| t.with(fks: relations(t, ts)) } }
       parsed = select_columns(parsed, columns) if columns
@@ -260,6 +263,91 @@ module JadeSql
         end
     end
 
+    Unique = Data.define(:name, :columns)
+
+    # Both spellings of the same fact: a table-level constraint, which
+    # pg_dump writes as an ALTER, and a standalone unique index. A partial
+    # index is skipped, since it constrains only the rows its WHERE matches
+    # and a conflict target built from it would not be the one it enforces.
+    UNIQUE_CONSTRAINT = /
+      ALTER\ TABLE\s+(?:ONLY\s+)?(?:\w+\.)?(\w+)\s+
+      ADD\ CONSTRAINT\ (\w+)\ UNIQUE\s+(?:NULLS\ NOT\ DISTINCT\s+)?\(
+    /ix
+
+    UNIQUE_INDEX = /CREATE\ UNIQUE\ INDEX\ (\w+)\ ON\ (?:\w+\.)?(\w+)\ USING\ \w+\s*\(/ix
+
+    def parse_uniques(sql)
+      (unique_constraints(sql) + unique_indexes(sql))
+        .each_with_object(Hash.new { |h, k| h[k] = [] }) do |(table, name, cols), acc|
+          acc[table] << Unique[name, cols]
+        end
+    end
+
+    def unique_constraints(sql)
+      scan_with_columns(sql, UNIQUE_CONSTRAINT) { |m, cols| [m[1], m[2], cols] }
+    end
+
+    # A partial index constrains only the rows its WHERE matches, so a
+    # conflict target built from it would not be the one it enforces.
+    def unique_indexes(sql)
+      scan_with_columns(sql, UNIQUE_INDEX) do |m, cols, tail|
+        next nil if tail[/\A[^;]*/] =~ /\bWHERE\b/i
+
+        [m[2], m[1], cols]
+      end
+    end
+
+    # The column list runs to the paren that closes it rather than to the
+    # first `)`, so an expression like `lower((email)::text)` arrives whole
+    # instead of as `lower((email`.
+    def scan_with_columns(sql, pattern)
+      sql.to_enum(:scan, pattern).filter_map do
+        m = Regexp.last_match
+        body, rest = balanced(sql, m.end(0))
+        next nil unless body
+
+        cols = split_columns(body).map { plain_column(it) }
+        next nil if cols.any?(&:nil?)
+
+        yield(m, cols, rest)
+      end
+    end
+
+    def balanced(sql, from)
+      depth = 1
+      i = from
+      while i < sql.length
+        depth += 1 if sql[i] == '('
+        depth -= 1 if sql[i] == ')'
+        return [sql[from...i], sql[(i + 1)..]] if depth.zero?
+
+        i += 1
+      end
+      nil
+    end
+
+    def split_columns(body)
+      depth = 0
+      body.each_char.with_object([+'']) do |c, parts|
+        depth += 1 if c == '('
+        depth -= 1 if c == ')'
+        c == ',' && depth.zero? ? parts << +'' : parts.last << c
+      end
+    end
+
+    # An index column may carry an operator class, a sort order, a NULLS
+    # placement or a collation, and Postgres infers a conflict target by the
+    # column underneath all of them. What it cannot reduce to a column is an
+    # expression, and `Unique` promises columns a read can bind values to, so
+    # those are skipped the way partial indexes are.
+    DECORATION = /\s+(?:COLLATE\s+\S+|ASC|DESC|NULLS\s+(?:FIRST|LAST)|\w+_(?:ops|pattern_ops))\b/i
+
+    def plain_column(part)
+      part.strip.gsub(DECORATION, '').strip.delete('"').then do
+        it.match?(/\A\w+\z/) ? it : nil
+      end
+    end
+
     def parse_pks(sql)
       sql
         .scan(/ALTER TABLE (?:ONLY\s+)?(?:\w+\.)?(\w+)\s+ADD CONSTRAINT \w+ PRIMARY KEY \(([^)]+)\)/i)
@@ -330,6 +418,7 @@ module JadeSql
         emit_table_fn(t),
       ]
         .then { keyed?(t) ? it + [emit_pk_fn(t), emit_pk_values_fn(t)] : it }
+        .then { it + t.uniques.flat_map { |u| [emit_unique_fn(t, u), emit_unique_values_fn(t, u)] } }
         .then { it + [emit_row_projector(t)] }
     end
 
@@ -360,6 +449,7 @@ module JadeSql
         end
       names += tables.map { |t| "#{t.name}_row" }
       names += keyed.map { |t| "#{t.name}_pk" }
+      names += tables.flat_map { |t| t.uniques.flat_map { |u| [u.name, "#{u.name}_values"] } }
       names += (@enums || {}).values.map { "#{camel(it.name)}(..)" }
       exposed = names.sort.join(", ")
 
@@ -376,6 +466,7 @@ module JadeSql
         *("NoJoins" if bare.any?),
         *("NoKey" if unkeyed),
         *("NoRequiredCols" if tables.any? { required_columns(it).empty? }),
+        *("Unique" if tables.any? { it.uniques.any? }),
       ].sort
       fns = [
         "column",
@@ -384,6 +475,7 @@ module JadeSql
         *("no_joins" if bare.any?),
         *("pk" if keyed.any?),
         *("unkeyed" if unkeyed),
+        *("unique" if tables.any? { it.uniques.any? }),
       ].sort
       sql_import = "import Sql exposing(#{(types + fns).join(', ')})"
       query_import = ["import Sql.Query exposing(Select, field_as, select)"]
@@ -591,6 +683,40 @@ module JadeSql
           end
         JADE
       end
+    end
+
+    # The index name is what Postgres reports in a violation, so naming it
+    # here is what lets a caller route the error without matching a string.
+    def emit_unique_fn(t, u)
+      cols = u.columns.map { it.inspect }.join(", ")
+
+      <<~JADE.strip
+        def #{u.name} -> Unique(#{camel(t.name)}Cols, #{unique_key_type(t, u)})
+          unique(#{u.name.inspect}, [#{cols}], #{u.name}_values)
+        end
+      JADE
+    end
+
+    def emit_unique_values_fn(t, u)
+      names = u.columns.each_index.map { |i| "v#{i}" }
+      encoded = names.map { "Encode.encode(#{it})" }.join(", ")
+
+      body = names.one? ?
+        "  [Encode.encode(v)]" :
+        "  (#{names.join(', ')}) = v\n\n  [#{encoded}]"
+
+      <<~JADE.strip
+        def #{u.name}_values(v: #{unique_key_type(t, u)}) -> List(Decode.Value)
+        #{body}
+        end
+      JADE
+    end
+
+    def unique_key_type(t, u)
+      u.columns
+        .map { |name| t.columns.find { |c| c.name == name } }
+        .map { |c| c.nullable ? "Maybe(#{c.jade_type})" : c.jade_type }
+        .then { it.one? ? it.first : "(#{it.join(', ')})" }
     end
 
     def emit_pk_fn(t)

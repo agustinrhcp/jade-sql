@@ -58,7 +58,7 @@ module Jade
       SQL
       conn.execute("INSERT INTO journal_entries (id, type, memo) VALUES (1, 'income', 'salary')")
 
-      test_compiler.require('schema', JadeSql::SchemaGenerator.generate(schema_sql))
+      test_compiler.require('schema', JadeSql::SchemaGenerator.generate(schema_sql).fetch('Schema'))
       test_compiler.require('app', app)
     end
 

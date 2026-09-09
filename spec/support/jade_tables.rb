@@ -11,7 +11,7 @@
 # `required:` names the columns an insert has to write, defaulting to the
 # columns that are neither nullable nor `id`.
 module JadeTables
-  DEFAULT_PK = 'pk(["id"], (v) -> { [Encode.encode(v)] })'.freeze
+  DEFAULT_PK = 'pk("pkey", ["id"], (v) -> { [Encode.encode(v)] })'.freeze
 
   def jade_table(name, columns, key: 'Int', alias_: nil, pk: nil, joins: 'no_joins', required: nil)
     klass = camel(name)
@@ -32,7 +32,7 @@ module JadeTables
   def jade_pk(name, key_columns = ['id'], key: 'Int')
     <<~JADE.strip
       def #{name}_pk -> Pk(#{camel(name)}Cols, #{key})
-        pk([#{key_columns.map(&:inspect).join(', ')}], (v) -> { [Encode.encode(v)] })
+        pk(#{"#{name}_pkey".inspect}, [#{key_columns.map(&:inspect).join(', ')}], (v) -> { [Encode.encode(v)] })
       end
     JADE
   end

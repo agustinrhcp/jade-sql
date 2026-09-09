@@ -63,7 +63,7 @@ end
 
 
 def accounts_pk -> Pk(AccountsCols, Int)
-  pk(["id"], (v) -> { [Encode.encode(v)] })
+  pk("pkey", ["id"], (v) -> { [Encode.encode(v)] })
 end
 
 

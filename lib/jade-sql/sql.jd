@@ -144,6 +144,7 @@ struct TableRef = {
 # it came from and cannot be passed to another. Both halves are generated from
 # the same DDL, so the columns and the values cannot fall out of step.
 struct Pk(c, k) = {
+  name: String,
   columns: List(String),
   values: k -> List(Value)
 }
@@ -156,12 +157,12 @@ struct Pk(c, k) = {
 type NoKey = NoKey
 
 
-# The primary key of a table: its key columns in DDL order, and how to spread
-# a key value across them.
+# The primary key of a table: the constraint that declares it, its key columns
+# in DDL order, and how to spread a key value across them.
 #
-#   pk(["id"], (v) -> { [Encode.encode(v)] })
-def pk(key_cols: List(String), values: k -> List(Value)) -> Pk(c, k)
-  Pk(key_cols, values)
+#   pk("patients_pkey", ["id"], (v) -> { [Encode.encode(v)] })
+def pk(name: String, key_cols: List(String), values: k -> List(Value)) -> Pk(c, k)
+  Pk(name, key_cols, values)
 end
 
 
@@ -174,7 +175,7 @@ end
 # The generator passes this for you. You need it by hand only when writing a
 # table function yourself.
 def unkeyed -> Pk(c, NoKey)
-  Pk([], (v) -> { [] })
+  Pk("", [], (v) -> { [] })
 end
 
 
@@ -202,6 +203,7 @@ struct Unique(c, k) = {
 def unique(name: String, cols: List(String), values: k -> List(Value)) -> Unique(c, k)
   Unique(name, cols, values)
 end
+
 
 
 # `email = ?`, or every column of a composite index joined by AND. The key

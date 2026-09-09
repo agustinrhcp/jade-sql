@@ -66,7 +66,7 @@ module JadeSql
 
     # Column names that collide with Jade keywords get a trailing underscore
     # in the struct field; the SQL column reference keeps the real name.
-    Table = Data.define(:name, :columns, :pk_columns, :fks, :uniques)
+    Table = Data.define(:name, :columns, :pk_columns, :pk_name, :fks, :uniques)
     # `defaulted` is what the database fills in when an INSERT leaves the
     # column out — a DEFAULT clause, an identity or serial sequence. Not the
     # same question as `nullable`: a NOT NULL column with a default is still
@@ -83,7 +83,11 @@ module JadeSql
       defaults = parse_alter_defaults(sql)
       parsed = bodies
         .map { |name, body|
-          Table[name, parse_columns(body, name), pks[name] || [], fks[name], uniques[name]]
+          Table[
+            name, parse_columns(body, name),
+            pks[name]&.columns || [], pks[name]&.name || '',
+            fks[name], uniques[name],
+          ]
         }
         .map { |t| t.with(columns: apply_defaults(t.columns, defaults[t.name] || [])) }
         .then { |ts| ts.map { |t| t.with(fks: relations(t, ts)) } }
@@ -348,10 +352,12 @@ module JadeSql
       end
     end
 
+    Pk = Data.define(:name, :columns)
+
     def parse_pks(sql)
       sql
-        .scan(/ALTER TABLE (?:ONLY\s+)?(?:\w+\.)?(\w+)\s+ADD CONSTRAINT \w+ PRIMARY KEY \(([^)]+)\)/i)
-        .to_h { |name, cols| [name, cols.split(',').map { |c| c.strip.delete('"') }] }
+        .scan(/ALTER TABLE (?:ONLY\s+)?(?:\w+\.)?(\w+)\s+ADD CONSTRAINT (\w+) PRIMARY KEY \(([^)]+)\)/i)
+        .to_h { |table, name, cols| [table, Pk[name, cols.split(',').map { it.strip.delete('"') }]] }
     end
 
     def emit(tables, module_name)
@@ -418,7 +424,9 @@ module JadeSql
         emit_table_fn(t),
       ]
         .then { keyed?(t) ? it + [emit_pk_fn(t), emit_pk_values_fn(t)] : it }
-        .then { it + t.uniques.flat_map { |u| [emit_unique_fn(t, u), emit_unique_values_fn(t, u)] } }
+        .then do
+          it + all_uniques(t).flat_map { |u| [emit_unique_fn(t, u), emit_unique_values_fn(t, u)] }
+        end
         .then { it + [emit_row_projector(t)] }
     end
 
@@ -441,15 +449,13 @@ module JadeSql
             "#{camel(t.name)}LeftCols",
             *("Required#{camel(t.name)}Cols" if required_columns(t).any?),
             "#{camel(t.name)}SetCols",
-            "#{t.name}_set_cols",
             "#{camel(t.name)}Row(..)",
             *("#{camel(t.name)}On(..)" if t.fks.any?),
             t.name,
           ]
         end
       names += tables.map { |t| "#{t.name}_row" }
-      names += keyed.map { |t| "#{t.name}_pk" }
-      names += tables.flat_map { |t| t.uniques.flat_map { |u| [u.name, "#{u.name}_values"] } }
+      names += tables.flat_map { |t| all_uniques(t).map(&:name) }
       names += (@enums || {}).values.map { "#{camel(it.name)}(..)" }
       exposed = names.sort.join(", ")
 
@@ -466,7 +472,7 @@ module JadeSql
         *("NoJoins" if bare.any?),
         *("NoKey" if unkeyed),
         *("NoRequiredCols" if tables.any? { required_columns(it).empty? }),
-        *("Unique" if tables.any? { it.uniques.any? }),
+        *("Unique" if tables.any? { all_uniques(it).any? }),
       ].sort
       fns = [
         "column",
@@ -475,7 +481,7 @@ module JadeSql
         *("no_joins" if bare.any?),
         *("pk" if keyed.any?),
         *("unkeyed" if unkeyed),
-        *("unique" if tables.any? { it.uniques.any? }),
+        *("unique" if tables.any? { all_uniques(it).any? }),
       ].sort
       sql_import = "import Sql exposing(#{(types + fns).join(', ')})"
       query_import = ["import Sql.Query exposing(Select, field_as, select)"]
@@ -719,12 +725,19 @@ module JadeSql
         .then { it.one? ? it.first : "(#{it.join(', ')})" }
     end
 
+    # The primary key is a unique index, and `ON CONFLICT` arbitrates on it the
+    # way it does on any other. Postgres names it in the DDL, so it is emitted
+    # under that name rather than under one of ours.
+    def all_uniques(t)
+      keyed?(t) ? [Unique[t.pk_name, t.pk_columns]] + t.uniques : t.uniques
+    end
+
     def emit_pk_fn(t)
       cols = key_columns(t).map { it.name.inspect }.join(", ")
 
       <<~JADE.strip
         def #{t.name}_pk -> Pk(#{camel(t.name)}Cols, #{key_type(t)})
-          pk([#{cols}], #{t.name}_pk_values)
+          pk(#{t.pk_name.inspect}, [#{cols}], #{t.name}_pk_values)
         end
       JADE
     end

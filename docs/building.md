@@ -77,7 +77,7 @@ def patients -> Table(PatientsCols, PatientsLeftCols)
 end
 
 def patients_pk -> Pk(PatientsCols, Int)
-  pk(["id"], patients_pk_values)
+  pk("pkey", ["id"], patients_pk_values)
 end
 ```
 
@@ -633,6 +633,14 @@ NewUser("ada@example.com", "ada")
   |> insert(users)
   |> on_conflict(users_email_key, do_update((s) -> { [set_excluded(s.handle)] }))
 # ... ON CONFLICT (email) DO UPDATE SET handle = EXCLUDED.handle
+```
+
+A primary key is a unique index like any other, so it is generated as one
+under the name the DDL gives it — which is what `upsert_all` targets:
+
+```jade
+row |> insert(users) |> on_conflict(users_pkey, do_update((s) -> { ... }))
+# ... ON CONFLICT (id) DO UPDATE SET ...
 ```
 
 `set_excluded(col)` renders `col = EXCLUDED.col`, which is what an upsert wants

@@ -66,9 +66,8 @@ describe JadeSql::SchemaGenerator do
           PatientsSetCols,
           RequiredPatientsCols,
           patients,
-          patients_pk,
+          patients_pkey,
           patients_row,
-          patients_set_cols,
         )
       JADE
     end
@@ -91,10 +90,12 @@ describe JadeSql::SchemaGenerator do
   Pk,
   Selector,
   Table,
+  Unique,
   column,
   no_joins,
   pk,
   table,
+  unique,
 )')
       expect(generated).to include('import Encode')
     end
@@ -156,7 +157,7 @@ describe JadeSql::SchemaGenerator do
     it 'emits the key as a value typed to the table it came from' do
       expect(generated).to include(<<~FN.strip)
         def patients_pk -> Pk(PatientsCols, Int)
-          pk(["id"], patients_pk_values)
+          pk("patients_pkey", ["id"], patients_pk_values)
         end
 
 
@@ -312,7 +313,7 @@ describe JadeSql::SchemaGenerator do
     it 'spreads a composite key across its columns, in DDL order' do
       expect(generated).to include(<<~FN.strip)
         def memberships_pk -> Pk(MembershipsCols, (Int, Int))
-          pk(["user_id", "group_id"], memberships_pk_values)
+          pk("memberships_pkey", ["user_id", "group_id"], memberships_pk_values)
         end
 
 
@@ -396,8 +397,8 @@ describe JadeSql::SchemaGenerator do
         Orders OrdersCols OrdersLeftCols OrdersRow(..) OrdersSetCols Persons
         PersonsCols PersonsLeftCols PersonsRow(..) PersonsSetCols
         RequiredOrdersCols RequiredPersonsCols
-        orders orders_pk orders_row orders_set_cols
-        persons persons_pk persons_row persons_set_cols
+        orders orders_pkey orders_row
+        persons persons_pkey persons_row
       ]
     end
 
@@ -776,8 +777,15 @@ describe JadeSql::SchemaGenerator do
   context 'output Jade cannot parse' do
     let(:sql) do
       <<~SQL
-        CREATE TABLE public.parents (a integer NOT NULL, b integer NOT NULL);
-        CREATE TABLE public.kids (a integer NOT NULL, b integer NOT NULL);
+        CREATE TABLE public.parents (
+            a integer NOT NULL,
+            b integer NOT NULL
+        );
+
+        CREATE TABLE public.kids (
+            a integer NOT NULL,
+            b integer NOT NULL
+        );
 
         ALTER TABLE ONLY public.parents
             ADD CONSTRAINT parents_pkey PRIMARY KEY (a, b);
@@ -1044,6 +1052,70 @@ describe JadeSql::SchemaGenerator do
 
     it 'skips a partial index, which constrains only the rows it matches' do
       expect(generated).not_to include('idx_partial')
+    end
+  end
+
+  # Every other spec here defines its `On` record in the same module as the
+  # call site, so none of them exercises what an app actually does: import a
+  # generated schema and join through it. Reaching `t.on.rel` needs `Sql.Table`
+  # for the first field and the table's own `On` type for the second, which is
+  # why both stay exposed.
+  context 'joining through a generated on record from another module' do
+    let(:sql) do
+      <<~SQL
+        CREATE TABLE public.patients (
+            id bigint NOT NULL,
+            name text NOT NULL
+        );
+
+        CREATE TABLE public.visits (
+            id bigint NOT NULL,
+            patient_id bigint NOT NULL
+        );
+
+        ALTER TABLE ONLY public.patients
+            ADD CONSTRAINT patients_pkey PRIMARY KEY (id);
+        ALTER TABLE ONLY public.visits
+            ADD CONSTRAINT visits_pkey PRIMARY KEY (id);
+        ALTER TABLE ONLY public.visits
+            ADD CONSTRAINT visits_patient_fk FOREIGN KEY (patient_id) REFERENCES public.patients(id);
+      SQL
+    end
+
+    include_context 'with test compiler'
+
+    it 'renders the join the foreign key describes' do
+      test_compiler.write('schema', generated)
+      test_compiler.compiler.require('schema')
+      test_compiler.write('app', <<~JADE)
+        module App exposing (go)
+
+        import Sql exposing (Table)
+        import Sql.Query exposing (Select, field, from, join, select)
+        import Schema exposing (PatientsOn(..), patients, visits)
+
+
+        struct Row = {
+          a: Int,
+          b: Int
+        }
+
+
+        def go -> Select(Row)
+          p <- from(patients)
+          v <- visits |> join(p |> patients.on.visits)
+
+          select(Row(_, _))
+            |> field(p.id)
+            |> field(v.id)
+        end
+      JADE
+      test_compiler.compiler.require('app')
+
+      expect(Sql::Query.to_sql(App.go)[0]).to eql(
+        'SELECT patients.id, visits.id FROM patients patients ' \
+        'INNER JOIN visits visits ON patients.id = visits.patient_id',
+      )
     end
   end
 end

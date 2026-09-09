@@ -43,8 +43,9 @@ module Jade
         test_compiler.require('app', <<~JADE)
           module App exposing (projection)
 
-          import Sql exposing (Expr, column, to_expr)
+          import Sql exposing (Expr(..), column)
           import Sql.Json as Json exposing (Json)
+          import Encode
 
 
           struct Row = {
@@ -53,10 +54,15 @@ module Jade
           }
 
 
+          def val(v: a) -> Expr(a)
+            Expr("?", [Encode.encode(v)])
+          end
+
+
           def projection -> Expr(Json(Row))
             Json.object(Row(_, _))
-              |> Json.prop("a", to_expr(1))
-              |> Json.prop("b", to_expr(2))
+              |> Json.prop("a", val(1))
+              |> Json.prop("b", val(2))
               |> Json.build
           end
         JADE
@@ -99,11 +105,11 @@ module Jade
         end
       end
 
-      it 'coalesces to an empty array through Sql.coalesce' do
+      it 'coalesces an aggregation that may match nothing to an empty array' do
         test_compiler.require('app', <<~JADE)
           module App exposing (lines_expr)
 
-          import Sql exposing (Expr, coalesce, column)
+          import Sql exposing (Expr, column)
           import Sql.Json as Json exposing (Json)
 
 
@@ -118,7 +124,7 @@ module Jade
 
 
           def lines_expr -> Expr(List(Row))
-            coalesce(Json.agg(one, column("l", "id")), Json.empty_list)
+            Json.coalesce(Json.agg(one, column("l", "id")))
           end
         JADE
 
@@ -158,7 +164,7 @@ module Jade
           module App exposing (q)
 
           import Sql exposing (Selector, column)
-          import Sql.Query as Query exposing (Q)
+          import Sql.Query as Query exposing (Query)
           import Sql.Json as Json exposing (Doc, Json)
 
 
@@ -172,7 +178,7 @@ module Jade
           end
 
 
-          def q -> Q(Selector(Doc(Row)))
+          def q -> Query(Selector(Doc(Row)))
             Json.select(one)
           end
         JADE
@@ -190,8 +196,8 @@ module Jade
         test_compiler.require('app', <<~JADE)
           module App exposing (q)
 
-          import Sql exposing (Selector, column, eq, to_expr)
-          import Sql.Query as Query exposing (Q)
+          import Sql exposing (Selector, column, eq)
+          import Sql.Query as Query exposing (Query)
           import Sql.Json as Json exposing (Doc, Json)
 
 
@@ -205,9 +211,9 @@ module Jade
           end
 
 
-          def q -> Q(Selector(Doc(Row)))
+          def q -> Query(Selector(Doc(Row)))
             Json.select(one)
-              |> Query.where(eq(column("t", "book_id"), to_expr("b1")))
+              |> Query.where(eq(column("t", "book_id"), "b1"))
               |> Query.limit(100)
           end
         JADE
@@ -228,18 +234,19 @@ module Jade
         test_compiler.require('app', <<~JADE)
           module App exposing (sub)
 
-          import Sql exposing (Expr, Selector, column, eq)
-          import Sql.Query as Query exposing (Q)
+          import Sql exposing (Expr, Selector, column)
+          import Sql.Expr as Expr
+          import Sql.Query as Query exposing (Query)
           import Sql.Json as Json exposing (Json)
 
 
           struct Row = { id: String }
 
 
-          def child(outer: Expr(String)) -> Q(Selector(Int))
+          def child(outer: Expr(String)) -> Query(Selector(Int))
             Query.select(identity)
               |> Query.field(Sql.count_all)
-              |> Query.where(eq(column("l", "transaction_id"), outer))
+              |> Query.where(Expr.eq(column("l", "transaction_id"), outer))
           end
 
 

@@ -4,6 +4,7 @@ module Sql.Json exposing (
   Object,
   agg,
   build,
+  coalesce,
   correlated,
   empty_list,
   fetch_many,
@@ -29,8 +30,8 @@ module Sql.Json exposing (
 # type fails to compile. The witness is never called — Postgres does the
 # constructing.
 
-import Sql exposing (Expr(..), Selector, SqlError, cast)
-import Sql.Query as Query exposing (Q)
+import Sql exposing (Expr(..), Selector, SqlError, unsafe_cast)
+import Sql.Query as Query exposing (Query)
 import Decode exposing (Value)
 
 
@@ -71,6 +72,17 @@ def agg(e: Expr(Json(a)), by: Expr(b)) -> Expr(Maybe(List(a)))
 end
 
 
+# `json_agg` over no rows is NULL, so an aggregation that may match nothing is
+# `Maybe`. This is how it stops being one.
+#
+# `Sql.coalesce` cannot: its default is a value it binds, and the empty JSON
+# array is a literal Postgres has to read as `json` rather than a parameter it
+# would take for an array.
+def coalesce(e: Expr(Maybe(List(a)))) -> Expr(List(a))
+  Expr("COALESCE(" ++ e.sql ++ ", '[]'::json)", e.params)
+end
+
+
 def empty_list -> Expr(List(a))
   Expr("'[]'::json", [])
 end
@@ -96,7 +108,7 @@ end
 # aggregated. The outer columns are passed in rather than closed over so the
 # correlated scope is a named argument: reusing a builder under a different
 # outer table is then a type error instead of a silently wrong correlation.
-def correlated(outer: c, q: c -> Q(Selector(a))) -> Expr(a)
+def correlated(outer: c, q: c -> Query(Selector(a))) -> Expr(a)
   (sql, params) = outer |> q |> Query.to_sql
 
   Expr("(" ++ sql ++ ")", params)
@@ -120,23 +132,23 @@ end
 # an alias matching Doc's field. `cast` is the escape hatch that erases
 # Json(a) to the String the column actually holds — it stays inside this
 # module, and the signature ties the result's tag back to the projection's.
-def select(e: Expr(Json(a))) -> Q(Selector(Doc(a)))
-  Query.select(Doc(_)) |> Query.field_as(cast(e), "text")
+def select(e: Expr(Json(a))) -> Query(Selector(Doc(a)))
+  Query.select(Doc(_)) |> Query.field_as(unsafe_cast(e), "text")
 end
 
 
 # The parent list is joined here rather than aggregated in SQL: LIMIT applies
 # to an aggregate's single output row, not to the rows feeding it, so a paged
 # json_agg silently returns the wrong page.
-def fetch_many(q: Q(Selector(Doc(a)))) -> Task(Doc(List(a)), SqlError)
-  docs <- Sql.fetch_many(q)
+def fetch_many(q: Query(Selector(Doc(a)))) -> Task(Doc(List(a)), SqlError)
+  docs <- Query.fetch_many(q)
 
   Task.succeed(Doc("[" ++ String.join(List.map(docs, text), ",") ++ "]"))
 end
 
 
-def fetch_one(q: Q(Selector(Doc(a)))) -> Task(Doc(a), SqlError)
-  doc <- Sql.fetch_one(q)
+def fetch_one(q: Query(Selector(Doc(a)))) -> Task(Doc(a), SqlError)
+  doc <- Query.fetch_one(q)
 
   Task.succeed(doc)
 end

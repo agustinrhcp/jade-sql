@@ -10,160 +10,168 @@ module Jade
   describe 'Sql.Json against Postgres', :integration do
     include_context 'with test compiler'
     include_context 'with database'
+    include JadeTables
 
     let(:source) do
       <<~JADE
-        module App exposing (insert_patient, list_json, peers_json, tagged_json)
+module App exposing (insert_patient, list_json, peers_json, tagged_json)
 
-        import Sql exposing (
-          Assignment,
-          Expr,
-          Selector,
-          SqlError,
-          SqlMapper,
-          Table,
-          assign,
-          coalesce,
-          column,
-          execute,
-          gt,
-          table,
-        )
-        import Sql.Mutation exposing (insert)
-        import Sql.Query as Query exposing (Q)
-        import Sql.Json as Json exposing (Doc, Json)
-
-
-        struct Patient = {
-          id: Int,
-          name: String,
-          balance: Int
-        }
+import Sql exposing (
+  Assignable,
+  Assignment,
+  Col(..),
+  Expr,
+  NoJoins,
+  Selector,
+  SqlError,
+  Table,
+  assign,
+  column,
+  execute,
+  no_joins,
+  pk,
+  table,
+)
+import Sql
+import Sql.Expr as Expr
+import Sql.Write exposing (insert)
+import Encode
+import Sql.Query as Query exposing (Query)
+import Sql.Json as Json exposing (Doc, Json)
 
 
-        struct Tagged = {
-          name: String,
-          tags: List(String)
-        }
+struct Patient = {
+  id: Int,
+  name: String,
+  balance: Int
+}
 
 
-        struct WithPeers = {
-          id: Int,
-          peers: List(Patient)
-        }
+struct Tagged = {
+  name: String,
+  tags: List(String)
+}
 
 
-        struct NewPatient = {
-          name: String,
-          balance: Int
-        }
+struct WithPeers = {
+  id: Int,
+  peers: List(Patient)
+}
 
 
-        implements SqlMapper(NewPatient) with
-          to_assigns: new_patient_assigns
-        end
+struct NewPatient = {
+  name: String,
+  balance: Int
+}
 
 
-        def new_patient_assigns(p: NewPatient) -> List(Assignment)
-          [assign("name", p.name), assign("balance", p.balance)]
-        end
+implements Assignable(NewPatient) with
+  to_assigns: new_patient_assigns
+end
 
 
-        def patients -> Table(c, m)
-          table("patients", "p", (a) -> { a }, (a) -> { a }, ["id"])
-        end
+def new_patient_assigns(p: NewPatient) -> List(Assignment)
+  [assign("name", p.name), assign("balance", p.balance)]
+end
 
 
-        # A second handle on the same table under its own alias, so the
-        # correlated subquery can reference the outer row without capture.
-        def other_patients -> Table(c, m)
-          table("patients", "p2", (a) -> { a }, (a) -> { a }, ["id"])
-        end
+#{jade_table(
+  'patients',
+  { id: 'Int', name: 'String', balance: 'Int', tags: 'List(String)' },
+  alias_: 'p',
+)}
 
 
-        def insert_patient(name: String, balance: Int) -> Task(Int, SqlError)
-          NewPatient(name, balance)
-            |> insert(patients)
-            |> execute
-        end
+# A second handle on the same table under its own alias, so the
+# correlated subquery can reference the outer row without capture.
+def other_patients -> Table(PatientsCols, PatientsLeftCols, Int, NoJoins, RequiredPatientsCols, PatientsSetCols)
+  Sql.aliased(patients, "p2")
+end
 
 
-        def patient_json -> Expr(Json(Patient))
-          Json.object(Patient(_, _, _))
-            |> Json.prop("id", column("p", "id"))
-            |> Json.prop("name", column("p", "name"))
-            |> Json.prop("balance", column("p", "balance"))
-            |> Json.build
-        end
+def insert_patient(name: String, balance: Int) -> Task(Int, SqlError)
+  NewPatient(name, balance)
+    |> insert(patients)
+    |> execute
+end
 
 
-        def list_query -> Q(Selector(Doc(Patient)))
-          _ <- Query.from(patients)
-          Json.select(patient_json) |> Query.order(column("p", "id"))
-        end
+def patient_json -> Expr(Json(Patient))
+  Json.object(Patient(_, _, _))
+    |> Json.prop("id", column("p", "id"))
+    |> Json.prop("name", column("p", "name"))
+    |> Json.prop("balance", column("p", "balance"))
+    |> Json.build
+end
 
 
-        def list_json -> Task(Doc(List(Patient)), SqlError)
-          Json.fetch_many(list_query)
-        end
+def list_query -> Query(Selector(Doc(Patient)))
+  _ <- Query.from(patients)
+  Json.select(patient_json) |> Query.order(column("p", "id"))
+end
 
 
-        def tagged_query -> Q(Selector(Doc(Tagged)))
-          _ <- Query.from(patients)
-          Json.select(
-            Json.object(Tagged(_, _))
-              |> Json.prop("name", column("p", "name"))
-              |> Json.prop("tags", Json.of_array(column("p", "tags")))
-              |> Json.build,
-          )
-            |> Query.order(column("p", "id"))
-        end
+def list_json -> Task(Doc(List(Patient)), SqlError)
+  Json.fetch_many(list_query)
+end
 
 
-        def tagged_json -> Task(Doc(List(Tagged)), SqlError)
-          Json.fetch_many(tagged_query)
-        end
+def tagged_query -> Query(Selector(Doc(Tagged)))
+  _ <- Query.from(patients)
+  Json.select(
+    Json.object(Tagged(_, _))
+      |> Json.prop("name", column("p", "name"))
+      |> Json.prop("tags", Json.of_array(column("p", "tags")))
+      |> Json.build,
+  )
+    |> Query.order(column("p", "id"))
+end
 
 
-        def other_json -> Expr(Json(Patient))
-          Json.object(Patient(_, _, _))
-            |> Json.prop("id", column("p2", "id"))
-            |> Json.prop("name", column("p2", "name"))
-            |> Json.prop("balance", column("p2", "balance"))
-            |> Json.build
-        end
+def tagged_json -> Task(Doc(List(Tagged)), SqlError)
+  Json.fetch_many(tagged_query)
+end
 
 
-        # json_agg over an empty group is NULL, so `agg` is Maybe and coalesce
-        # is the only way to a placeable value.
-        def peers -> Expr(Maybe(List(Patient)))
-          Json.correlated(
-            column("p", "id"),
-            (outer) -> {
-              _ <- Query.from(other_patients)
-              Query.select(identity)
-                |> Query.field(Json.agg(other_json, column("p2", "id")))
-                |> Query.where(gt(column("p2", "id"), outer))
-            },
-          )
-        end
+def other_json -> Expr(Json(Patient))
+  Json.object(Patient(_, _, _))
+    |> Json.prop("id", column("p2", "id"))
+    |> Json.prop("name", column("p2", "name"))
+    |> Json.prop("balance", column("p2", "balance"))
+    |> Json.build
+end
 
 
-        def peers_query -> Q(Selector(Doc(WithPeers)))
-          _ <- Query.from(patients)
-          Json.select(
-            Json.object(WithPeers(_, _))
-              |> Json.prop("id", column("p", "id"))
-              |> Json.prop("peers", coalesce(peers, Json.empty_list))
-              |> Json.build,
-          )
-            |> Query.order(column("p", "id"))
-        end
+# json_agg over an empty group is NULL, so `agg` is Maybe and coalesce
+# is the only way to a placeable value.
+def peers -> Expr(Maybe(List(Patient)))
+  Json.correlated(
+    column("p", "id"),
+    (outer) -> {
+      _ <- Query.from(other_patients)
+      Query.select(identity)
+        |> Query.field(Json.agg(other_json, column("p2", "id")))
+        |> Query.where(Expr.gt(column("p2", "id"), outer))
+    },
+  )
+end
 
 
-        def peers_json -> Task(Doc(List(WithPeers)), SqlError)
-          Json.fetch_many(peers_query)
-        end
+def peers_query -> Query(Selector(Doc(WithPeers)))
+  _ <- Query.from(patients)
+  Json.select(
+    Json.object(WithPeers(_, _))
+      |> Json.prop("id", column("p", "id"))
+      |> Json.prop("peers", Json.coalesce(peers))
+      |> Json.build,
+  )
+    |> Query.order(column("p", "id"))
+end
+
+
+def peers_json -> Task(Doc(List(WithPeers)), SqlError)
+  Json.fetch_many(peers_query)
+end
       JADE
     end
 

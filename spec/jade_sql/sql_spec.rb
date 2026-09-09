@@ -629,9 +629,11 @@ module Jade
         end
       end
 
-      it 'jsonb_path_exists casts the path to jsonpath' do
+      # The `@?` operator spells itself with a `?`, which the runtime cannot
+      # tell from a placeholder. The function form contains none.
+      it 'jsonb_path_exists renders the function, not the operator' do
         App.has_path("$.kind ? (@ == \"income\")").then do |expr|
-          expect(expr['sql']).to eql 'r.match @? ?::jsonpath'
+          expect(expr['sql']).to eql 'jsonb_path_exists(r.match, ?)'
           expect(expr['params']).to eql ['$.kind ? (@ == "income")']
         end
       end

@@ -491,8 +491,14 @@ end
 #   jsonb_contains(column("rules", "match"), { kind: "income" })
 #
 # pg binds Ruby Hash/Array as jsonb when paired with a jsonb column.
-# The `@?` jsonpath operator needs an explicit `::jsonpath` cast since
-# the param is bound as text.
+#
+# Four of Postgres' jsonb operators spell themselves with a `?` — `@?`, `?`,
+# `?|` and `?&` — and the runtime rewrites every `?` outside a quoted span
+# into a `$n` placeholder. It cannot tell an operator from a parameter, since
+# `meta ? 'kind'` and `id = ?` are the same character in the same position.
+# So these render as the functions Postgres gives them instead, which contain
+# no `?` and need no escaping. The functions also declare their parameter
+# types, which is what the operator form needed a cast to supply.
 
 
 def jsonb_contains(col: Expr(Value), value: a) -> Expr(Bool)
@@ -501,7 +507,10 @@ end
 
 
 def jsonb_path_exists(col: Expr(Value), path: String) -> Expr(Bool)
-  Expr(col.sql ++ " @? ?::jsonpath", col.params ++ [encode(path)])
+  Expr(
+    "jsonb_path_exists(" ++ col.sql ++ ", ?)",
+    col.params ++ [encode(path)],
+  )
 end
 
 

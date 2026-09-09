@@ -14,8 +14,18 @@ describe 'reading without a select' do
           seen_on date
       );
 
+      CREATE TABLE public.visits (
+          id bigint NOT NULL,
+          patient_id bigint NOT NULL,
+          name character varying NOT NULL
+      );
+
       ALTER TABLE ONLY public.patients
           ADD CONSTRAINT patients_pkey PRIMARY KEY (id);
+      ALTER TABLE ONLY public.visits
+          ADD CONSTRAINT visits_pkey PRIMARY KEY (id);
+      ALTER TABLE ONLY public.visits
+          ADD CONSTRAINT visits_patient_fk FOREIGN KEY (patient_id) REFERENCES public.patients(id);
     SQL
   end
 
@@ -51,7 +61,7 @@ describe 'reading without a select' do
       end
     JADE
 
-    expect(Reads.sql.first).to start_with 'SELECT id, name FROM patients'
+    expect(Reads.sql.first).to start_with 'SELECT patients.id, patients.name FROM patients'
   end
 
   # The shape asked for does not have to be declared: a record written where
@@ -76,7 +86,7 @@ describe 'reading without a select' do
       end
     JADE
 
-    expect(Anon.sql.first).to start_with 'SELECT name FROM patients'
+    expect(Anon.sql.first).to start_with 'SELECT patients.name FROM patients'
   end
   # The reader is where the shape and the query meet, so this is the call
   # that has to type check: nothing in it names a column.
@@ -108,4 +118,38 @@ describe 'reading without a select' do
     expect(defined?(Reader)).to eq 'constant'
   end
 
+
+  # A shape names columns, never tables, so the alias comes from where the
+  # read is rooted. Left bare, Postgres picks: `name` is on both tables here
+  # and it refuses, but a column on only one of them would resolve there
+  # silently, whichever table the shape meant.
+  it 'qualifies the columns with the table the read is rooted in' do
+    test_compiler.require('joined', <<~JADE)
+      module Joined exposing (rows, sql)
+
+      import Schema exposing (PatientsOn(..), VisitsCols, patients, visits)
+      import Decode exposing (Value)
+      import Sql exposing (Selector, Table)
+      import Sql.Query exposing (Query, Select, from, join, selected, to_sql)
+
+
+      def joined -> Query(VisitsCols)
+        p <- from(patients)
+
+        visits |> join(p |> patients.on.visits)
+      end
+
+
+      def rows -> Select({ name: String })
+        joined |> selected
+      end
+
+
+      def sql -> (String, List(Value))
+        to_sql(rows)
+      end
+    JADE
+
+    expect(Joined.sql.first).to start_with 'SELECT patients.name FROM patients'
+  end
 end

@@ -1054,4 +1054,68 @@ describe JadeSql::SchemaGenerator do
       expect(generated).not_to include('idx_partial')
     end
   end
+
+  # Every other spec here defines its `On` record in the same module as the
+  # call site, so none of them exercises what an app actually does: import a
+  # generated schema and join through it. Reaching `t.on.rel` needs `Sql.Table`
+  # for the first field and the table's own `On` type for the second, which is
+  # why both stay exposed.
+  context 'joining through a generated on record from another module' do
+    let(:sql) do
+      <<~SQL
+        CREATE TABLE public.patients (
+            id bigint NOT NULL,
+            name text NOT NULL
+        );
+
+        CREATE TABLE public.visits (
+            id bigint NOT NULL,
+            patient_id bigint NOT NULL
+        );
+
+        ALTER TABLE ONLY public.patients
+            ADD CONSTRAINT patients_pkey PRIMARY KEY (id);
+        ALTER TABLE ONLY public.visits
+            ADD CONSTRAINT visits_pkey PRIMARY KEY (id);
+        ALTER TABLE ONLY public.visits
+            ADD CONSTRAINT visits_patient_fk FOREIGN KEY (patient_id) REFERENCES public.patients(id);
+      SQL
+    end
+
+    include_context 'with test compiler'
+
+    it 'renders the join the foreign key describes' do
+      test_compiler.write('schema', generated)
+      test_compiler.compiler.require('schema')
+      test_compiler.write('app', <<~JADE)
+        module App exposing (go)
+
+        import Sql exposing (Table)
+        import Sql.Query exposing (Select, field, from, join, select)
+        import Schema exposing (PatientsOn(..), patients, visits)
+
+
+        struct Row = {
+          a: Int,
+          b: Int
+        }
+
+
+        def go -> Select(Row)
+          p <- from(patients)
+          v <- visits |> join(p |> patients.on.visits)
+
+          select(Row(_, _))
+            |> field(p.id)
+            |> field(v.id)
+        end
+      JADE
+      test_compiler.compiler.require('app')
+
+      expect(Sql::Query.to_sql(App.go)[0]).to eql(
+        'SELECT patients.id, visits.id FROM patients patients ' \
+        'INNER JOIN visits visits ON patients.id = visits.patient_id',
+      )
+    end
+  end
 end

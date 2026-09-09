@@ -38,7 +38,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - run: sudo apt-get update && sudo apt-get install -y libpq-dev
+      # The runner image carries third-party apt sources this build has no use
+      # for, and `apt-get update` fails the whole step when one of them serves
+      # a bad index — which Google's Chrome repo is doing now. Dropping them
+      # leaves Ubuntu's own repos, which is where libpq-dev comes from.
+      - run: |
+          sudo rm -f /etc/apt/sources.list.d/*.list
+          sudo apt-get update
+          sudo apt-get install -y libpq-dev
 
       - uses: ruby/setup-ruby@v1
         with:

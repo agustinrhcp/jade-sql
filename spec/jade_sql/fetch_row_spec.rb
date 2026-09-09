@@ -19,7 +19,11 @@ describe 'reading without a select' do
     SQL
   end
 
-  before { test_compiler.require('schema', JadeSql::SchemaGenerator.generate(schema_sql)) }
+  # The generator returns a module per enum plus the root one; this schema
+  # declares none, so the root is all of it.
+  before do
+    test_compiler.require('schema', JadeSql::SchemaGenerator.generate(schema_sql).fetch('Schema'))
+  end
 
   it 'selects the fields of the result type, in order' do
     test_compiler.require('reads', <<~JADE)

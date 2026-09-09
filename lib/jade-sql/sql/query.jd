@@ -491,5 +491,16 @@ end
 
 
 def selected(q: Query(c)) -> Select(a)
-  Query(q.tables, q.joins, q.wheres, q.groups, q.orders, q.limit_, q.offset_, selector)
+  Query(
+    q.tables,
+    q.joins,
+    q.wheres,
+    q.groups,
+    q.havings,
+    q.orders,
+    q.limit_,
+    q.offset_,
+    q.distinct_,
+    selector,
+  )
 end

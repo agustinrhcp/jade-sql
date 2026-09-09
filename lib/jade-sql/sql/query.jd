@@ -501,6 +501,23 @@ def selected(q: Query(c)) -> Select(a)
     q.limit_,
     q.offset_,
     q.distinct_,
-    selector,
+    qualified(q.tables, selector),
   )
+end
+
+
+# The shape names columns, not tables, so the alias comes from where the read
+# is rooted. Bare names would let Postgres choose: on a join it refuses an
+# ambiguous one, but a name that exists in only one of the joined tables
+# resolves to that one silently, whichever table the shape meant. Qualified,
+# that case is `column patients.note does not exist` instead.
+#
+# A query with no table of its own is left alone; there is no alias to use.
+def qualified(tables: List(TableRef), s: Selector(a)) -> Selector(a)
+  case tables
+  in [] then s
+
+  in [t | _]
+  then Selector(List.map(s.columns_sql, (c) -> { t.alias_ ++ "." ++ c }), s.params)
+  end
 end

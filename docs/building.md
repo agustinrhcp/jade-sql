@@ -515,7 +515,7 @@ Out of scope: `unnest`, `array_agg`. Add when a caller hits them.
 | Function                                                  | SQL                |
 |-----------------------------------------------------------|--------------------|
 | `jsonb_contains(Expr(Value), a) -> Expr(Bool)`            | `col @> ?`         |
-| `jsonb_path_exists(Expr(Value), String) -> Expr(Bool)`    | `col @? ?::jsonpath` |
+| `jsonb_path_exists(Expr(Value), String) -> Expr(Bool)`    | `jsonb_path_exists(col, ?)` |
 
 `jsonb_contains` auto-encodes the value via its `Encodable` instance,
 so you can pass any record / scalar / list directly:
@@ -530,14 +530,19 @@ def matches_kind(k: String) -> Expr(Bool)
   jsonb_contains(column("r", "meta"), KindMatch(k))
 end
 
-# WHERE r.meta @? ?::jsonpath   (param: "$.priority ? (@ > 1)")
+# WHERE jsonb_path_exists(r.meta, ?)   (param: "$.priority ? (@ > 1)")
 def has_priority_gt(path: String) -> Expr(Bool)
   jsonb_path_exists(column("r", "meta"), path)
 end
 ```
 
-The `@?` operator requires `jsonpath` on the right; the param binds as
-text and gets cast at the SQL level.
+Postgres spells four of its jsonb operators with a `?` — `@?`, `?`, `?|` and
+`?&` — and the runtime rewrites every `?` outside a quoted span into a `$n`
+placeholder. It cannot tell an operator from a parameter, since `meta ? 'kind'`
+and `id = ?` are the same character in the same position. So `jsonb_path_exists`
+renders the function Postgres gives for `@?` rather than the operator: it holds
+no `?`, and its declared parameter type supplies the `jsonpath` the operator
+form needed a cast for. Anything added here later wants the same treatment.
 
 ## Build writes
 

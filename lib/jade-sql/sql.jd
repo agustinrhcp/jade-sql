@@ -68,6 +68,7 @@ module Sql exposing (
   unique,
   unkeyed,
   unsafe_cast,
+  val,
   within,
 )
 
@@ -286,6 +287,20 @@ end
 
 def column(alias_: String, name: String) -> Expr(a)
   Expr(alias_ ++ "." ++ name, [])
+end
+
+
+# A value where an expression is wanted. The operators take values directly,
+# so this is for the positions that cannot: a constant field in a projection
+# or a JSON document.
+#
+#   select(Row(_, _)) |> field(c.id) |> field_as(val("patient"), "kind")
+#   Json.object(Row(_)) |> Json.prop("kind", val("patient"))
+#
+# Every library that has this calls it `val`, and none of them has a word for
+# the other direction, since there the expression side is the default.
+def val(value: a) -> Expr(a)
+  Expr("?", [encode(value)])
 end
 
 

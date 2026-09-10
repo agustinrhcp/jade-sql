@@ -659,6 +659,18 @@ row |> insert(users) |> on_conflict(users_pkey, do_update((s) -> { ... }))
 # ... ON CONFLICT (id) DO UPDATE SET ...
 ```
 
+`val(v)` puts a value where an expression is wanted. The operators take
+values directly, so this is for the positions that cannot — a constant field
+in a projection or a JSON document:
+
+```jade
+select(Row(_, _)) |> field(c.id) |> field_as(val("patient"), "kind")
+# SELECT patients.id, ? AS kind FROM patients patients
+```
+
+It binds rather than inlining, so a string with a quote in it is a parameter
+and not a syntax error.
+
 `set_excluded(col)` renders `col = EXCLUDED.col`, which is what an upsert wants
 nearly every time. For anything else, `excluded(col)` is the proposed row's
 value as an ordinary `Expr`, so `set_expr(s.count_, excluded(s.count_))` and

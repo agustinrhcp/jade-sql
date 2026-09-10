@@ -2,12 +2,66 @@
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-09-10
+
 Requires `jade-lang ~> 0.10.0`.
 
-Held unreleased on purpose: the accessor work and policies are breaking too,
-and one migration is better than three.
+Held back on purpose while the renames, the accessor work and the generator
+fixes landed together, so an app crosses this once rather than three times.
+Every name that moved is listed below; nothing here is a silent change.
+
+The shortest migration: regenerate `schema.jd`, then follow the compiler.
+Almost everything breaking is a rename it will point at, and the two that are
+not — operators taking a value, and `set` taking a `Col` — fail to compile
+rather than changing behaviour.
 
 ### Fixed
+
+- **A write's predicate no longer loses its table.** The alias was stripped
+  out of the finished WHERE, SET and RETURNING strings, subquery and all, so
+  `patients.id` inside a correlated `NOT EXISTS` became a bare `id` that bound
+  to the subquery's own table. Postgres plans that as a One-Time Filter, which
+  empties the table or spares all of it, with no error either way. The target
+  carries the alias its accessors were built with instead, and the surgery is
+  gone.
+
+- **A write with nothing to write says so.** An update whose assignments were
+  all filtered out kept the caller's predicate and rendered a `SELECT`, which
+  `exec_update` counts exactly as it counts an UPDATE — so it reported a row
+  updated, took no lock, and a `returning` read handed back the row as it
+  stood before. `insert_all([])` and `update_many([])` rendered invalid SQL.
+  All three match nothing now and carry no parameters, so `execute` reports 0.
+  A single row naming no columns is a row of defaults, `DEFAULT VALUES`.
+
+- **A generated join predicate compiles.** `Sql.eq` takes a value; a join
+  compares two columns. Every generated schema with a relation had failed to
+  type check since the operators split. A relation named after a keyword —
+  `import_id` gives `import` — made the module unparseable, and takes the same
+  trailing underscore a reserved column gets.
+
+- **The generator reads what pg_dump writes.** Identity columns in both
+  spellings and as their own `ALTER`, generated columns, arrays carrying a
+  length, and `citext` / `inet` / `cidr` / `macaddr`. An unknown type still
+  stops the run: guessing buys a column that fails at decode instead of a
+  message naming the DDL.
+
+- **The generator says so when it cannot read its own output.** It used to
+  hand back unformatted text and let the next compile find it, a build away
+  from the DDL that caused it. Enum labels are sanitized with it — a label
+  carrying a space was emitted verbatim and did not parse.
+
+- **`jsonb_path_exists` can execute.** It rendered `@?`, and the runtime
+  rewrites every `?` outside a quoted span into a placeholder, taking the
+  operator's own with them. It renders the function Postgres provides, which
+  holds no `?`. The other three `?`-spelled jsonb operators want the same
+  treatment if they are ever added.
+
+- **`update_many` is checked against the table it writes to.** The column
+  check watched three of the write entry points; a derived `Assignable`
+  compiled into any table this one was handed.
+
+- **A nullable column is `Col(Maybe(T))` on the SET side too**, so clearing
+  one back to NULL stops needing `execute_raw`.
 
 - `from` twice in one bind chain rendered only the first table, while
   accessors for both were in scope and both were in the query's `tables`. The
@@ -16,6 +70,32 @@ and one migration is better than three.
   the value describes.
 
 ### Added
+
+- **`ON CONFLICT`**, which is what `find_or_create_by`, `upsert` and
+  `upsert_all` all compile to. `on_conflict` takes the target and an action —
+  `do_nothing`, or `do_update` with what to write instead. The target is a
+  generated `Unique`, so the index named is one the database has, and a
+  primary key is generated as the unique index it is: `users_pkey` sits beside
+  `users_email_key`.
+
+- **`Sql.Json`**, for building a JSON document in Postgres rather than
+  decoding rows that are about to become text again. Measured on an app:
+  rendering a 100-row list endpoint spent 14.9ms, of which `JSON.generate` was
+  0.064ms — the rest was per-row decode. The same response projected in SQL
+  takes 0.15ms.
+
+- **`Selectable`**, so a read whose result shape names the columns needs no
+  `select`: `from(patients) |> fetch_rows`. The selection is qualified with
+  the table the read is rooted in, since a bare column name on a join resolves
+  to whichever table has one.
+
+- **`val(v)`** puts a value where an expression is wanted — a constant field
+  in a projection or a JSON document. The operators take values directly, so
+  this is only for the positions that cannot.
+
+- **Each enum is generated into a module of its own.** A Postgres enum belongs
+  to the schema rather than to a table, and two enums sharing a label cannot
+  sit in one module.
 
 - `Sql.Query.subquery` renders a subquery in a value position,
   `(SELECT v.seen_on FROM visits v ... LIMIT 1)`. It takes the query and a

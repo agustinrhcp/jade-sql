@@ -839,16 +839,63 @@ module JadeSql
       end
     end
 
+    # The codec is written rather than derived. A derived one reads the
+    # constructor and writes its snake_case, which is only the label when the
+    # label was lowercase to begin with — `'USD'` becomes the constructor
+    # `Usd` and would be stored as `usd`, which the column refuses. Writing it
+    # makes the DDL's label the thing that crosses.
     def emit_enum_module(module_name, enum)
       enum_type_name(enum.name).then do |type_name|
         <<~JADE
           module #{module_name}.#{camel(enum.name)} exposing (#{type_name}(..))
 
+          import Decode exposing (Decodable, Decoder, Value)
+          import Encode exposing (Encodable)
+
 
           type #{type_name}
             = #{variants_of(enum).join("\n  | ")}
+
+
+          #{emit_enum_codec(type_name, enum)}
         JADE
       end
+    end
+
+    def emit_enum_codec(type_name, enum)
+      pairs = variants_of(enum).zip(enum.labels)
+      snake = snake_case(type_name)
+
+      [
+        "implements Encodable(#{type_name}) with",
+        "  encoder: encode_#{snake}",
+        'end',
+        '',
+        '',
+        "def encode_#{snake}(v: #{type_name}) -> Value",
+        '  case v',
+        *pairs.map { |v, l| "  in #{v} then Encode.string(#{l.inspect})" },
+        '  end',
+        'end',
+        '',
+        '',
+        "implements Decodable(#{type_name}) with",
+        "  decoder: #{snake}_decoder",
+        'end',
+        '',
+        '',
+        "def #{snake}_decoder -> Decoder(#{type_name})",
+        "  Decode.string |> Decode.and_then(#{snake}_of_label)",
+        'end',
+        '',
+        '',
+        "def #{snake}_of_label(s: String) -> Decoder(#{type_name})",
+        '  case s',
+        *pairs.map { |v, l| "  in #{l.inspect} then Decode.succeed(#{v})" },
+        %(  else Decode.fail("not a #{enum.name}: " ++ s)),
+        '  end',
+        'end',
+      ].join("\n")
     end
 
     def enum_type_name(sql_name)

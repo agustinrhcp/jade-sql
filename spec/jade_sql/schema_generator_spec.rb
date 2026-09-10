@@ -1152,12 +1152,24 @@ describe JadeSql::SchemaGenerator do
     end
 
     it 'names the type after the SQL type, guessing nothing' do
-      expect(modules.fetch('Schema.InvoiceStatus')).to eql(<<~JADE)
-        module Schema.InvoiceStatus exposing (InvoiceStatus(..))
-
+      expect(modules.fetch('Schema.InvoiceStatus')).to include(<<~JADE.strip)
         type InvoiceStatus
           = Pending
           | Paid
+      JADE
+    end
+
+    # A derived codec reads the constructor and writes its snake_case, which
+    # is the label only when the label was lowercase. The written one carries
+    # what the DDL says.
+    it 'writes a codec over the labels themselves' do
+      expect(modules.fetch('Schema.InvoiceStatus')).to include(<<~JADE.strip)
+        def encode_invoice_status(v: InvoiceStatus) -> Value
+          case v
+          in Pending then Encode.string("pending")
+          in Paid then Encode.string("paid")
+          end
+        end
       JADE
     end
 
@@ -1174,6 +1186,50 @@ describe JadeSql::SchemaGenerator do
             .module_path(root_module, name, 'schema.jd')
             .then { test_compiler.require(it.delete_suffix('.jd'), source) }
         end
+    end
+  end
+  # A label is whatever the DDL says, and currency codes are the common case
+  # of one that is not the snake_case of any constructor. A derived codec
+  # would write `usd` into a column that only accepts `USD`.
+  context 'an enum whose labels are not lowercase' do
+    let(:sql) do
+      <<~SQL
+        CREATE TYPE public.currency AS ENUM ('USD', 'EUR');
+
+        CREATE TABLE public.prices (
+            id bigint NOT NULL,
+            paid_in public.currency NOT NULL
+        );
+      SQL
+    end
+
+    include_context 'with test compiler'
+
+    it 'round-trips the label the column holds' do
+      described_class.generate(sql)
+        .sort_by { |name, _| -name.count('.') }
+        .each do |name, source|
+          described_class
+            .module_path('Schema', name, 'schema.jd')
+            .delete_suffix('.jd')
+            .then { test_compiler.write(it, source); test_compiler.compiler.require(it) }
+        end
+
+      test_compiler.write('probe', <<~JADE)
+        module Probe exposing (written)
+
+        import Schema.Currency as Currency exposing (Currency(..))
+        import Decode exposing (Value)
+        import Encode
+
+
+        def written -> Value
+          Encode.encode(Usd)
+        end
+      JADE
+      test_compiler.compiler.require('probe')
+
+      expect(Probe.written).to eql 'USD'
     end
   end
 end

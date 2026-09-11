@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **An unprojected read selects from the table whose columns the query
+  carries.** `selected`, `fetch_row` and `fetch_rows` qualified every column
+  with the first table the query named, while the query's type carried the
+  columns of the last table it bound. After a join those were different
+  tables, so `{ patient_id: Int }` read after `join(visits, …)` asked
+  `patients` for it and failed at run time. The read now comes from the table
+  the type names: after `join(visits, …)` or `left_join(visits, …)`, `visits`.
+  A read that wants the first table's columns after a join names them with
+  `select`.
+
 ## [0.8.0] - 2026-09-10
 
 Requires `jade-lang ~> 0.10.0`.

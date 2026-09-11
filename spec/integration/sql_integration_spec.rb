@@ -241,7 +241,10 @@ end
     it 'refuses a second statement in SQL with nothing to bind' do
       conn.execute("INSERT INTO patients (name, balance) VALUES ('A', 1)")
 
-      expect { App.stacked }.to raise_error(ArgumentError, /one statement per call/)
+      expect { App.stacked }.to raise_error(ArgumentError) do |e|
+        expect(e.message).to include('a second one after `;`')
+        expect(e.message).not_to include('DELETE')
+      end
       expect(conn.select_value("SELECT count(*) FROM patients")).to eql 1
     end
 

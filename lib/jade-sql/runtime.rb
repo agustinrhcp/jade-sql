@@ -210,11 +210,14 @@ module JadeSql
     end
 
     def self.refuse_stacked(sql)
-      return unless sql.sub(/;\s*\z/, '').include?(';')
+      at = sql.sub(/;\s*\z/, '').index(';')
+      return if at.nil?
 
       raise ArgumentError,
-        "jade-sql runs one statement per call. Bind values with ? rather " \
-        "than writing them into the SQL: #{sql}"
+        "jade-sql refused a statement with a second one after `;` " \
+        "(at character #{at + 1}). Without bound values, Postgres would run " \
+        "every statement in the string. If a value holds the `;`, bind it " \
+        "with `?`. If you meant two statements, make two calls."
     end
 
     # Sql renders `?` placeholders uniformly. AR's exec_query/exec_update

@@ -53,7 +53,7 @@ module JadeSql
     # Rollback is best-effort: it swallows adapter errors so the original
     # failure is the one that propagates.
     task :port_begin do |t|
-      ::ActiveRecord::Base.connection.begin_transaction
+      ::ActiveRecord::Base.connection.begin_transaction(joinable: false)
       t.ok(true)
     rescue ::ActiveRecord::StatementInvalid => e
       t.err(JadeSql::SqlErrors.db_error(e.message))

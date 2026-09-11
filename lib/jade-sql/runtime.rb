@@ -11,7 +11,7 @@ module JadeSql
 
     task :port_execute_count do |t, sql, params|
       conn = ::ActiveRecord::Base.connection
-      t.ok(conn.exec_update(adapt_sql(fill_now(sql), conn), "Jade", typed_params(params, conn)))
+      t.ok(conn.exec_update(statement(sql, params, conn), "Jade", typed_params(params, conn)))
     rescue ::ActiveRecord::RecordNotUnique => e
       t.err(JadeSql::SqlErrors.unique_violation(constraint_name(e)))
     rescue ::ActiveRecord::StatementInvalid => e
@@ -20,7 +20,7 @@ module JadeSql
 
     task :port_execute_one do |t, sql, params|
       conn = ::ActiveRecord::Base.connection
-      rows = conn.exec_query(adapt_sql(fill_now(sql), conn), "Jade", typed_params(params, conn)).to_a
+      rows = conn.exec_query(statement(sql, params, conn), "Jade", typed_params(params, conn)).to_a
       case rows.length
       when 0 then t.err(JadeSql::SqlErrors.not_found)
       when 1 then t.ok(coerce_row(rows.first))
@@ -34,7 +34,7 @@ module JadeSql
 
     task :port_execute_many do |t, sql, params|
       conn = ::ActiveRecord::Base.connection
-      rows = conn.exec_query(adapt_sql(fill_now(sql), conn), "Jade", typed_params(params, conn)).to_a
+      rows = conn.exec_query(statement(sql, params, conn), "Jade", typed_params(params, conn)).to_a
       t.ok(rows.map { |row| coerce_row(row) })
     rescue ::ActiveRecord::RecordNotUnique => e
       t.err(JadeSql::SqlErrors.unique_violation(constraint_name(e)))
@@ -201,6 +201,23 @@ module JadeSql
 
       stamp = "'#{::Time.now.utc.strftime('%Y-%m-%d %H:%M:%S.%6N+00')}'"
       sql.gsub(NOW_TOKEN) { stamp }
+    end
+
+    def self.statement(sql, params, conn)
+      fill_now(sql)
+        .tap { refuse_stacked(it) if params.empty? }
+        .then { adapt_sql(it, conn) }
+    end
+
+    def self.refuse_stacked(sql)
+      at = sql.sub(/;\s*\z/, '').index(';')
+      return if at.nil?
+
+      raise ArgumentError,
+        "jade-sql refused a statement with a second one after `;` " \
+        "(at character #{at + 1}). Without bound values, Postgres would run " \
+        "every statement in the string. If a value holds the `;`, bind it " \
+        "with `?`. If you meant two statements, make two calls."
     end
 
     # Sql renders `?` placeholders uniformly. AR's exec_query/exec_update

@@ -22,6 +22,14 @@
   the block's writes committed with the jade transaction. It now opens as not
   joinable, and such a block takes a savepoint of its own.
 
+- **Raw SQL runs one statement, whether or not it binds anything.** With no
+  values to bind, ActiveRecord sends a statement over Postgres' simple query
+  protocol, which runs every statement in the string, so an
+  `Expr("…; DROP TABLE …", [])` or an `execute_raw` built from input ran all
+  of them. A statement with nothing to bind and a `;` anywhere but at its end
+  now raises `ArgumentError` before it reaches the database. A trailing `;`
+  still runs.
+
 ## [0.8.0] - 2026-09-10
 
 Requires `jade-lang ~> 0.10.0`.

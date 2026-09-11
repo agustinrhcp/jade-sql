@@ -21,6 +21,8 @@ module App exposing (
   load_tags,
   rate_coefficient,
   rate_exponent,
+  stacked,
+  trailing_semicolon,
   weight_of,
 )
 
@@ -155,6 +157,18 @@ def literal_q(n: String) -> Task(Patient, SqlError)
     ),
   )
 end
+
+
+def stacked -> Task(List(Patient), SqlError)
+  fetch_many_raw(
+    ("SELECT id, name, balance FROM patients; DELETE FROM patients", []),
+  )
+end
+
+
+def trailing_semicolon -> Task(List(Patient), SqlError)
+  fetch_many_raw(("SELECT id, name, balance FROM patients ORDER BY id;", []))
+end
       JADE
     end
 
@@ -222,6 +236,25 @@ end
 
       expect(status).to eql "ok"
       expect(value.map { it['name'] }).to eql %w[A B]
+    end
+
+    it 'refuses a second statement in SQL with nothing to bind' do
+      conn.execute("INSERT INTO patients (name, balance) VALUES ('A', 1)")
+
+      expect { App.stacked }.to raise_error(ArgumentError) do |e|
+        expect(e.message).to include('a second one after `;`')
+        expect(e.message).not_to include('DELETE')
+      end
+      expect(conn.select_value("SELECT count(*) FROM patients")).to eql 1
+    end
+
+    it 'runs SQL that ends in a semicolon' do
+      conn.execute("INSERT INTO patients (name, balance) VALUES ('A', 1)")
+
+      status, value = App.trailing_semicolon
+
+      expect(status).to eql "ok"
+      expect(value.map { it['name'] }).to eql %w[A]
     end
   end
 end

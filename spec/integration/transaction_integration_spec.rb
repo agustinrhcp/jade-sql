@@ -5,6 +5,20 @@ require 'jade/module_loader'
 require 'jade-sql'
 require 'jade-sql/runtime'
 
+module ActiveRecordBlockPorts
+  extend Jade::Port
+
+  task :rolled_back_ar_block do |t|
+    ::ActiveRecord::Base.transaction do
+      ::ActiveRecord::Base.connection.execute(
+        "INSERT INTO patients (name, balance) VALUES ('ar', 0)",
+      )
+      raise ::ActiveRecord::Rollback
+    end
+    t.ok(true)
+  end
+end
+
 module Jade
   describe 'Sql.transaction against Postgres', :integration do
     include_context 'with test compiler'
@@ -13,6 +27,7 @@ module Jade
     let(:source) do
       <<~JADE
 module App exposing (
+  ar_block_inside,
   commit_two,
   inner_only_rollback,
   nested_commit,
@@ -41,6 +56,11 @@ import Sql exposing (
 )
 import Sql.Write exposing (insert)
 import Encode
+
+
+uses ActiveRecordBlockPorts with
+  rolled_back_ar_block : Task(Bool, SqlError)
+end
 
 
 struct Patient = {
@@ -143,6 +163,11 @@ def inner_only_rollback -> Task(Int, SqlError)
       |> Task.and_then((_) -> { add("after", 3) }),
   )
 end
+
+
+def ar_block_inside -> Task(Bool, SqlError)
+  transaction(rolled_back_ar_block())
+end
       JADE
     end
 
@@ -191,6 +216,11 @@ end
         raise ::ActiveRecord::Rollback
       end
 
+      expect(patient_count).to eql 0
+    end
+
+    it 'lets an ActiveRecord block inside it roll back on its own' do
+      expect(App.ar_block_inside).to eql ["ok", true]
       expect(patient_count).to eql 0
     end
   end

@@ -14,6 +14,14 @@
   A read that wants the first table's columns after a join names them with
   `select`.
 
+### Fixed
+
+- **An ActiveRecord block inside a jade transaction rolls back on its own.**
+  The transaction let ActiveRecord join it, so a `raise ActiveRecord::Rollback`
+  in an `ActiveRecord::Base.transaction` block run inside it was swallowed, and
+  the block's writes committed with the jade transaction. It now opens as not
+  joinable, and such a block takes a savepoint of its own.
+
 ## [0.8.0] - 2026-09-10
 
 Requires `jade-lang ~> 0.10.0`.

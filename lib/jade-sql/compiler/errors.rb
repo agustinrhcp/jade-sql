@@ -77,6 +77,59 @@ module JadeSql
           "column is #{@expected}, field is #{@actual}"
         end
       end
+
+      class UndecidedShape < Jade::Error
+        def initialize(entry, span, reader:)
+          @reader = reader
+          super(entry:, span:)
+        end
+
+        def message
+          "`#{@reader}` selects the fields of the type it returns, and " \
+            'nothing here says what that type is'
+        end
+
+        def label
+          'what shape is this read?'
+        end
+
+        def notes
+          [
+            Jade::Diagnostics::Annotation[
+              :help,
+              'annotate the function, or read into a struct: ' \
+                '`-> Task({ name: String }, SqlError)`',
+            ],
+          ]
+        end
+      end
+
+      class UndecidedField < Jade::Error
+        def initialize(entry, span, field:, column:, type:)
+          @field = field
+          @column = column
+          @type = type
+          super(entry:, span:)
+        end
+
+        def message
+          "nothing here says what `#{@field}` is, and the column it reads " \
+            "is #{@type}"
+        end
+
+        def label
+          "`#{@field}` has no type yet"
+        end
+
+        def notes
+          [
+            Jade::Diagnostics::Annotation[
+              :help,
+              "say so where the read goes: `{ #{@field}: #{@type} }`",
+            ],
+          ]
+        end
+      end
     end
   end
 end

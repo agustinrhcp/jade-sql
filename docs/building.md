@@ -682,23 +682,43 @@ a `SET` takes no alias.
 
 ### RETURNING
 
-`returning` is the write-side counterpart to `select` for queries.
-It takes a closure that receives the table's column accessors and
-builds a Query-wrapped selector projecting them into a target type. The
-Query wrapper is just to share the same `select`/`field` builders as
-queries — `returning` extracts the inner `Selector` and discards the
-empty Query state.
+`returning` asks the row back in the shape the caller already declared, the
+way `selected` does for a query:
+
+```jade
+import Sql.Write exposing(insert, returning, fetch_one)
+
+def create(np: NewPatient) -> Task(Patient, SqlError)
+  np |> insert(patients) |> returning |> fetch_one
+end
+
+# INSERT INTO patients (name, mrn) VALUES (?, ?) RETURNING id, name, mrn
+```
+
+The columns are `Patient`'s fields, and they go in unqualified: RETURNING
+resolves against the one table the statement writes, so unlike a query there
+is nothing else in scope for a bare name to bind to.
+
+It is a step of its own rather than something `fetch_one` does for you.
+`Query` can fold the two together — `fetch_rows` is `selected |> fetch_many` —
+because `Query(c)` and `Select(a)` are different types, so no one value can
+render two statements. A write has one type for both, so folding it in would
+mean `execute` and `fetch_one` producing different SQL from the same `Write`.
+What the statement is stays separate from how you run it.
+
+`returning_with` is for a row that is not a shape you have — a single column,
+or one the table cannot name.
 
 ```jade
 import Sql exposing(Selector)
 import Sql.Query exposing(select, field)
-import Sql.Write exposing(insert, returning, to_sql)
+import Sql.Write exposing(insert, returning_with, to_sql)
 
 # INSERT INTO patients (name, mrn) VALUES (?, ?)
 #   RETURNING patients.id, patients.name, patients.mrn
 np
 |> insert(patients)
-|> returning((p) -> {
+|> returning_with((p) -> {
   select(Patient(_, _, _))
   |> field(p.id)
   |> field(p.name)
@@ -711,22 +731,8 @@ Bonus: the projector can be defined once and shared between SELECT
 queries and RETURNING — both contexts now take the same `cols ->
 Select(target)` shape, so a single `def patient_projector(p)`
 works for `from(patients) |> patient_projector` (query) and
-`... |> returning(patient_projector)` (RETURNING).
+`... |> returning_with(patient_projector)` (RETURNING).
 
-Combined with `Sql.Write.fetch_one`, the inserted row decodes into the
-target struct:
-
-```jade
-def create(np: NewPatient) -> Task(Patient, SqlError)
-  np |> insert(patients) |> returning((p) -> {
-    select(Patient(_, _, _))
-    |> field(p.id)
-    |> field(p.name)
-    |> field(p.mrn)
-  })
-  |> fetch_one
-end
-```
 
 `filter` narrows a query or a write you have already built. Where
 `where` takes a predicate, `filter` takes a *function* of the columns, so a

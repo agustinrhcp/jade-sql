@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+### Breaking
+
+- **`returning` means something else now. It is not a rename.** In 0.8 it took
+  a projection; in 0.9 it takes nothing and derives the columns, and the
+  projection-taking function is `returning_with`. Every 0.8 call site is
+  therefore a 0.9 call site with the wrong arity — the compiler stops on all
+  of them and none change behaviour silently — but read that as a meaning
+  swap rather than a name moving, because the old name still compiles in your
+  head. The short name went to the derived form because a projection the
+  result type already describes is the overwhelming majority of what callers
+  write; `returning_with` is for the row no result type can name.
+
 ### Changed
 
 - **An unprojected read selects from the table whose columns the query
@@ -13,6 +25,28 @@
   the type names: after `join(visits, …)` or `left_join(visits, …)`, `visits`.
   A read that wants the first table's columns after a join names them with
   `select`.
+
+### Added
+
+- **`Write.returning` reads the RETURNING columns off the result type.**
+  `Query.selected` has always derived a read's columns from the shape asked
+  for; a write still needed a projection written by hand, so an app that
+  inserts and reads back keeps a `project_q` per table only for that. The
+  names go in unqualified, because RETURNING resolves against the one table
+  the statement writes and there is nothing else in scope to disambiguate
+  from.
+
+      [assign("name", "Ada")]
+        |> insert(patients)
+        |> returning
+      # INSERT INTO patients (name) VALUES (?) RETURNING id, name
+
+  It stays a step of its own rather than something `fetch_one` does, which
+  would take those call sites to zero. `Query` folds the two together in
+  `fetch_rows` because `Query(c)` and `Select(a)` are different types, so no
+  single value can render two statements; a `Write` is one type for both
+  runners, and folding it in would mean `execute` and `fetch_one` producing
+  different SQL from the same value.
 
 ### Fixed
 

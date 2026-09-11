@@ -148,4 +148,37 @@ describe 'reading without a select' do
 
     expect(Joined.sql.first).to start_with 'SELECT visits.name FROM patients'
   end
+  # A write asks its rows back the same way, and RETURNING resolves against
+  # the one table being written, so the names go in bare.
+  it 'returns the fields of the result type from a write' do
+    test_compiler.require('writes', <<~JADE)
+      module Writes exposing (Row(..), sql)
+
+      import Schema exposing (PatientsCols, PatientsSetCols, patients)
+      import Decode exposing (Value)
+      import Sql exposing (Selector, assign)
+      import Sql.Write exposing (Write, insert, returning, to_sql)
+
+
+      struct Row = {
+        id: Int,
+        name: String
+      }
+
+
+      def created -> Write(Row, PatientsCols, PatientsSetCols)
+        [assign("name", "Ada")]
+          |> insert(patients)
+          |> returning
+      end
+
+
+      def sql -> (String, List(Value))
+        to_sql(created)
+      end
+    JADE
+
+    expect(Writes.sql.first)
+      .to eq 'INSERT INTO patients (name) VALUES (?) RETURNING id, name'
+  end
 end

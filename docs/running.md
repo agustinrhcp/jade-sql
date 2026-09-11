@@ -56,12 +56,20 @@ returns plain Ruby hashes from AR, and they're decoded into typed structs
 at the boundary.
 
 `SqlError` variants:
-- `DbError(String)` — AR `StatementInvalid` message
 - `NotFound` — `fetch_one` with zero rows
 - `TooManyRows` — `fetch_one` with more than one row
 - `UniqueViolation(String)` — a write hit a unique index; the `String` is the
   violated constraint name (e.g. `users_email_key`), so you can route it to a
   field error instead of string-matching a `DbError` message
+- `ForeignKeyViolation(String)`, `CheckViolation(String)` and
+  `ExclusionViolation(String)` — the same, for the other constraints
+- `NotNullViolation(String)` — carries the column, since Postgres names no
+  constraint for one
+- `Deadlock` and `SerializationFailure` — the transaction lost; the statement
+  is fine, and running it again is the usual answer
+- `StatementTimeout` and `LockTimeout` — the statement ran out of time, or
+  waiting for a lock did
+- `DbError(String)` — anything else, as the adapter's message
 
 A decode mismatch (column type doesn't match the field type) raises on
 the Ruby side rather than becoming a recoverable error — schema drift is

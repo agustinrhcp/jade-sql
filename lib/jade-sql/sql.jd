@@ -611,14 +611,24 @@ def aliased(t: Table(c, m, k, o, r, s), alias_: String) -> Table(c, m, k, o, r, 
 end
 
 
-# `UniqueViolation` carries the violated constraint name. Compare it against
-# a generated index rather than a literal: `i == users_email_key.name` stops
-# compiling when the index is renamed, where a literal quietly stops matching.
+# A violated constraint carries the name Postgres reported. Compare it
+# against a generated index rather than a literal: `i == users_email_key.name`
+# stops compiling when the index is renamed, where a literal quietly stops
+# matching. `NotNullViolation` carries the column, since Postgres names no
+# constraint for one. `DbError` is what is left over.
 type SqlError
   = DbError(String)
   | NotFound
   | TooManyRows
   | UniqueViolation(String)
+  | ForeignKeyViolation(String)
+  | CheckViolation(String)
+  | ExclusionViolation(String)
+  | NotNullViolation(String)
+  | Deadlock
+  | SerializationFailure
+  | StatementTimeout
+  | LockTimeout
 
 
 # The error a caller wants is rarely the error the database gives. An app
@@ -646,11 +656,24 @@ end
 
 def encode_sql_error(e: SqlError) -> Value
   case e
-  in DbError(msg) then Encode.variant("DbError", [Encode.string(msg)])
+  in DbError(msg) then named_variant("DbError", msg)
   in NotFound then Encode.variant("NotFound", [])
   in TooManyRows then Encode.variant("TooManyRows", [])
-  in UniqueViolation(name) then Encode.variant("UniqueViolation", [Encode.string(name)])
+  in UniqueViolation(name) then named_variant("UniqueViolation", name)
+  in ForeignKeyViolation(name) then named_variant("ForeignKeyViolation", name)
+  in CheckViolation(name) then named_variant("CheckViolation", name)
+  in ExclusionViolation(name) then named_variant("ExclusionViolation", name)
+  in NotNullViolation(name) then named_variant("NotNullViolation", name)
+  in Deadlock then Encode.variant("Deadlock", [])
+  in SerializationFailure then Encode.variant("SerializationFailure", [])
+  in StatementTimeout then Encode.variant("StatementTimeout", [])
+  in LockTimeout then Encode.variant("LockTimeout", [])
   end
+end
+
+
+def named_variant(tag: String, name: String) -> Value
+  Encode.variant(tag, [Encode.string(name)])
 end
 
 
@@ -661,20 +684,23 @@ end
 
 def sql_error_decoder -> Decoder(SqlError)
   Decode.type_
-    |> Decode.variant("DbError", db_error_decoder)
+    |> Decode.variant("DbError", named_decoder(DbError))
     |> Decode.variant("NotFound", Decode.succeed(NotFound))
     |> Decode.variant("TooManyRows", Decode.succeed(TooManyRows))
-    |> Decode.variant("UniqueViolation", unique_violation_decoder)
+    |> Decode.variant("UniqueViolation", named_decoder(UniqueViolation))
+    |> Decode.variant("ForeignKeyViolation", named_decoder(ForeignKeyViolation))
+    |> Decode.variant("CheckViolation", named_decoder(CheckViolation))
+    |> Decode.variant("ExclusionViolation", named_decoder(ExclusionViolation))
+    |> Decode.variant("NotNullViolation", named_decoder(NotNullViolation))
+    |> Decode.variant("Deadlock", Decode.succeed(Deadlock))
+    |> Decode.variant("SerializationFailure", Decode.succeed(SerializationFailure))
+    |> Decode.variant("StatementTimeout", Decode.succeed(StatementTimeout))
+    |> Decode.variant("LockTimeout", Decode.succeed(LockTimeout))
 end
 
 
-def db_error_decoder -> Decoder(SqlError)
-  Decode.index(1, Decode.string) |> Decode.map(DbError)
-end
-
-
-def unique_violation_decoder -> Decoder(SqlError)
-  Decode.index(1, Decode.string) |> Decode.map(UniqueViolation)
+def named_decoder(build: String -> SqlError) -> Decoder(SqlError)
+  Decode.index(1, Decode.string) |> Decode.map(build)
 end
 
 

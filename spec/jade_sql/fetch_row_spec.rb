@@ -119,11 +119,7 @@ describe 'reading without a select' do
   end
 
 
-  # A shape names columns, never tables, so the alias comes from where the
-  # read is rooted. Left bare, Postgres picks: `name` is on both tables here
-  # and it refuses, but a column on only one of them would resolve there
-  # silently, whichever table the shape meant.
-  it 'qualifies the columns with the table the read is rooted in' do
+  it 'qualifies the columns with the table whose columns the query carries' do
     test_compiler.require('joined', <<~JADE)
       module Joined exposing (rows, sql)
 
@@ -150,6 +146,6 @@ describe 'reading without a select' do
       end
     JADE
 
-    expect(Joined.sql.first).to start_with 'SELECT patients.name FROM patients'
+    expect(Joined.sql.first).to start_with 'SELECT visits.name FROM patients'
   end
 end

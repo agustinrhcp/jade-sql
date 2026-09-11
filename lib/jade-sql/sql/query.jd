@@ -92,7 +92,8 @@ struct Query(a) = {
   limit_: Maybe(Int),
   offset_: Maybe(Int),
   distinct_: Bool,
-  result: a
+  result: a,
+  result_alias: Maybe(String)
 }
 
 
@@ -115,6 +116,7 @@ def q_and_then(q: Query(a), fn: a -> Query(b)) -> Query(b)
     merge_paging(q.offset_, next_.offset_),
     q.distinct_ || next_.distinct_,
     next_.result,
+    next_.result_alias,
   )
 end
 
@@ -147,7 +149,19 @@ end
 def from(t: Table(c, m, k, o, r, s)) -> Query(c)
   cols_ = t.alias_ |> t.cols
 
-  Query([TableRef(t.name, t.alias_)], [], [], [], [], [], Nothing, Nothing, False, cols_)
+  Query(
+    [TableRef(t.name, t.alias_)],
+    [],
+    [],
+    [],
+    [],
+    [],
+    Nothing,
+    Nothing,
+    False,
+    cols_,
+    Just(t.alias_),
+  )
 end
 
 
@@ -166,6 +180,7 @@ def join(t: Table(c, m, k, o, r, s), on_: c -> Expr(Bool)) -> Query(c)
     Nothing,
     False,
     cols_,
+    Just(t.alias_),
   )
 end
 
@@ -186,6 +201,7 @@ def left_join(t: Table(c, m, k, o, r, s), on_: c -> Expr(Bool)) -> Query(m)
     Nothing,
     False,
     cols_maybe,
+    Just(t.alias_),
   )
 end
 
@@ -243,7 +259,7 @@ end
 
 
 def select(make: a -> b) -> Query(Selector(a -> b))
-  Query([], [], [], [], [], [], Nothing, Nothing, False, Selector([], []))
+  Query([], [], [], [], [], [], Nothing, Nothing, False, Selector([], []), Nothing)
 end
 
 
@@ -276,6 +292,7 @@ def field(qs: Query(Selector(a -> b)), e: Expr(a)) -> Select(b)
     qs.offset_,
     qs.distinct_,
     Selector(qs.result.columns_sql ++ [e.sql], qs.result.params ++ e.params),
+    qs.result_alias,
   )
 end
 
@@ -295,6 +312,7 @@ def field_as(qs: Query(Selector(a -> b)), e: Expr(a), name: String) -> Select(b)
       qs.result.columns_sql ++ [e.sql ++ " AS " ++ name],
       qs.result.params ++ e.params,
     ),
+    qs.result_alias,
   )
 end
 
@@ -501,23 +519,22 @@ def selected(q: Query(c)) -> Select(a)
     q.limit_,
     q.offset_,
     q.distinct_,
-    qualified(q.tables, selector),
+    qualified(q.result_alias, selector),
+    Nothing,
   )
 end
 
 
-# The shape names columns, not tables, so the alias comes from where the read
-# is rooted. Bare names would let Postgres choose: on a join it refuses an
-# ambiguous one, but a name that exists in only one of the joined tables
-# resolves to that one silently, whichever table the shape meant. Qualified,
-# that case is `column patients.note does not exist` instead.
+# The shape names columns, not tables, so each one is qualified with the table
+# whose columns the query carries, which is the table the read check compared
+# the shape against. Bare names would let Postgres pick among joined tables.
 #
 # A query with no table of its own is left alone; there is no alias to use.
-def qualified(tables: List(TableRef), s: Selector(a)) -> Selector(a)
-  case tables
-  in [] then s
+def qualified(alias_: Maybe(String), s: Selector(a)) -> Selector(a)
+  case alias_
+  in Nothing then s
 
-  in [t | _]
-  then Selector(List.map(s.columns_sql, (c) -> { t.alias_ ++ "." ++ c }), s.params)
+  in Just(t)
+  then Selector(List.map(s.columns_sql, (c) -> { t ++ "." ++ c }), s.params)
   end
 end

@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+### Added
+
+- **A read is checked against the table.** `fetch_row`, `fetch_rows` and
+  `selected` take their columns from the shape asked for, so that shape's
+  fields and the table's columns were two lists nothing compared, and a
+  mismatch surfaced as a decode error at run time. A field the table has no
+  column for, a field whose type disagrees with the column's (a nullable
+  column read into a field that cannot be empty included), and a read whose
+  shape nothing pins are now compile errors. Requires the jade-lang release
+  that hands a call check its return type.
+
 ### Changed
 
 - **An unprojected read selects from the table whose columns the query

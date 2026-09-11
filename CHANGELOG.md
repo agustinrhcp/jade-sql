@@ -28,6 +28,30 @@
 
 ### Added
 
+- **`FromSqlError`: a runner can hand back the error your app uses.** Every
+  read and write returned `Task(a, SqlError)`, so an app with its own error
+  type followed each one with a line whose only job was to change the error's
+  shape — 130 of them in the app this was measured against. The runners are
+  now generic in their error, resolved the way `Decode.decoder` resolves:
+
+      implements FromSqlError(AppError) with
+        from_sql_error: sql_to_app
+      end
+
+      def by_id(book: Uuid, id: Uuid) -> Task(Exchange, AppError)
+        find(book, exchanges, id) |> fetch_one
+      end
+
+  The interface takes one type parameter, the one being produced;
+  `SqlError` is named in its function rather than in its parameter list.
+  `implements FromSqlError(SqlError) with from_sql_error: identity` ships
+  with it, so every existing `Task(a, SqlError)` signature resolves
+  unchanged — the whole suite passes without a spec edit.
+
+  `fetch_at_most_one` reads `NotFound` before the widening, because whether
+  a missing row is an error is a question about `SqlError` and the caller's
+  type may have no way to say.
+
 - **`Write.returning` reads the RETURNING columns off the result type.**
   `Query.selected` has always derived a read's columns from the shape asked
   for; a write still needed a projection written by hand, so an app that

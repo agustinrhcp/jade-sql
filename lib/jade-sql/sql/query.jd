@@ -11,7 +11,6 @@ module Sql.Query exposing (
   having,
   not_exists,
   join,
-  rows,
   left_join,
   limit,
   offset,
@@ -21,8 +20,6 @@ module Sql.Query exposing (
   fetch_at_most_one,
   fetch_many,
   fetch_one,
-  fetch_row,
-  fetch_rows,
   selected,
   to_sql,
   subquery,
@@ -264,23 +261,6 @@ def select(make: a -> b) -> Query(Selector(a -> b))
 end
 
 
-# `select`'s unprojected twin, for a query the caller carries on building
-# rather than projects. It is what lets a subquery be written in a bind chain:
-#
-#   v <- from(visits)
-#
-#   rows(visits) |> where(...) |> order_desc(v.seen_on) |> limit(1)
-#
-# It names the table rather than the columns, so the query it starts stands on
-# its own. A query that only borrowed columns would render without a `FROM`
-# and read the outer query's table instead, which is legal SQL and a different
-# question. Naming the same table the chain already bound costs nothing: a
-# table is listed once however many times it is named.
-def rows(t: Table(c, m, k, o, r, s)) -> Query(c)
-  from(t)
-end
-
-
 def field(qs: Query(Selector(a -> b)), e: Expr(a)) -> Select(b)
   Query(
     qs.tables,
@@ -504,17 +484,7 @@ end
 
 
 # The shape you asked for names the columns, so a read with nothing computed
-# in it needs no `select`. `fetch_one` stays for a query that has one.
-def fetch_row(q: Query(c)) -> Task(a, e)
-  q |> selected |> fetch_one
-end
-
-
-def fetch_rows(q: Query(c)) -> Task(List(a), e)
-  q |> selected |> fetch_many
-end
-
-
+# in it needs no `select`: `from(patients) |> selected |> fetch_many`.
 def selected(q: Query(c)) -> Select(a)
   Query(
     q.tables,

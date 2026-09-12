@@ -6,7 +6,6 @@ module Sql.Write exposing (
   Write,
   on_conflict,
   delete,
-  execute,
   fetch_many,
   fetch_one,
   delete_all,
@@ -631,13 +630,6 @@ end
 
 implements ToSql(Write(ret, c, s)) with
   to_sql: to_sql
-end
-
-
-# The number of rows the statement affected. Any `RETURNING` clause is
-# rendered and discarded.
-def execute(m: Write(ret, c, s)) -> Task(Int, e)
-  to_sql(m) |> Sql.execute_raw |> Task.map_error(from_sql_error)
 end
 
 

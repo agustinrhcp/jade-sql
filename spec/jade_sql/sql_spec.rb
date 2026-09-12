@@ -1500,7 +1500,6 @@ end
             in_subquery,
             limit,
             order_desc,
-            rows,
             select,
             subquery,
             where,
@@ -1525,7 +1524,7 @@ end
           def latest(p: PatientsCols) -> Query(VisitsCols)
             v <- from(visits)
 
-            rows(visits)
+            from(visits)
               |> where(v.patient_id |> Expr.eq(p.id))
               |> order_desc(v.seen_on)
               |> limit(1)
@@ -1541,7 +1540,7 @@ end
               |> field(p.id)
               |> field(
                 subquery(
-                  rows(visits)
+                  from(visits)
                     |> where(columns(visits).patient_id |> Expr.eq(p.id))
                     |> limit(1),
                   .seen_on,

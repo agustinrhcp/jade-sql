@@ -33,6 +33,7 @@ import Sql exposing (
   assign,
   column,
   eq,
+  execute,
   no_joins,
   pk,
   set,
@@ -40,7 +41,7 @@ import Sql exposing (
   to_assigns,
 )
 import Sql.Query exposing (Select, fetch_one, field, from, select, where)
-import Sql.Write exposing (execute, insert_all, to_sql, update_all, update_many)
+import Sql.Write exposing (insert_all, to_sql, update_all, update_many)
 import Decode exposing (Value)
 import Encode
 

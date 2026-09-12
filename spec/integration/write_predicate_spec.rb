@@ -35,13 +35,14 @@ import Sql exposing (
   assign,
   column,
   columns,
+  execute,
   no_joins,
   pk,
   table,
 )
 import Sql.Expr
 import Sql.Query exposing (exists, from, not_exists, where)
-import Sql.Write exposing (delete_all, execute)
+import Sql.Write exposing (delete_all)
 import Encode
 import Decode exposing (Value)
 

@@ -96,7 +96,7 @@ describe 'reading without a select' do
 
       import Schema exposing (patients)
       import Sql exposing (SqlError)
-      import Sql.Query exposing (fetch_row, fetch_rows, from)
+      import Sql.Query exposing (fetch_many, fetch_one, from, selected)
 
 
       struct Row = {
@@ -106,12 +106,16 @@ describe 'reading without a select' do
 
 
       def one -> Task(Row, SqlError)
-        from(patients) |> fetch_row
+        from(patients)
+          |> selected
+          |> fetch_one
       end
 
 
       def many -> Task(List(Row), SqlError)
-        from(patients) |> fetch_rows
+        from(patients)
+          |> selected
+          |> fetch_many
       end
     JADE
 

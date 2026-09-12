@@ -1,17 +1,16 @@
 # Running queries and writes
 
-`Sql.Query` and `Sql.Write` each run what they build: `fetch_one` /
-`fetch_many` for reads, `execute` for writes. They live in the builder
-modules rather than in `Sql` because that is where the row type is known —
-a `Select(Patient)` fetches a `Patient` and nothing else.
+`fetch_one` / `fetch_many` live in `Sql.Query` and `Sql.Write`, because that
+is where the row type is known — a `Select(Patient)` fetches a `Patient` and
+nothing else. `Sql.execute` takes anything that renders, since a count says
+nothing about the rows.
 
-`Sql` keeps the `*_raw` siblings, which take a `(String, List(Value))` pair
-and cannot know what they return:
+`Sql` keeps the `*_raw` siblings too, which take a `(String, List(Value))`
+pair and cannot know what they return:
 
 ```jade
-import Sql exposing (SqlError, execute_raw)
+import Sql exposing (SqlError, execute, execute_raw)
 import Sql.Query exposing (fetch_many, fetch_one)
-import Sql.Write exposing (execute)
 
 # Affected count for INSERT/UPDATE/DELETE
 def reschedule(a: Appointment) -> Task(Int, SqlError)

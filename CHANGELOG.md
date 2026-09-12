@@ -4,6 +4,15 @@
 
 ### Breaking
 
+- **Three names removed, none of them doing anything another was not.**
+  `rows(t)` was `from(t)`, the same body under a second name, so a subquery
+  starts with `from` like every other query. `fetch_row` and `fetch_rows` were
+  `selected |> fetch_one` and `selected |> fetch_many`; writing the projection
+  step makes a read read like a write — project, then run — and leaves one
+  pair of runner names instead of two. `Sql.Write.execute` was `Sql.execute`
+  specialised to a `Write`, and `Sql.execute` already takes anything that
+  renders.
+
 - **`SqlError` names the failures you can route.** A foreign key, check,
   not-null or exclusion violation arrived as `DbError` carrying Postgres'
   sentence, so routing one meant matching that text — and the text changes

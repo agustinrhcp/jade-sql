@@ -28,7 +28,7 @@ import Sql exposing (
 )
 import Sql.Expr as Expr
 import Encode
-import Sql.Query exposing (Query, fetch_rows, from, join)
+import Sql.Query exposing (Query, fetch_many, from, join, selected)
 
 
 #{jade_table('patients', { id: 'Int', name: 'String' }, pk: 'patients_pk')}
@@ -54,7 +54,9 @@ end
 
 
 def visit_rows -> Task(List({ id: Int, patient_id: Int }), SqlError)
-  with_visits |> fetch_rows
+  with_visits
+    |> selected
+    |> fetch_many
 end
       JADE
     end

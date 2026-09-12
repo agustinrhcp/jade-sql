@@ -32,6 +32,7 @@ import Sql exposing (
   Selector(..),
   selector,
   SqlError,
+  from_sql_error,
   Pk,
   Table,
   Unique,
@@ -635,21 +636,21 @@ end
 
 # The number of rows the statement affected. Any `RETURNING` clause is
 # rendered and discarded.
-def execute(m: Write(ret, c, s)) -> Task(Int, SqlError)
-  to_sql(m) |> Sql.execute_raw
+def execute(m: Write(ret, c, s)) -> Task(Int, e)
+  to_sql(m) |> Sql.execute_raw |> Task.map_error(from_sql_error)
 end
 
 
 # Decodes the single row a `returning` write gives back — the id of an
 # insert, the new state of an update. A write with no `returning` selects
 # nothing, so this errors with `NotFound`.
-def fetch_one(m: Write(ret, c, s)) -> Task(ret, SqlError)
-  to_sql(m) |> Sql.fetch_one_raw
+def fetch_one(m: Write(ret, c, s)) -> Task(ret, e)
+  to_sql(m) |> Sql.fetch_one_raw |> Task.map_error(from_sql_error)
 end
 
 
 # The same for a write that returns many rows, as `insert_all` and
 # `update_all` do.
-def fetch_many(m: Write(ret, c, s)) -> Task(List(ret), SqlError)
-  to_sql(m) |> Sql.fetch_many_raw
+def fetch_many(m: Write(ret, c, s)) -> Task(List(ret), e)
+  to_sql(m) |> Sql.fetch_many_raw |> Task.map_error(from_sql_error)
 end

@@ -11,6 +11,8 @@ module Sql exposing (
   Pk,
   Selector(..),
   SqlError(..),
+  FromSqlError,
+  from_sql_error,
   Table,
   TableRef(..),
   Unique,
@@ -619,6 +621,24 @@ type SqlError
   | UniqueViolation(String)
 
 
+# The error a caller wants is rarely the error the database gives. An app
+# with its own error type implements this once and the runners hand back
+# that type instead, so a read is not followed by a line whose only job is
+# to change the error's shape.
+#
+# Keyed on the type being produced, not the one being consumed: `SqlError`
+# is named in the function, so the interface needs one parameter.
+interface FromSqlError(e) with
+  from_sql_error : SqlError -> e
+end
+
+
+# Without this every existing `Task(a, SqlError)` would stop resolving.
+implements FromSqlError(SqlError) with
+  from_sql_error: identity
+end
+
+
 implements Encodable(SqlError) with
   encoder: encode_sql_error
 end
@@ -686,8 +706,8 @@ def fetch_many_raw(p: (String, List(Value))) -> Task(List(a), SqlError)
 end
 
 
-def execute(r: r) -> Task(Int, SqlError)
-  to_sql(r) |> execute_raw
+def execute(r: r) -> Task(Int, e)
+  to_sql(r) |> execute_raw |> Task.map_error(from_sql_error)
 end
 
 
@@ -699,20 +719,29 @@ end
 # every execute/fetch the task performs participates in it. Commits on
 # Ok, rolls back and re-raises the error on Err. Nests as a savepoint of
 # whichever transaction is already open, jade's or ActiveRecord's.
-def transaction(task: Task(a, SqlError)) -> Task(a, SqlError)
+def transaction(task: Task(a, e)) -> Task(a, e)
   port_begin()
+    |> Task.map_error(from_sql_error)
     |> Task.and_then((_) -> { commit_on_ok(task) })
 end
 
 
-def commit_on_ok(task: Task(a, SqlError)) -> Task(a, SqlError)
+def commit_on_ok(task: Task(a, e)) -> Task(a, e)
   task
-    |> Task.and_then((value) -> { Task.map(port_commit(), (_) -> { value }) })
+    |> Task.and_then(commit_returning)
     |> Task.on_error(rollback_then_fail)
 end
 
 
-def rollback_then_fail(err: SqlError) -> Task(a, SqlError)
+def commit_returning(value: a) -> Task(a, e)
+  port_commit()
+    |> Task.map_error(from_sql_error)
+    |> Task.map((_) -> { value })
+end
+
+
+def rollback_then_fail(err: e) -> Task(a, e)
   port_rollback()
+    |> Task.map_error(from_sql_error)
     |> Task.and_then((_) -> { Task.fail(err) })
 end

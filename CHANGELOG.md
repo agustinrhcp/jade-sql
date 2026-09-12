@@ -1,6 +1,8 @@
 # Changelog
 
-## [Unreleased]
+## [0.9.0] - 2026-09-11
+
+Requires `jade-lang ~> 0.10.0`, unchanged from 0.8.0.
 
 ### Breaking
 

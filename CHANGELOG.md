@@ -4,6 +4,23 @@
 
 ### Breaking
 
+- **`SqlError` names the failures you can route.** A foreign key, check,
+  not-null or exclusion violation arrived as `DbError` carrying Postgres'
+  sentence, so routing one meant matching that text — and the text changes
+  with the server version and locale. So did a deadlock, a serialization
+  failure and a timeout, which say nothing about the statement and
+  everything about whether to run it again. Each is its own variant now:
+  `ForeignKeyViolation`, `CheckViolation`, `ExclusionViolation` and
+  `NotNullViolation`, plus `Deadlock`, `SerializationFailure`,
+  `StatementTimeout` and `LockTimeout`. The first three carry the constraint
+  name Postgres reported, `NotNullViolation` carries the column, and
+  `DbError` keeps everything unmapped.
+
+  Any exhaustive `case` over `SqlError` stops compiling, which is the point:
+  the arms that used to fall into `DbError` are the ones worth looking at. A
+  `DbError(msg)` arm that sniffs `msg` for "foreign key" keeps compiling and
+  stops matching, so search for those.
+
 - **`returning` means something else now. It is not a rename.** In 0.8 it took
   a projection; in 0.9 it takes nothing and derives the columns, and the
   projection-taking function is `returning_with`. Every 0.8 call site is

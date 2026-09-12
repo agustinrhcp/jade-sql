@@ -12,10 +12,8 @@ module JadeSql
     task :port_execute_count do |t, sql, params|
       conn = ::ActiveRecord::Base.connection
       t.ok(conn.exec_update(statement(sql, params, conn), "Jade", typed_params(params, conn)))
-    rescue ::ActiveRecord::RecordNotUnique => e
-      t.err(JadeSql::SqlErrors.unique_violation(constraint_name(e)))
     rescue ::ActiveRecord::StatementInvalid => e
-      t.err(JadeSql::SqlErrors.db_error(e.message))
+      t.err(translate(e))
     end
 
     task :port_execute_one do |t, sql, params|
@@ -26,20 +24,16 @@ module JadeSql
       when 1 then t.ok(coerce_row(rows.first))
       else        t.err(JadeSql::SqlErrors.too_many_rows)
       end
-    rescue ::ActiveRecord::RecordNotUnique => e
-      t.err(JadeSql::SqlErrors.unique_violation(constraint_name(e)))
     rescue ::ActiveRecord::StatementInvalid => e
-      t.err(JadeSql::SqlErrors.db_error(e.message))
+      t.err(translate(e))
     end
 
     task :port_execute_many do |t, sql, params|
       conn = ::ActiveRecord::Base.connection
       rows = conn.exec_query(statement(sql, params, conn), "Jade", typed_params(params, conn)).to_a
       t.ok(rows.map { |row| coerce_row(row) })
-    rescue ::ActiveRecord::RecordNotUnique => e
-      t.err(JadeSql::SqlErrors.unique_violation(constraint_name(e)))
     rescue ::ActiveRecord::StatementInvalid => e
-      t.err(JadeSql::SqlErrors.db_error(e.message))
+      t.err(translate(e))
     end
 
     # Transaction control on the shared connection. The execute/fetch ports
@@ -177,14 +171,50 @@ module JadeSql
       raw == "NULL" ? nil : raw
     end
 
-    # The constraint/index name behind a RecordNotUnique, so callers can route
-    # by which unique index was violated. PG reports it in the error's
-    # diagnostics; other adapters (or a missing name) fall back to "".
+    # ActiveRecord already tells these apart by SQLSTATE, and dropping that
+    # into a message is what forced callers to match text.
+    def self.translate(error)
+      case error
+      when ::ActiveRecord::RecordNotUnique
+        JadeSql::SqlErrors.unique_violation(constraint_name(error))
+      when ::ActiveRecord::InvalidForeignKey
+        JadeSql::SqlErrors.foreign_key_violation(constraint_name(error))
+      when ::ActiveRecord::CheckViolation
+        JadeSql::SqlErrors.check_violation(constraint_name(error))
+      when ::ActiveRecord::ExclusionViolation
+        JadeSql::SqlErrors.exclusion_violation(constraint_name(error))
+      when ::ActiveRecord::NotNullViolation
+        JadeSql::SqlErrors.not_null_violation(column_name(error))
+      when ::ActiveRecord::Deadlocked
+        JadeSql::SqlErrors.deadlock
+      when ::ActiveRecord::SerializationFailure
+        JadeSql::SqlErrors.serialization_failure
+      when ::ActiveRecord::LockWaitTimeout
+        JadeSql::SqlErrors.lock_timeout
+      when ::ActiveRecord::QueryCanceled, ::ActiveRecord::StatementTimeout
+        JadeSql::SqlErrors.statement_timeout
+      else
+        JadeSql::SqlErrors.db_error(error.message)
+      end
+    end
+
+    # The constraint/index name behind a violation, so callers can route by
+    # which one it was. PG reports it in the error's diagnostics; other
+    # adapters (or a missing name) fall back to "".
     def self.constraint_name(error)
       cause = error.cause
       return "" unless defined?(::PG::Result) && cause.respond_to?(:result) && cause.result
 
       cause.result.error_field(::PG::Result::PG_DIAG_CONSTRAINT_NAME) || ""
+    rescue StandardError
+      ""
+    end
+
+    def self.column_name(error)
+      cause = error.cause
+      return "" unless defined?(::PG::Result) && cause.respond_to?(:result) && cause.result
+
+      cause.result.error_field(::PG::Result::PG_DIAG_COLUMN_NAME) || ""
     rescue StandardError
       ""
     end

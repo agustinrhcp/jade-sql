@@ -418,7 +418,6 @@ import Sql.Query exposing (
   in_subquery,
   limit,
   order_desc,
-  rows,
   subquery,
   where,
 )
@@ -426,7 +425,7 @@ import Sql.Query exposing (
 def latest(p: PatientsCols) -> Query(VisitsCols)
   v <- from(visits)
 
-  rows(visits)
+  from(visits)
     |> where(v.patient_id |> Expr.eq(p.id))
     |> order_desc(v.seen_on)
     |> limit(1)
@@ -442,14 +441,13 @@ where(p.id |> in_subquery(from(visits), .patient_id))
 # WHERE p.id IN (SELECT v.patient_id FROM visits v)
 ```
 
-`rows(t)` is `select`'s unprojected twin: it starts a query that carries the
-table's columns rather than a projection, so a subquery is written in an
-ordinary bind chain. It names the table rather than borrowing columns, so the
-query it starts always renders its own `FROM` — one that borrowed would read
-the outer query's table instead, which is legal SQL asking a different
-question. Naming a table the chain already bound costs nothing, since a table
-is listed once however many times it is named. The column is picked by a
-function rather than projected, because
+A subquery starts with `from(t)`, the same as any other query, and carries the
+table's columns rather than a projection. Naming the table again is what makes
+the subquery stand on its own: one that borrowed the outer query's columns
+would render without a `FROM` and read the outer table instead, which is legal
+SQL asking a different question. Naming a table the chain already bound costs
+nothing, since a table is listed once however many times it is named. The
+column is picked by a function rather than projected, because
 `Select(a)` does not say how many columns it has, and a subquery in a value
 position may only have one. `subquery` returns `Expr(Maybe(a))`, since a
 subquery matching no rows is NULL.
@@ -699,10 +697,8 @@ The columns are `Patient`'s fields, and they go in unqualified: RETURNING
 resolves against the one table the statement writes, so unlike a query there
 is nothing else in scope for a bare name to bind to.
 
-It is a step of its own rather than something `fetch_one` does for you.
-`Query` can fold the two together — `fetch_rows` is `selected |> fetch_many` —
-because `Query(c)` and `Select(a)` are different types, so no one value can
-render two statements. A write has one type for both, so folding it in would
+It is a step of its own rather than something `fetch_one` does for you, the
+same way a read projects with `selected` before it runs. A write has one type for both, so folding it in would
 mean `execute` and `fetch_one` producing different SQL from the same `Write`.
 What the statement is stays separate from how you run it.
 

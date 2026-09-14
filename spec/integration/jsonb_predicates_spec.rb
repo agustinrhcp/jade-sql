@@ -32,6 +32,7 @@ import Sql exposing (
   Table,
   assign,
   column,
+  execute,
   jsonb_path_exists,
   no_joins,
   pk,
@@ -39,7 +40,7 @@ import Sql exposing (
   to_assigns,
 )
 import Sql.Query exposing (Select, fetch_many, field, from, select, where)
-import Sql.Write exposing (execute, insert)
+import Sql.Write exposing (insert)
 import Decode exposing (Value)
 import Encode
 

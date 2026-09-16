@@ -37,11 +37,12 @@ import Sql exposing (
   columns,
   execute,
   no_joins,
+  not,
   pk,
   table,
 )
 import Sql.Expr
-import Sql.Query exposing (exists, from, not_exists, where)
+import Sql.Query exposing (exists, from, where)
 import Sql.Write exposing (delete_all)
 import Encode
 import Decode exposing (Value)
@@ -54,9 +55,7 @@ import Decode exposing (Value)
 
 
 def unvisited(p: PatientsCols) -> Expr(Bool)
-  not_exists(
-    from(visits) |> where(columns(visits).patient_id |> Sql.Expr.eq(p.id)),
-  )
+  not(visited(p))
 end
 
 

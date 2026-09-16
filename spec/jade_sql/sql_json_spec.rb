@@ -137,7 +137,7 @@ module Jade
       end
     end
 
-    describe 'of_array' do
+    describe 'from_array' do
       it 'wraps a Postgres array so it serializes as a JSON array' do
         test_compiler.require('app', <<~JADE)
           module App exposing (tags)
@@ -147,7 +147,7 @@ module Jade
 
 
           def tags -> Expr(List(String))
-            Json.of_array(column("l", "tags"))
+            Json.from_array(column("l", "tags"))
           end
         JADE
 

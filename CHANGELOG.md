@@ -2,6 +2,24 @@
 
 ## [Unreleased]
 
+### Added
+
+- **`fetch_count` and `fetch_exists`, for reads with nothing to decode.** A
+  count and an existence check both render their own select list over the
+  query's clauses, so neither needs a projection and neither carries
+  `Selectable`. `fetch_exists` renders `SELECT EXISTS (…)`, which stops at the
+  first row rather than counting every one of them.
+
+  `exists` stays the `Expr(Bool)` for a `WHERE`, which is where the keyword
+  appears in SQL. Not `exists?`, because a name ending in `?` has to return
+  `Bool` and this returns a `Task`; not `any`, because `ANY` is a different
+  Postgres keyword that this library already spells `any_of`.
+
+  `pluck` — one column out of every row, with no shape to put it in — is the
+  third of these and is missing. It needs `Decodable(a)` threaded alongside the
+  error widening, which the compiler could not do until jade-lang dropped the
+  inner dictionary bug; it can land once that release is out.
+
 ### Breaking
 
 - **`not_exists` is gone.** It was `not(exists(q))` under a second name, and

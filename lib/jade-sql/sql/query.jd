@@ -17,6 +17,8 @@ module Sql.Query exposing (
   order_desc,
   select,
   fetch_at_most_one,
+  fetch_count,
+  fetch_exists,
   fetch_many,
   fetch_one,
   selected,
@@ -509,3 +511,48 @@ def qualified(alias_: Maybe(String), s: Selector(a)) -> Selector(a)
   then Selector(List.map(s.columns_sql, (c) -> { t ++ "." ++ c }), s.params)
   end
 end
+
+
+# A read with nothing to decode renders its own select list over the query's
+# clauses, so it needs no projection and carries no `Selectable`. The port
+# hands back a record either way, which is what these one-field shapes are
+# for.
+
+
+struct CountRow = { tally: Int }
+
+
+struct PresentRow = { present: Bool }
+
+
+def fetch_count(q: Query(a)) -> Task(Int, e)
+  render(q, ["COUNT(*) AS tally"], [])
+    |> Sql.fetch_one_raw
+    |> Task.map(count_of)
+    |> Task.map_error(from_sql_error)
+end
+
+
+def count_of(r: CountRow) -> Int
+  r.tally
+end
+
+
+# `SELECT EXISTS (...)`, which stops at the first row Postgres finds rather
+# than counting every one of them. `exists` is the `Expr(Bool)` for a `WHERE`,
+# where the keyword actually appears.
+def fetch_exists(q: Query(a)) -> Task(Bool, e)
+  present = exists(q)
+
+  Tuple.Tuple2("SELECT " ++ present.sql ++ " AS present", present.params)
+    |> Sql.fetch_one_raw
+    |> Task.map(present_of)
+    |> Task.map_error(from_sql_error)
+end
+
+
+def present_of(r: PresentRow) -> Bool
+  r.present
+end
+
+

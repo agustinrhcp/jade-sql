@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **Requires jade-lang 0.11.2.** The pin said `~> 0.10.0`, which excluded the
+  whole 0.11 line. 0.11.1 hands a `:call` check the type its call returns,
+  which the read check needs to compare a read's shape against the table's
+  columns, and 0.11.2 stops a constraint raised inside a field access from
+  falling off at the dot.
+
 ### Breaking
 
 - **Three names removed, none of them doing anything another was not.**

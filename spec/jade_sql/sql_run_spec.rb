@@ -242,6 +242,22 @@ end
     end
   end
 
+  describe 'Sql.unwrap!' do
+    it 'returns the value of an ok result' do
+      expect(Sql.unwrap!(["ok", 7])).to eql 7
+    end
+
+    it 'raises the variant, not a generic TaskError, so rescue_from can route it' do
+      expect { Sql.unwrap!(["err", ["NotFound"]]) }
+        .to raise_error(Sql::Errors::NotFound)
+    end
+
+    it 'carries the constraint name a violation reported' do
+      expect { Sql.unwrap!(["err", ["UniqueViolation", "users_email_key"]]) }
+        .to raise_error(Sql::Errors::UniqueViolation, "users_email_key")
+    end
+  end
+
   describe 'Sql.raise_typed!' do
     it 'raises Sql::Errors::DbError for ["DbError", msg]' do
       expect { Sql.raise_typed!(["DbError", "syntax error"]) }

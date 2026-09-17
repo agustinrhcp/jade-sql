@@ -680,30 +680,11 @@ a `SET` takes no alias.
 
 ### RETURNING
 
-`returning` asks the row back in the shape the caller already declared, the
-way `to_select` does for a query:
-
-```jade
-import Sql.Write exposing(insert, returning, fetch_one)
-
-def create(np: NewPatient) -> Task(Patient, SqlError)
-  np |> insert(patients) |> returning |> fetch_one
-end
-
-# INSERT INTO patients (name, mrn) VALUES (?, ?) RETURNING id, name, mrn
-```
-
-The columns are `Patient`'s fields, and they go in unqualified: RETURNING
-resolves against the one table the statement writes, so unlike a query there
-is nothing else in scope for a bare name to bind to.
-
-It is a step of its own rather than something `fetch_one` does for you, the
-same way a read projects with `to_select` before it runs. A write has one type for both, so folding it in would
-mean `execute` and `fetch_one` producing different SQL from the same `Write`.
-What the statement is stays separate from how you run it.
-
-`returning_with` is for a row that is not a shape you have — a single column,
-or one the table cannot name.
+`returning_with` names the columns coming back, from the table's accessors.
+It is a step of its own rather than something `fetch_one` does for you: a
+write has one type whether you run it for a count or for a row, so folding the
+projection into the runner would mean `execute` and `fetch_one` producing
+different SQL from the same `Write`.
 
 ```jade
 import Sql exposing(Selector)
@@ -723,11 +704,24 @@ np
 |> to_sql                    # or |> fetch_one to run
 ```
 
-Bonus: the projector can be defined once and shared between SELECT
-queries and RETURNING — both contexts now take the same `cols ->
-Select(target)` shape, so a single `def patient_projector(p)`
-works for `from(patients) |> patient_projector` (query) and
-`... |> returning_with(patient_projector)` (RETURNING).
+A projection is a function of the columns, so it is written once and shared
+between a SELECT and a RETURNING — both take the same `cols -> Select(a)`
+shape:
+
+```jade
+def patient_row(p: PatientsCols) -> Select(Patient)
+  select(Patient(_, _, _)) |> field(p.id) |> field(p.name) |> field(p.mrn)
+end
+```
+
+`from(patients) |> patient_row` for the read, `returning_with(patient_row)`
+for the write. With row polymorphism a projection can span tables — one
+`def just_id(c: { a | id: Expr(Int) })` serves every table with an `id`.
+
+That is why there is no version that reads the columns off the result type's
+field names. It would save the `field` lines, and it is the one thing in the
+library that could name a column the table does not have — a projection built
+from accessors cannot.
 
 
 `filter` narrows a query or a write you have already built. Where

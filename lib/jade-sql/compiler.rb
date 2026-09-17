@@ -27,8 +27,6 @@ end
 require_relative 'compiler/errors'
 require_relative 'compiler/assignable'
 require_relative 'compiler/columns'
-require_relative 'compiler/selectable'
 
 Jade::Extensions.register_deriver('jade-sql', JadeSql::Compiler::Assignable)
-Jade::Extensions.register_deriver('jade-sql', JadeSql::Compiler::Selectable)
 Jade::Extensions.register_check('jade-sql', :call, JadeSql::Compiler::Columns)

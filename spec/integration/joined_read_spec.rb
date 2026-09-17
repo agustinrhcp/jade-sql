@@ -28,7 +28,7 @@ import Sql exposing (
 )
 import Sql.Expr as Expr
 import Encode
-import Sql.Query exposing (Query, fetch_many, from, join, to_select)
+import Sql.Query exposing (Query, Select, fetch_many, field, from, join, select)
 
 
 #{jade_table('patients', { id: 'Int', name: 'String' }, pk: 'patients_pk')}
@@ -47,16 +47,24 @@ def visits_pk -> Pk(VisitsCols, Int)
 end
 
 
-def with_visits -> Query(VisitsCols)
+struct VisitRow = {
+  id: Int,
+  patient_id: Int
+}
+
+
+def with_visits -> Select(VisitRow)
   p <- from(patients)
-  visits |> join((v) -> { p.id |> Expr.eq(v.patient_id) })
+  v <- visits |> join((x) -> { p.id |> Expr.eq(x.patient_id) })
+
+  select(VisitRow(_, _))
+    |> field(v.id)
+    |> field(v.patient_id)
 end
 
 
-def visit_rows -> Task(List({ id: Int, patient_id: Int }), SqlError)
-  with_visits
-    |> to_select
-    |> fetch_many
+def visit_rows -> Task(List(VisitRow), SqlError)
+  with_visits |> fetch_many
 end
       JADE
     end

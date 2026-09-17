@@ -12,7 +12,6 @@ module Sql.Write exposing (
   insert,
   insert_all,
   Stamped,
-  returning,
   returning_with,
   timestamped,
   to_sql,
@@ -24,12 +23,10 @@ module Sql.Write exposing (
 
 import Sql exposing (
   Assignable,
-  Selectable,
   Assignment(..),
   Expr(..),
   ToSql,
   Selector(..),
-  selector,
   SqlError,
   from_sql_error,
   Pk,
@@ -315,33 +312,6 @@ def returning_with(m: Write(a, c, s), build: c -> Query(Selector(b))) -> Write(b
     m.rows,
     m.wheres,
     build(m.cols).result,
-    m.from_,
-    m.conflict,
-  )
-end
-
-
-# The columns are the fields of the shape you asked back, the way
-# `Query.to_select` reads them. Unqualified, because RETURNING resolves
-# against the one table the statement writes and there is nothing else in
-# scope to disambiguate from.
-#
-# A step of its own rather than something `fetch_one` does, so a `Write`
-# renders the same statement whichever runner it reaches. `Query` can fold
-# the two together in `fetch_rows` because `Query(c)` and `Select(a)` are
-# different types; a write has one type for both.
-#
-# `returning_with` is for a row that is not a shape you have — a single
-# column, or one the table cannot name.
-def returning(m: Write(a, c, s)) -> Write(b, c, s)
-  Write(
-    m.kind,
-    m.table,
-    m.cols,
-    m.set_cols,
-    m.rows,
-    m.wheres,
-    selector,
     m.from_,
     m.conflict,
   )

@@ -22,7 +22,6 @@ module Sql.Query exposing (
   fetch_many,
   fetch_one,
   fetch_values,
-  to_select,
   to_sql,
   subquery,
   where,
@@ -37,7 +36,6 @@ import Sql exposing (
   TableRef(..),
   ToSql,
   from_sql_error,
-  selector,
 )
 import Decode exposing (Value)
 
@@ -477,43 +475,6 @@ end
 # not an error.
 def fetch_many(q: Select(a)) -> Task(List(a), e)
   to_sql(q) |> Sql.fetch_many_raw |> Task.map_error(from_sql_error)
-end
-
-
-# The shape you asked for names the columns, so a read with nothing computed
-# in it needs no `select`: `from(patients) |> to_select |> fetch_many`.
-#
-# `to_` because it converts, the way `to_sql` and `to_assigns` do; `selected`
-# read as a description of the query rather than a step that changes it.
-def to_select(q: Query(c)) -> Select(a)
-  Query(
-    q.tables,
-    q.joins,
-    q.wheres,
-    q.groups,
-    q.havings,
-    q.orders,
-    q.limit_,
-    q.offset_,
-    q.distinct_,
-    qualified(q.result_alias, selector),
-    Nothing,
-  )
-end
-
-
-# The shape names columns, not tables, so each one is qualified with the table
-# whose columns the query carries, which is the table the read check compared
-# the shape against. Bare names would let Postgres pick among joined tables.
-#
-# A query with no table of its own is left alone; there is no alias to use.
-def qualified(alias_: Maybe(String), s: Selector(a)) -> Selector(a)
-  case alias_
-  in Nothing then s
-
-  in Just(t)
-  then Selector(List.map(s.columns_sql, (c) -> { t ++ "." ++ c }), s.params)
-  end
 end
 
 

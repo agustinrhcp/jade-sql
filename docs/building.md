@@ -281,8 +281,8 @@ select(Busy(_))
 `distinct(q)` drops duplicate rows from the whole projected row, which is
 `SELECT DISTINCT` rather than Postgres' `DISTINCT ON`.
 
-`exists(q)` and `not_exists(q)` ask whether a related row is there, without
-joining to it and without projecting anything from it. The inner query may
+`exists(q)` asks whether a related row is there, without joining to it and
+without projecting anything from it; `not(exists(q))` is the negative. The inner query may
 name the outer query's columns, which is what makes it correlated:
 
 ```jade
@@ -404,13 +404,13 @@ escape hatch until they get a typed builder.
 
 ### Subqueries
 
-`exists` and `not_exists` ask whether a related row is there, `subquery` reads
-a single value out of one, and `in_subquery` matches a column against one a
-subquery selects. All four take an unprojected `Query`, which `rows` builds.
+`exists` asks whether a related row is there, `subquery` reads a single value
+out of one, and `in_subquery` matches a column against one a subquery selects.
+All three take an unprojected `Query`.
 
 Each is named for the SQL it renders. There is no `not_in`: `NOT IN` against a
-subquery yielding a NULL returns no rows at all, so `not_exists` is the form to
-reach for.
+subquery yielding a NULL returns no rows at all, so `not(exists(q))` is the
+form to reach for.
 
 ```jade
 import Sql.Query exposing (

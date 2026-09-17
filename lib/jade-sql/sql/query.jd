@@ -9,7 +9,6 @@ module Sql.Query exposing (
   group,
   in_subquery,
   having,
-  not_exists,
   join,
   left_join,
   limit,
@@ -360,11 +359,6 @@ end
 #   where(exists(from(visits) |> filter((v) -> { v.patient_id |> Expr.eq(p.id) })))
 def exists(q: Query(a)) -> Expr(Bool)
   wrap_subquery("EXISTS (", q)
-end
-
-
-def not_exists(q: Query(a)) -> Expr(Bool)
-  wrap_subquery("NOT EXISTS (", q)
 end
 
 

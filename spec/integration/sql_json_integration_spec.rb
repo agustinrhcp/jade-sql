@@ -121,7 +121,7 @@ def tagged_query -> Query(Selector(Doc(Tagged)))
   Json.select(
     Json.object(Tagged(_, _))
       |> Json.prop("name", column("p", "name"))
-      |> Json.prop("tags", Json.of_array(column("p", "tags")))
+      |> Json.prop("tags", Json.from_array(column("p", "tags")))
       |> Json.build,
   )
     |> Query.order(column("p", "id"))

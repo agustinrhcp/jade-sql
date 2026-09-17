@@ -1408,6 +1408,7 @@ import Sql exposing (
   column,
   eq,
   no_joins,
+  not,
   pk,
   table,
 )
@@ -1419,7 +1420,6 @@ import Sql.Query exposing (
   field,
   filter,
   from,
-  not_exists,
   select,
   where,
 )
@@ -1449,7 +1449,7 @@ def without_visits -> Select(Name)
   select(Name(_))
     |> field(p.name)
     |> where(
-      not_exists(from(visits) |> filter((v) -> { v.patient_id |> Expr.eq(p.id) })),
+      not(exists(from(visits) |> filter((v) -> { v.patient_id |> Expr.eq(p.id) }))),
     )
 end
         JADE
@@ -1465,7 +1465,7 @@ end
       end
 
       it 'renders NOT EXISTS the same way' do
-        expect(sql_of(App.without_visits)).to include('WHERE NOT EXISTS (SELECT 1')
+        expect(sql_of(App.without_visits)).to include('WHERE NOT (EXISTS (SELECT 1')
       end
 
       def sql_of(q) = Sql::Query.to_sql(q)[0]

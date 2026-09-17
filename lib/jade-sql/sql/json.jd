@@ -11,7 +11,7 @@ module Sql.Json exposing (
   fetch_one,
   nested,
   object,
-  of_array,
+  from_array,
   prop,
   select,
   text,
@@ -99,7 +99,7 @@ end
 # Postgres arrays (`text[]`) are not JSON arrays: without this a `List(a)`
 # column serializes as `{a,b}`. The type is unchanged — this is a rendering
 # concern, not a different value.
-def of_array(e: Expr(List(a))) -> Expr(List(a))
+def from_array(e: Expr(List(a))) -> Expr(List(a))
   Expr("to_jsonb(" ++ e.sql ++ ")", e.params)
 end
 

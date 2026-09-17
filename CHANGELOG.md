@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+### Breaking
+
+- **`not_exists` is gone.** It was `not(exists(q))` under a second name, and
+  `not` is exported. The rendered SQL gains a pair of parentheses,
+  `NOT (EXISTS (…))`, which is what `not` does to everything for the reason
+  its comment gives — same parse tree, same plan.
+
+- **`Sql.Json.of_array` is `from_array`**, so the library has one prefix for a
+  conversion rather than three: `to_sql`, `from_sql_error`, `of_array`.
+
 ### Changed
 
 - **Requires jade-lang 0.11.2.** The pin said `~> 0.10.0`, which excluded the

@@ -26,6 +26,12 @@
 
 ### Breaking
 
+- **`selected` is now `to_select`.** It converts a `Query(c)` into a
+  `Select(a)`, and `to_` is how this library already spells a conversion —
+  `to_sql`, `to_assigns`, `from_sql_error`. `selected` read as a description of
+  the query rather than the step that changes it, which is the one thing a
+  reader needs from the name.
+
 - **`not_exists` is gone.** It was `not(exists(q))` under a second name, and
   `not` is exported. The rendered SQL gains a pair of parentheses,
   `NOT (EXISTS (…))`, which is what `not` does to everything for the reason

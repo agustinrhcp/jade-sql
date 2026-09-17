@@ -681,7 +681,7 @@ a `SET` takes no alias.
 ### RETURNING
 
 `returning` asks the row back in the shape the caller already declared, the
-way `selected` does for a query:
+way `to_select` does for a query:
 
 ```jade
 import Sql.Write exposing(insert, returning, fetch_one)
@@ -698,7 +698,7 @@ resolves against the one table the statement writes, so unlike a query there
 is nothing else in scope for a bare name to bind to.
 
 It is a step of its own rather than something `fetch_one` does for you, the
-same way a read projects with `selected` before it runs. A write has one type for both, so folding it in would
+same way a read projects with `to_select` before it runs. A write has one type for both, so folding it in would
 mean `execute` and `fetch_one` producing different SQL from the same `Write`.
 What the statement is stays separate from how you run it.
 

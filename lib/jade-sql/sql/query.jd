@@ -22,7 +22,7 @@ module Sql.Query exposing (
   fetch_many,
   fetch_one,
   fetch_values,
-  selected,
+  to_select,
   to_sql,
   subquery,
   where,
@@ -481,8 +481,11 @@ end
 
 
 # The shape you asked for names the columns, so a read with nothing computed
-# in it needs no `select`: `from(patients) |> selected |> fetch_many`.
-def selected(q: Query(c)) -> Select(a)
+# in it needs no `select`: `from(patients) |> to_select |> fetch_many`.
+#
+# `to_` because it converts, the way `to_sql` and `to_assigns` do; `selected`
+# read as a description of the query rather than a step that changes it.
+def to_select(q: Query(c)) -> Select(a)
   Query(
     q.tables,
     q.joins,

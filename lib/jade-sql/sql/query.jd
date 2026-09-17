@@ -21,6 +21,7 @@ module Sql.Query exposing (
   fetch_exists,
   fetch_many,
   fetch_one,
+  fetch_values,
   selected,
   to_sql,
   subquery,
@@ -525,6 +526,9 @@ struct CountRow = { tally: Int }
 struct PresentRow = { present: Bool }
 
 
+struct ValueRow(a) = { value: a }
+
+
 def fetch_count(q: Query(a)) -> Task(Int, e)
   render(q, ["COUNT(*) AS tally"], [])
     |> Sql.fetch_one_raw
@@ -553,6 +557,27 @@ end
 
 def present_of(r: PresentRow) -> Bool
   r.present
+end
+
+
+# One column out of every row, for the reads whose answer is a list of values
+# rather than a list of rows:
+#
+#   from(patients) |> where(p.archived |> eq(False)) |> fetch_values(p.id)
+#
+# Worth it only for a single column. Two would come back as a tuple, and a
+# tuple of two columns of the same type is the projection bug with no field
+# names to catch it — that is what `select |> field` is for.
+def fetch_values(q: Query(c), e: Expr(b)) -> Task(List(b), err)
+  render(q, [e.sql ++ " AS value"], e.params)
+    |> Sql.fetch_many_raw
+    |> Task.map((rows) -> { List.map(rows, value_of) })
+    |> Task.map_error(from_sql_error)
+end
+
+
+def value_of(r: ValueRow(a)) -> a
+  r.value
 end
 
 

@@ -29,7 +29,7 @@ import Sql exposing (
   table,
 )
 import Encode
-import Sql.Query as Query exposing (Select, fetch_one, from, to_select)
+import Sql.Query as Query exposing (Select, fetch_one, field, from, select)
 
 
 #{jade_table('patients', { id: 'Int', name: 'String' }, pk: 'patients_pk')}
@@ -58,26 +58,33 @@ def sql_to_app(e: SqlError) -> AppError
 end
 
 
-def one(id: Int) -> Select({ id: Int, name: String })
+struct PatientRow = {
+  id: Int,
+  name: String
+}
+
+
+def one(id: Int) -> Select(PatientRow)
   cols <- from(patients)
 
-  from(patients)
+  select(PatientRow(_, _))
+    |> field(cols.id)
+    |> field(cols.name)
     |> Query.where(eq(cols.id, id))
-    |> to_select
 end
 
 
-def found -> Task({ id: Int, name: String }, AppError)
+def found -> Task(PatientRow, AppError)
   one(1) |> fetch_one
 end
 
 
-def missing -> Task({ id: Int, name: String }, AppError)
+def missing -> Task(PatientRow, AppError)
   one(99) |> fetch_one
 end
 
 
-def counted -> Task({ id: Int, name: String }, SqlError)
+def counted -> Task(PatientRow, SqlError)
   one(1) |> fetch_one
 end
       JADE

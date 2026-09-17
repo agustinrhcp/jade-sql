@@ -1,7 +1,5 @@
 module Sql exposing (
   Assignable,
-  Selectable,
-  selector,
   Assignment(..),
   Col(..),
   Expr(..),
@@ -263,11 +261,6 @@ def assign(col: String, value: a) -> Assignment
   Assignment(col, "?", [encode(value)])
 end
 
-
-
-interface Selectable(a) with
-  selector : Selector(a)
-end
 
 
 interface Assignable(a) with

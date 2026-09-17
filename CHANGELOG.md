@@ -33,6 +33,29 @@
 
 ### Breaking
 
+- **The shape no longer names the columns.** `Sql.Query.to_select`,
+  `Sql.Write.returning` and the `Selectable` interface are gone, with the
+  deriver behind them. Both read a projection off a type's field names, which
+  made them the one thing in the library that could name a column the table
+  does not have — and neither could be checked for it without either a
+  compiler change or an extra type parameter on `Query`. A projection built
+  from the column accessors cannot get it wrong, so the fix is to have only
+  that.
+
+  Every read and every `RETURNING` now names its columns:
+
+      def patient_row(p: PatientsCols) -> Select(Patient)
+        select(Patient(_, _, _)) |> field(p.id) |> field(p.name) |> field(p.mrn)
+      end
+
+  A projection is a function of the columns, so it is written once and shared
+  between the read and the write — `from(patients) |> patient_row` and
+  `returning_with(patient_row)`. Row polymorphism lets one span tables:
+  `def just_id(c: { a | id: Expr(Int) })` serves every table with an `id`.
+
+  What goes with it: an anonymous record can no longer be the row shape, since
+  `select` takes a constructor. Name the struct.
+
 - **`selected` is now `to_select`.** It converts a `Query(c)` into a
   `Select(a)`, and `to_` is how this library already spells a conversion —
   `to_sql`, `to_assigns`, `from_sql_error`. `selected` read as a description of

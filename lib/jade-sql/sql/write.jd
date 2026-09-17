@@ -322,7 +322,7 @@ end
 
 
 # The columns are the fields of the shape you asked back, the way
-# `Query.selected` reads them. Unqualified, because RETURNING resolves
+# `Query.to_select` reads them. Unqualified, because RETURNING resolves
 # against the one table the statement writes and there is nothing else in
 # scope to disambiguate from.
 #

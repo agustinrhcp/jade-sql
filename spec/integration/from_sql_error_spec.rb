@@ -29,7 +29,7 @@ import Sql exposing (
   table,
 )
 import Encode
-import Sql.Query as Query exposing (Select, fetch_one, from, selected)
+import Sql.Query as Query exposing (Select, fetch_one, from, to_select)
 
 
 #{jade_table('patients', { id: 'Int', name: 'String' }, pk: 'patients_pk')}
@@ -63,7 +63,7 @@ def one(id: Int) -> Select({ id: Int, name: String })
 
   from(patients)
     |> Query.where(eq(cols.id, id))
-    |> selected
+    |> to_select
 end
 
 

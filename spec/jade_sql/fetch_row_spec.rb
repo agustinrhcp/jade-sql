@@ -42,7 +42,7 @@ describe 'reading without a select' do
       import Schema exposing (patients)
       import Decode exposing (Value)
       import Sql exposing (Selector)
-      import Sql.Query exposing (Query, Select, from, selected, to_sql)
+      import Sql.Query exposing (Query, Select, from, to_select, to_sql)
 
 
       struct Row = {
@@ -52,7 +52,7 @@ describe 'reading without a select' do
 
 
       def rows -> Select(Row)
-        from(patients) |> selected
+        from(patients) |> to_select
       end
 
 
@@ -73,11 +73,11 @@ describe 'reading without a select' do
       import Schema exposing (patients)
       import Decode exposing (Value)
       import Sql exposing (Selector)
-      import Sql.Query exposing (Query, Select, from, selected, to_sql)
+      import Sql.Query exposing (Query, Select, from, to_select, to_sql)
 
 
       def rows -> Select({ name: String })
-        from(patients) |> selected
+        from(patients) |> to_select
       end
 
 
@@ -96,7 +96,7 @@ describe 'reading without a select' do
 
       import Schema exposing (patients)
       import Sql exposing (SqlError)
-      import Sql.Query exposing (fetch_many, fetch_one, from, selected)
+      import Sql.Query exposing (fetch_many, fetch_one, from, to_select)
 
 
       struct Row = {
@@ -107,14 +107,14 @@ describe 'reading without a select' do
 
       def one -> Task(Row, SqlError)
         from(patients)
-          |> selected
+          |> to_select
           |> fetch_one
       end
 
 
       def many -> Task(List(Row), SqlError)
         from(patients)
-          |> selected
+          |> to_select
           |> fetch_many
       end
     JADE
@@ -130,7 +130,7 @@ describe 'reading without a select' do
       import Schema exposing (PatientsOn(..), VisitsCols, patients, visits)
       import Decode exposing (Value)
       import Sql exposing (Selector, Table)
-      import Sql.Query exposing (Query, Select, from, join, selected, to_sql)
+      import Sql.Query exposing (Query, Select, from, join, to_select, to_sql)
 
 
       def joined -> Query(VisitsCols)
@@ -141,7 +141,7 @@ describe 'reading without a select' do
 
 
       def rows -> Select({ name: String })
-        joined |> selected
+        joined |> to_select
       end
 
 

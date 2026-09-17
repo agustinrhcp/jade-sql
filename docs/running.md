@@ -44,6 +44,21 @@ Sql.Write.fetch_one : Write(ret, c) -> Task(ret, SqlError)
 A write only has a row type once `returning` gives it one, which is what
 makes fetching from one meaningful.
 
+Three reads have no row to decode, so they take a `Query` rather than a
+`Select` and render their own select list over its clauses:
+
+```jade
+fetch_count  : Query(c)           -> Task(Int, e)      # SELECT COUNT(*)
+fetch_exists : Query(c)           -> Task(Bool, e)     # SELECT EXISTS (…)
+fetch_values : Query(c), Expr(b)  -> Task(List(b), e)  # one column, every row
+```
+
+`fetch_exists` stops at the first row Postgres finds rather than counting
+every one of them. `exists` is the `Expr(Bool)` a `WHERE` takes, which is
+where the keyword appears in SQL. `fetch_values` reads one column; two would
+come back as a tuple, and a tuple of two columns of the same type is the
+projection bug with no field names to catch it.
+
 For raw SQL, skip the builders: `fetch_one_raw` / `fetch_many_raw` /
 `execute_raw` take a `(String, List(Value))` pair. Their result type is
 unconstrained, which is honest — nothing about a hand-written string says

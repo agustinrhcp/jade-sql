@@ -15,7 +15,7 @@ module Jade
 
     let(:source) do
       <<~JADE
-        module App exposing (has_named, how_many)
+        module App exposing (all_ids, has_named, how_many)
 
         import Sql exposing (
           Col(..),
@@ -32,7 +32,14 @@ module Jade
           pk,
           table,
         )
-        import Sql.Query exposing (Query, fetch_count, fetch_exists, from, where)
+        import Sql.Query exposing (
+          Query,
+          fetch_count,
+          fetch_exists,
+          fetch_values,
+          from,
+          where,
+        )
         import Encode
         import Decode exposing (Value)
 
@@ -42,6 +49,11 @@ module Jade
 
         def how_many -> Task(Int, SqlError)
           from(patients) |> fetch_count
+        end
+
+
+        def all_ids -> Task(List(Int), SqlError)
+          from(patients) |> fetch_values(columns(patients).id)
         end
 
 
@@ -75,6 +87,16 @@ module Jade
       end
 
       expect(App.has_named).to eql ['ok', true]
+    end
+
+    it 'reads one column without a shape to put it in' do
+      all_calls_to(JadeSql::Runtime.port_execute_many) do |t, sql, _params|
+        expect(sql).to include('SELECT p.id AS value')
+
+        t.ok([{ 'value' => 1 }, { 'value' => 2 }])
+      end
+
+      expect(App.all_ids).to eql ['ok', [1, 2]]
     end
   end
 end

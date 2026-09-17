@@ -15,10 +15,14 @@
   `Bool` and this returns a `Task`; not `any`, because `ANY` is a different
   Postgres keyword that this library already spells `any_of`.
 
-  `pluck` — one column out of every row, with no shape to put it in — is the
-  third of these and is missing. It needs `Decodable(a)` threaded alongside the
-  error widening, which the compiler could not do until jade-lang dropped the
-  inner dictionary bug; it can land once that release is out.
+- **`fetch_values` reads one column out of every row**, for the reads whose
+  answer is a list of values rather than a list of rows:
+
+      from(patients) |> where(p.archived |> eq(False)) |> fetch_values(p.id)
+
+  One column only. Two would come back as a tuple, and a tuple of two columns
+  of the same type is the projection bug with no field names to catch it —
+  which is what `select |> field` is for.
 
 ### Breaking
 
@@ -31,6 +35,12 @@
   conversion rather than three: `to_sql`, `from_sql_error`, `of_array`.
 
 ### Changed
+
+- **Requires jade-lang 0.12.0.** 0.12.0 refuses an implementation less general
+  than the interface method it implements, which the read builder's design
+  leans on. It also carries the fix that `fetch_values` needed: a function
+  threading `Decodable(a)` alongside the error widening lost the inner
+  dictionary.
 
 - **Requires jade-lang 0.11.2.** The pin said `~> 0.10.0`, which excluded the
   whole 0.11 line. 0.11.1 hands a `:call` check the type its call returns,

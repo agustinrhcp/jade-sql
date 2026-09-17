@@ -106,4 +106,18 @@ module Sql
     klass = Errors::BY_TAG.fetch(type, Errors::Error)
     raise klass, message
   end
+
+  # The boundary hands back `["ok", value]` or `["err", encoded]`, and the
+  # generated `fn!` raises `Jade::Interop::TaskError` for every failure alike.
+  # A controller cannot route that: `rescue_from Sql::Errors::NotFound` needs
+  # the variant. This raises the variant instead, so one `rescue_from` turns a
+  # missing row into a 404 the way `ActiveRecord::RecordNotFound` does.
+  #
+  #   patient = Sql.unwrap!(App.find(id))
+  def self.unwrap!(result)
+    case result
+    in ["ok", value] then value
+    in ["err", encoded] then raise_typed!(encoded)
+    end
+  end
 end

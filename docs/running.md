@@ -89,6 +89,49 @@ A decode mismatch (column type doesn't match the field type) raises on
 the Ruby side rather than becoming a recoverable error — schema drift is
 a programmer bug.
 
+## Coming from ActiveRecord
+
+There is no `find` or `find_by`. A lookup is the predicate you meant and the
+runner that says how many rows you expect — and for anything an index covers,
+`matching` builds that predicate from the generated index:
+
+```jade
+from(patients)
+  |> where(matching(patients_pkey, id))
+  |> selected
+  |> fetch_one
+```
+
+Which is `find_by!` — no row is `NotFound`. A primary key is generated as a
+unique index like any other, so a lookup by id has the same shape as one by
+email. The key type comes from the index, so a composite cannot be given in
+the wrong order, and renaming the index in the DDL breaks the call rather
+than quietly matching nothing. A hand-written `where`/`filter` predicate is
+for the columns no index covers.
+
+The one to watch is **`fetch_at_most_one`, which is not `find_by`**: `find_by` is `LIMIT 1` and
+returns the first row it happens to get, where this errors with
+`TooManyRows`, because nothing is dropped to make the type fit. A query
+ported across compiles, passes review, and then fails in production on the
+first row that has a twin. If you wanted `LIMIT 1`, say `limit(1)`.
+
+**Errors are values, not exceptions.** A read hands back
+`Task(a, SqlError)`, and at the Ruby boundary `["ok", value]` or
+`["err", encoded]`. `Sql.unwrap!` turns that into the value or raises the
+variant, so one `rescue_from` routes a missing row the way
+`ActiveRecord::RecordNotFound` does:
+
+```ruby
+# app/controllers/application_controller.rb
+rescue_from Sql::Errors::NotFound, with: :not_found
+
+# and at the call site, on whatever your module exposes
+patient = Sql.unwrap!(Patients.by_id(params[:id]))
+```
+
+The generated `fn!` raises too, but raises `Jade::Interop::TaskError` for
+every failure alike, which a `rescue_from` cannot tell apart.
+
 ## Transactions
 
 `Sql.transaction` runs a `Task` inside a single DB transaction on the

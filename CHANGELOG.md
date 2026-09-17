@@ -24,6 +24,13 @@
   of the same type is the projection bug with no field names to catch it —
   which is what `select |> field` is for.
 
+- **`Sql.unwrap!` turns a boundary result into the value, or raises the
+  variant.** The generated `fn!` raises `Jade::Interop::TaskError` for every
+  failure alike, which a controller cannot route — `rescue_from
+  Sql::Errors::NotFound` needs to know which one it was. This raises that
+  instead, so one `rescue_from` handles a missing row the way
+  `ActiveRecord::RecordNotFound` does.
+
 ### Breaking
 
 - **`selected` is now `to_select`.** It converts a `Query(c)` into a

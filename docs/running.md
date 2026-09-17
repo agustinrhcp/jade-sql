@@ -98,7 +98,7 @@ runner that says how many rows you expect — and for anything an index covers,
 ```jade
 from(patients)
   |> where(matching(patients_pkey, id))
-  |> selected
+  |> to_select
   |> fetch_one
 ```
 

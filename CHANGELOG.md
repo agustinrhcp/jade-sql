@@ -2,65 +2,37 @@
 
 ## [Unreleased]
 
-### Added
-
-- **`fetch_count` and `fetch_exists`, for reads with nothing to decode.** A
-  count and an existence check both render their own select list over the
-  query's clauses, so neither needs a projection and neither carries
-  `Selectable`. `fetch_exists` renders `SELECT EXISTS (…)`, which stops at the
-  first row rather than counting every one of them.
-
-  `exists` stays the `Expr(Bool)` for a `WHERE`, which is where the keyword
-  appears in SQL. Not `exists?`, because a name ending in `?` has to return
-  `Bool` and this returns a `Task`; not `any`, because `ANY` is a different
-  Postgres keyword that this library already spells `any_of`.
-
-- **`fetch_values` reads one column out of every row**, for the reads whose
-  answer is a list of values rather than a list of rows:
-
-      from(patients) |> where(p.archived |> eq(False)) |> fetch_values(p.id)
-
-  One column only. Two would come back as a tuple, and a tuple of two columns
-  of the same type is the projection bug with no field names to catch it —
-  which is what `select |> field` is for.
-
-- **`Sql.unwrap!` turns a boundary result into the value, or raises the
-  variant.** The generated `fn!` raises `Jade::Interop::TaskError` for every
-  failure alike, which a controller cannot route — `rescue_from
-  Sql::Errors::NotFound` needs to know which one it was. This raises that
-  instead, so one `rescue_from` handles a missing row the way
-  `ActiveRecord::RecordNotFound` does.
+## [0.9.0] - 2026-09-17
 
 ### Breaking
 
-- **The shape no longer names the columns.** `Sql.Query.to_select`,
-  `Sql.Write.returning` and the `Selectable` interface are gone, with the
-  deriver behind them. Both read a projection off a type's field names, which
-  made them the one thing in the library that could name a column the table
-  does not have — and neither could be checked for it without either a
-  compiler change or an extra type parameter on `Query`. A projection built
-  from the column accessors cannot get it wrong, so the fix is to have only
-  that.
-
-  Every read and every `RETURNING` now names its columns:
+- **A read names its columns.** `selected`, `rows`, `fetch_row` and
+  `fetch_rows` are gone, along with the `Selectable` interface and its
+  deriver. `selected` read a projection off the result type's field names,
+  which made it the one thing in the library that could name a column the
+  table does not have; verifying that needed either a compiler change or an
+  extra type parameter on `Query`, and a projection built from the column
+  accessors cannot get it wrong. `rows(t)` was `from(t)` under a second name.
 
       def patient_row(p: PatientsCols) -> Select(Patient)
         select(Patient(_, _, _)) |> field(p.id) |> field(p.name) |> field(p.mrn)
       end
 
+      from(patients) |> patient_row |> fetch_many
+
   A projection is a function of the columns, so it is written once and shared
-  between the read and the write — `from(patients) |> patient_row` and
-  `returning_with(patient_row)`. Row polymorphism lets one span tables:
+  between a read and a `RETURNING`. Row polymorphism lets one span tables:
   `def just_id(c: { a | id: Expr(Int) })` serves every table with an `id`.
 
-  What goes with it: an anonymous record can no longer be the row shape, since
-  `select` takes a constructor. Name the struct.
+  An anonymous record can no longer be the row shape, since `select` takes a
+  constructor. Name the struct.
 
-- **`selected` is now `to_select`.** It converts a `Query(c)` into a
-  `Select(a)`, and `to_` is how this library already spells a conversion —
-  `to_sql`, `to_assigns`, `from_sql_error`. `selected` read as a description of
-  the query rather than the step that changes it, which is the one thing a
-  reader needs from the name.
+- **`returning` is now `returning_with`.** Same function, same argument — the
+  projection built from the write's own columns. Every 0.8 call site is a
+  rename.
+
+- **`Sql.Write.execute` is gone.** `Sql.execute` already takes anything that
+  renders, including a `Write`.
 
 - **`not_exists` is gone.** It was `not(exists(q))` under a second name, and
   `not` is exported. The rendered SQL gains a pair of parentheses,
@@ -69,31 +41,6 @@
 
 - **`Sql.Json.of_array` is `from_array`**, so the library has one prefix for a
   conversion rather than three: `to_sql`, `from_sql_error`, `of_array`.
-
-### Changed
-
-- **Requires jade-lang 0.12.0.** 0.12.0 refuses an implementation less general
-  than the interface method it implements, which the read builder's design
-  leans on. It also carries the fix that `fetch_values` needed: a function
-  threading `Decodable(a)` alongside the error widening lost the inner
-  dictionary.
-
-- **Requires jade-lang 0.11.2.** The pin said `~> 0.10.0`, which excluded the
-  whole 0.11 line. 0.11.1 hands a `:call` check the type its call returns,
-  which the read check needs to compare a read's shape against the table's
-  columns, and 0.11.2 stops a constraint raised inside a field access from
-  falling off at the dot.
-
-### Breaking
-
-- **Three names removed, none of them doing anything another was not.**
-  `rows(t)` was `from(t)`, the same body under a second name, so a subquery
-  starts with `from` like every other query. `fetch_row` and `fetch_rows` were
-  `selected |> fetch_one` and `selected |> fetch_many`; writing the projection
-  step makes a read read like a write — project, then run — and leaves one
-  pair of runner names instead of two. `Sql.Write.execute` was `Sql.execute`
-  specialised to a `Write`, and `Sql.execute` already takes anything that
-  renders.
 
 - **`SqlError` names the failures you can route.** A foreign key, check,
   not-null or exclusion violation arrived as `DbError` carrying Postgres'
@@ -112,27 +59,12 @@
   `DbError(msg)` arm that sniffs `msg` for "foreign key" keeps compiling and
   stops matching, so search for those.
 
-- **`returning` means something else now. It is not a rename.** In 0.8 it took
-  a projection; in 0.9 it takes nothing and derives the columns, and the
-  projection-taking function is `returning_with`. Every 0.8 call site is
-  therefore a 0.9 call site with the wrong arity — the compiler stops on all
-  of them and none change behaviour silently — but read that as a meaning
-  swap rather than a name moving, because the old name still compiles in your
-  head. The short name went to the derived form because a projection the
-  result type already describes is the overwhelming majority of what callers
-  write; `returning_with` is for the row no result type can name.
-
 ### Changed
 
-- **An unprojected read selects from the table whose columns the query
-  carries.** `selected`, `fetch_row` and `fetch_rows` qualified every column
-  with the first table the query named, while the query's type carried the
-  columns of the last table it bound. After a join those were different
-  tables, so `{ patient_id: Int }` read after `join(visits, …)` asked
-  `patients` for it and failed at run time. The read now comes from the table
-  the type names: after `join(visits, …)` or `left_join(visits, …)`, `visits`.
-  A read that wants the first table's columns after a join names them with
-  `select`.
+- **Requires jade-lang 0.12.0.** 0.12.0 refuses an implementation less general
+  than the interface method it implements, and fixes a dictionary marker that
+  was kept with the type variable it was attached with rather than the one
+  unification bound it to.
 
 ### Added
 
@@ -160,25 +92,32 @@
   a missing row is an error is a question about `SqlError` and the caller's
   type may have no way to say.
 
-- **`Write.returning` reads the RETURNING columns off the result type.**
-  `Query.selected` has always derived a read's columns from the shape asked
-  for; a write still needed a projection written by hand, so an app that
-  inserts and reads back keeps a `project_q` per table only for that. The
-  names go in unqualified, because RETURNING resolves against the one table
-  the statement writes and there is nothing else in scope to disambiguate
-  from.
+- **`fetch_count` and `fetch_exists`, for reads with nothing to decode.** A
+  count and an existence check both render their own select list over the
+  query's clauses, so neither needs a projection and neither carries
+  `Selectable`. `fetch_exists` renders `SELECT EXISTS (…)`, which stops at the
+  first row rather than counting every one of them.
 
-      [assign("name", "Ada")]
-        |> insert(patients)
-        |> returning
-      # INSERT INTO patients (name) VALUES (?) RETURNING id, name
+  `exists` stays the `Expr(Bool)` for a `WHERE`, which is where the keyword
+  appears in SQL. Not `exists?`, because a name ending in `?` has to return
+  `Bool` and this returns a `Task`; not `any`, because `ANY` is a different
+  Postgres keyword that this library already spells `any_of`.
 
-  It stays a step of its own rather than something `fetch_one` does, which
-  would take those call sites to zero. `Query` folds the two together in
-  `fetch_rows` because `Query(c)` and `Select(a)` are different types, so no
-  single value can render two statements; a `Write` is one type for both
-  runners, and folding it in would mean `execute` and `fetch_one` producing
-  different SQL from the same value.
+- **`fetch_values` reads one column out of every row**, for the reads whose
+  answer is a list of values rather than a list of rows:
+
+      from(patients) |> where(p.archived |> eq(False)) |> fetch_values(p.id)
+
+  One column only. Two would come back as a tuple, and a tuple of two columns
+  of the same type is the projection bug with no field names to catch it —
+  which is what `select |> field` is for.
+
+- **`Sql.unwrap!` turns a boundary result into the value, or raises the
+  variant.** The generated `fn!` raises `Jade::Interop::TaskError` for every
+  failure alike, which a controller cannot route — `rescue_from
+  Sql::Errors::NotFound` needs to know which one it was. This raises that
+  instead, so one `rescue_from` handles a missing row the way
+  `ActiveRecord::RecordNotFound` does.
 
 ### Fixed
 

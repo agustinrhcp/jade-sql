@@ -173,28 +173,34 @@ module JadeSql
 
     # ActiveRecord already tells these apart by SQLSTATE, and dropping that
     # into a message is what forced callers to match text.
+    #
+    # Named rather than referenced, because `CheckViolation` and
+    # `ExclusionViolation` arrived in Rails 8: on 7.x a `when` naming either
+    # one raises NameError before it can fail to match, which turns every
+    # statement error into a crash.
+    TRANSLATIONS = [
+      ['RecordNotUnique', ->(e) { SqlErrors.unique_violation(constraint_name(e)) }],
+      ['InvalidForeignKey', ->(e) { SqlErrors.foreign_key_violation(constraint_name(e)) }],
+      ['CheckViolation', ->(e) { SqlErrors.check_violation(constraint_name(e)) }],
+      ['ExclusionViolation', ->(e) { SqlErrors.exclusion_violation(constraint_name(e)) }],
+      ['NotNullViolation', ->(e) { SqlErrors.not_null_violation(column_name(e)) }],
+      ['Deadlocked', ->(_e) { SqlErrors.deadlock }],
+      ['SerializationFailure', ->(_e) { SqlErrors.serialization_failure }],
+      ['LockWaitTimeout', ->(_e) { SqlErrors.lock_timeout }],
+      ['QueryCanceled', ->(_e) { SqlErrors.statement_timeout }],
+      ['StatementTimeout', ->(_e) { SqlErrors.statement_timeout }],
+    ].freeze
+
     def self.translate(error)
-      case error
-      when ::ActiveRecord::RecordNotUnique
-        JadeSql::SqlErrors.unique_violation(constraint_name(error))
-      when ::ActiveRecord::InvalidForeignKey
-        JadeSql::SqlErrors.foreign_key_violation(constraint_name(error))
-      when ::ActiveRecord::CheckViolation
-        JadeSql::SqlErrors.check_violation(constraint_name(error))
-      when ::ActiveRecord::ExclusionViolation
-        JadeSql::SqlErrors.exclusion_violation(constraint_name(error))
-      when ::ActiveRecord::NotNullViolation
-        JadeSql::SqlErrors.not_null_violation(column_name(error))
-      when ::ActiveRecord::Deadlocked
-        JadeSql::SqlErrors.deadlock
-      when ::ActiveRecord::SerializationFailure
-        JadeSql::SqlErrors.serialization_failure
-      when ::ActiveRecord::LockWaitTimeout
-        JadeSql::SqlErrors.lock_timeout
-      when ::ActiveRecord::QueryCanceled, ::ActiveRecord::StatementTimeout
-        JadeSql::SqlErrors.statement_timeout
-      else
-        JadeSql::SqlErrors.db_error(error.message)
+      known
+        .find { |klass, _| error.is_a?(klass) }
+        &.then { |_, to_sql_error| to_sql_error.call(error) } ||
+        SqlErrors.db_error(error.message)
+    end
+
+    def self.known
+      @known ||= TRANSLATIONS.filter_map do |name, to_sql_error|
+        [::ActiveRecord.const_get(name), to_sql_error] if ::ActiveRecord.const_defined?(name)
       end
     end
 

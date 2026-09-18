@@ -6,45 +6,57 @@ require 'jade-sql/runtime'
 
 describe JadeSql::Runtime do
   describe '.translate' do
+    # Built the way the adapter hands it over, since Rails 7 has no class for
+    # two of these.
+    def pg_error(sqlstate, fields = {})
+      result = instance_double(PG::Result)
+      allow(result).to receive(:error_field) do |field|
+        { PG::Result::PG_DIAG_SQLSTATE => sqlstate }.merge(fields)[field]
+      end
+
+      cause = instance_double(PG::Error, result: result)
+      error = ActiveRecord::StatementInvalid.new('the adapter said something')
+      allow(error).to receive(:cause).and_return(cause)
+      error
+    end
+
     def translate(error)
       described_class.translate(error)
     end
 
-    it 'names each constraint violation' do
-      expect(translate(::ActiveRecord::RecordNotUnique.new('x')).first).to eql 'UniqueViolation'
-      expect(translate(::ActiveRecord::InvalidForeignKey.new('x')).first).to eql 'ForeignKeyViolation'
-      expect(translate(::ActiveRecord::CheckViolation.new('x')).first).to eql 'CheckViolation'
-      expect(translate(::ActiveRecord::ExclusionViolation.new('x')).first).to eql 'ExclusionViolation'
-      expect(translate(::ActiveRecord::NotNullViolation.new('x')).first).to eql 'NotNullViolation'
+    it 'names each constraint violation, with the constraint Postgres reported' do
+      named = { PG::Result::PG_DIAG_CONSTRAINT_NAME => 'users_email_key' }
+
+      expect(translate(pg_error('23505', named))).to eql ['UniqueViolation', 'users_email_key']
+      expect(translate(pg_error('23503', named))).to eql ['ForeignKeyViolation', 'users_email_key']
+      expect(translate(pg_error('23514', named))).to eql ['CheckViolation', 'users_email_key']
+      expect(translate(pg_error('23P01', named))).to eql ['ExclusionViolation', 'users_email_key']
+    end
+
+    it 'carries the column for a not-null violation, which names no constraint' do
+      column = { PG::Result::PG_DIAG_COLUMN_NAME => 'email' }
+
+      expect(translate(pg_error('23502', column))).to eql ['NotNullViolation', 'email']
     end
 
     it 'names a transaction that lost, and a statement that ran out of time' do
-      expect(translate(::ActiveRecord::Deadlocked.new('x'))).to eql ['Deadlock']
-      expect(translate(::ActiveRecord::SerializationFailure.new('x'))).to eql ['SerializationFailure']
-      expect(translate(::ActiveRecord::QueryCanceled.new('x'))).to eql ['StatementTimeout']
-      expect(translate(::ActiveRecord::LockWaitTimeout.new('x'))).to eql ['LockTimeout']
+      expect(translate(pg_error('40P01'))).to eql ['Deadlock']
+      expect(translate(pg_error('40001'))).to eql ['SerializationFailure']
+      expect(translate(pg_error('57014'))).to eql ['StatementTimeout']
+      expect(translate(pg_error('55P03'))).to eql ['LockTimeout']
     end
 
-    it 'survives a Rails that has not got all of them' do
-      hidden = ActiveRecord.send(:remove_const, :CheckViolation)
-      described_class.instance_variable_set(:@known, nil)
-
-      expect(described_class.translate(ActiveRecord::RecordNotUnique.new('dup')))
-        .to eql ['UniqueViolation', '']
-    ensure
-      ActiveRecord.const_set(:CheckViolation, hidden)
-      described_class.instance_variable_set(:@known, nil)
+    it 'carries an empty name when Postgres reports none' do
+      expect(translate(pg_error('23505'))).to eql ['UniqueViolation', '']
     end
 
-    it 'keeps the message for anything it does not name' do
-      expect(translate(::ActiveRecord::StatementInvalid.new('syntax error')))
-        .to eql ['DbError', 'syntax error']
+    it 'keeps the message for a SQLSTATE it does not name' do
+      expect(translate(pg_error('42601'))).to eql ['DbError', 'the adapter said something']
     end
 
-    # The name comes off the PG diagnostics; an adapter that reports none
-    # leaves the variant with an empty name rather than no variant.
-    it 'carries an empty name when the adapter reports none' do
-      expect(translate(::ActiveRecord::RecordNotUnique.new('x'))).to eql ['UniqueViolation', '']
+    it 'keeps the message for an error that never reached Postgres' do
+      expect(translate(ActiveRecord::StatementInvalid.new('connection refused')))
+        .to eql ['DbError', 'connection refused']
     end
   end
 end

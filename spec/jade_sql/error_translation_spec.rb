@@ -25,6 +25,17 @@ describe JadeSql::Runtime do
       expect(translate(::ActiveRecord::LockWaitTimeout.new('x'))).to eql ['LockTimeout']
     end
 
+    it 'survives a Rails that has not got all of them' do
+      hidden = ActiveRecord.send(:remove_const, :CheckViolation)
+      described_class.instance_variable_set(:@known, nil)
+
+      expect(described_class.translate(ActiveRecord::RecordNotUnique.new('dup')))
+        .to eql ['UniqueViolation', '']
+    ensure
+      ActiveRecord.const_set(:CheckViolation, hidden)
+      described_class.instance_variable_set(:@known, nil)
+    end
+
     it 'keeps the message for anything it does not name' do
       expect(translate(::ActiveRecord::StatementInvalid.new('syntax error')))
         .to eql ['DbError', 'syntax error']

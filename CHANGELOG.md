@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **Every statement error crashed on Rails 7.** `translate` matched
+  `ActiveRecord::CheckViolation` and `ActiveRecord::ExclusionViolation`, which
+  arrived in Rails 8 — on 7.x the `when` naming either one raises `NameError`
+  before it can fail to match, so any failed statement raised
+  `uninitialized constant` instead of returning a `SqlError`. The table is now
+  built from the classes that exist. 0.9.0 is broken on Rails 7; this gem's own
+  lockfile is on 8.1, which is why the suite never saw it.
+
 ## [0.9.0] - 2026-09-17
 
 ### Breaking

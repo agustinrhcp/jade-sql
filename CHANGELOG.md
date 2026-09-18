@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-09-18
+
 ### Fixed
 
 - **A failed statement is read from its SQLSTATE, not from ActiveRecord's

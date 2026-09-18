@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Breaking
+
+- **`returning_with` is `returning` again.** 0.9 renamed it to tell it apart
+  from a `returning` that derived its columns from the result type, and then
+  removed that one in the same release, leaving the suffix distinguishing it
+  from nothing. From 0.8 there is no change at all; from 0.9, a rename back.
+
 ## [0.9.1] - 2026-09-18
 
 ### Fixed

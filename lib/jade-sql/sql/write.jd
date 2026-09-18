@@ -12,7 +12,7 @@ module Sql.Write exposing (
   insert,
   insert_all,
   Stamped,
-  returning_with,
+  returning,
   timestamped,
   to_sql,
   update,
@@ -303,7 +303,7 @@ def on_conflict(m: Write(ret, c, s), u: Unique(c, uk), action: Action(s)) -> Wri
 end
 
 
-def returning_with(m: Write(a, c, s), build: c -> Query(Selector(b))) -> Write(b, c, s)
+def returning(m: Write(a, c, s), build: c -> Query(Selector(b))) -> Write(b, c, s)
   Write(
     m.kind,
     m.table,

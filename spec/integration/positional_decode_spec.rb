@@ -106,7 +106,7 @@ end
 
 def removed -> Task(List(Label), SqlError)
   Write.delete_all(patients, (p) -> { is_not_null(p.id) })
-    |> Write.returning_with((p) -> { select(Label(_)) |> field(p.name) })
+    |> Write.returning((p) -> { select(Label(_)) |> field(p.name) })
     |> Write.fetch_many
 end
       JADE

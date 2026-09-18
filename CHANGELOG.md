@@ -4,13 +4,13 @@
 
 ### Fixed
 
-- **Every statement error crashed on Rails 7.** `translate` matched
-  `ActiveRecord::CheckViolation` and `ActiveRecord::ExclusionViolation`, which
-  arrived in Rails 8 — on 7.x the `when` naming either one raises `NameError`
-  before it can fail to match, so any failed statement raised
-  `uninitialized constant` instead of returning a `SqlError`. The table is now
-  built from the classes that exist. 0.9.0 is broken on Rails 7; this gem's own
-  lockfile is on 8.1, which is why the suite never saw it.
+- **A failed statement is read from its SQLSTATE, not from ActiveRecord's
+  class for it.** `CheckViolation` and `ExclusionViolation` only arrived in
+  Rails 8: on 7.x naming either in a `when` raised `NameError`, so every failed
+  statement crashed rather than returning a `SqlError` — and even guarded,
+  a check constraint the database had named precisely arrived as an untyped
+  message. The code is the same on every Rails, so 7.2 routes both. An error
+  that never reached Postgres has none, and keeps its message as `DbError`.
 
 ## [0.9.0] - 2026-09-17
 

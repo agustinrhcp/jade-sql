@@ -171,58 +171,51 @@ module JadeSql
       raw == "NULL" ? nil : raw
     end
 
-    # ActiveRecord already tells these apart by SQLSTATE, and dropping that
-    # into a message is what forced callers to match text.
+    # Read from Postgres rather than from ActiveRecord's classes for these,
+    # which lag it: `CheckViolation` arrived in Rails 8.
     #
-    # Named rather than referenced, because `CheckViolation` and
-    # `ExclusionViolation` arrived in Rails 8: on 7.x a `when` naming either
-    # one raises NameError before it can fail to match, which turns every
-    # statement error into a crash.
-    TRANSLATIONS = [
-      ['RecordNotUnique', ->(e) { SqlErrors.unique_violation(constraint_name(e)) }],
-      ['InvalidForeignKey', ->(e) { SqlErrors.foreign_key_violation(constraint_name(e)) }],
-      ['CheckViolation', ->(e) { SqlErrors.check_violation(constraint_name(e)) }],
-      ['ExclusionViolation', ->(e) { SqlErrors.exclusion_violation(constraint_name(e)) }],
-      ['NotNullViolation', ->(e) { SqlErrors.not_null_violation(column_name(e)) }],
-      ['Deadlocked', ->(_e) { SqlErrors.deadlock }],
-      ['SerializationFailure', ->(_e) { SqlErrors.serialization_failure }],
-      ['LockWaitTimeout', ->(_e) { SqlErrors.lock_timeout }],
-      ['QueryCanceled', ->(_e) { SqlErrors.statement_timeout }],
-      ['StatementTimeout', ->(_e) { SqlErrors.statement_timeout }],
-    ].freeze
+    # https://www.postgresql.org/docs/current/errcodes-appendix.html
+    BY_SQLSTATE = {
+      '23505' => ->(e) { SqlErrors.unique_violation(constraint_name(e)) },
+      '23503' => ->(e) { SqlErrors.foreign_key_violation(constraint_name(e)) },
+      '23514' => ->(e) { SqlErrors.check_violation(constraint_name(e)) },
+      '23P01' => ->(e) { SqlErrors.exclusion_violation(constraint_name(e)) },
+      '23502' => ->(e) { SqlErrors.not_null_violation(column_name(e)) },
+      '40P01' => ->(_e) { SqlErrors.deadlock },
+      '40001' => ->(_e) { SqlErrors.serialization_failure },
+      '57014' => ->(_e) { SqlErrors.statement_timeout },
+      '55P03' => ->(_e) { SqlErrors.lock_timeout },
+    }.freeze
 
     def self.translate(error)
-      known
-        .find { |klass, _| error.is_a?(klass) }
-        &.then { |_, to_sql_error| to_sql_error.call(error) } ||
-        SqlErrors.db_error(error.message)
+      BY_SQLSTATE[sqlstate(error)]
+        &.call(error) || SqlErrors.db_error(error.message)
     end
 
-    def self.known
-      @known ||= TRANSLATIONS.filter_map do |name, to_sql_error|
-        [::ActiveRecord.const_get(name), to_sql_error] if ::ActiveRecord.const_defined?(name)
-      end
+    # Nil for anything that did not come back from Postgres.
+    def self.sqlstate(error)
+      diagnostic(error, ::PG::Result::PG_DIAG_SQLSTATE)
     end
 
     # The constraint/index name behind a violation, so callers can route by
     # which one it was. PG reports it in the error's diagnostics; other
     # adapters (or a missing name) fall back to "".
     def self.constraint_name(error)
-      cause = error.cause
-      return "" unless defined?(::PG::Result) && cause.respond_to?(:result) && cause.result
-
-      cause.result.error_field(::PG::Result::PG_DIAG_CONSTRAINT_NAME) || ""
-    rescue StandardError
-      ""
+      diagnostic(error, ::PG::Result::PG_DIAG_CONSTRAINT_NAME) || ""
     end
 
     def self.column_name(error)
-      cause = error.cause
-      return "" unless defined?(::PG::Result) && cause.respond_to?(:result) && cause.result
+      diagnostic(error, ::PG::Result::PG_DIAG_COLUMN_NAME) || ""
+    end
 
-      cause.result.error_field(::PG::Result::PG_DIAG_COLUMN_NAME) || ""
+
+    def self.diagnostic(error, field)
+      cause = error.cause
+      return nil unless defined?(::PG::Result) && cause.respond_to?(:result) && cause.result
+
+      cause.result.error_field(field)
     rescue StandardError
-      ""
+      nil
     end
 
     # Sql.Write.timestamped emits "$JADE_SQL_NOW$" where created_at /

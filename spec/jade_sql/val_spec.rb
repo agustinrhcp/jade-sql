@@ -33,7 +33,7 @@ import Sql exposing (
   val,
 )
 import Sql.Json as Json exposing (Json)
-import Sql.Query exposing (Select, field, field_as, from, select, to_sql)
+import Sql.Query exposing (Select, field, from, select, to_sql)
 import Decode exposing (Value)
 import Encode
 
@@ -52,7 +52,7 @@ def tagged -> Select(Row)
 
   select(Row(_, _))
     |> field(p.id)
-    |> field_as(val("patient"), "kind")
+    |> field(val("patient"))
 end
 
 
@@ -73,7 +73,7 @@ end
     it 'places a constant in a projection, bound rather than inlined' do
       sql, params = App.constant_field
 
-      expect(sql).to eql 'SELECT patients.id, ? AS kind FROM patients patients'
+      expect(sql).to eql 'SELECT patients.id, ? FROM patients patients'
       expect(params).to eql ['patient']
     end
 

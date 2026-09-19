@@ -168,9 +168,8 @@ carries `NoJoins`.
 
 A column whose name is a Jade keyword (e.g. `type`) gets a trailing
 underscore in the struct field (`type_`) while the SQL column reference
-keeps the real name. For a table with such a column the generator also
-emits a `<table>_row` projector that aliases every column to its field name
-(`SELECT … AS type_`), so reads round-trip without hand-written SQL:
+keeps the real name. The generator also emits a `<table>_row` projector
+that reads every column into the table's `Row` struct:
 
 ```jade
 def entries -> Select(JournalEntriesRow)
@@ -179,10 +178,14 @@ def entries -> Select(JournalEntriesRow)
 end
 ```
 
-In hand-written selects, `field_as(e, "name")` sets a column's output name
-when it differs from the SQL — needed for renamed columns and computed
-projections (decode keys by field name, so `field_as(count_all, "visits")`
-makes a `COUNT(*)` land in a `visits` field).
+A projection is read back by position: each `field` fills the constructor
+argument in the same place, which is the order the type-checker matched
+them in. A column's name never has to match its field, so a renamed column,
+a computed one and two `id`s from a join all read the same way:
+
+```jade
+select(Visits(_)) |> field(count_all)     # lands in whatever Visits calls it
+```
 
 ## Build queries
 
@@ -662,8 +665,8 @@ values directly, so this is for the positions that cannot — a constant field
 in a projection or a JSON document:
 
 ```jade
-select(Row(_, _)) |> field(c.id) |> field_as(val("patient"), "kind")
-# SELECT patients.id, ? AS kind FROM patients patients
+select(Row(_, _)) |> field(c.id) |> field(val("patient"))
+# SELECT patients.id, ? FROM patients patients
 ```
 
 It binds rather than inlining, so a string with a quote in it is a parameter

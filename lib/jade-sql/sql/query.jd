@@ -2,7 +2,6 @@ module Sql.Query exposing (
   Query,
   Select,
   field,
-  field_as,
   distinct,
   exists,
   from,
@@ -37,7 +36,7 @@ import Sql exposing (
   ToSql,
   from_sql_error,
 )
-import Decode exposing (Value)
+import Decode exposing (Decodable, Decoder, Value)
 
 
 type JoinKind
@@ -257,28 +256,25 @@ end
 
 
 def select(make: a -> b) -> Query(Selector(a -> b))
-  Query([], [], [], [], [], [], Nothing, Nothing, False, Selector([], []), Nothing)
-end
-
-
-def field(qs: Query(Selector(a -> b)), e: Expr(a)) -> Select(b)
   Query(
-    qs.tables,
-    qs.joins,
-    qs.wheres,
-    qs.groups,
-    qs.havings,
-    qs.orders,
-    qs.limit_,
-    qs.offset_,
-    qs.distinct_,
-    Selector(qs.result.columns_sql ++ [e.sql], qs.result.params ++ e.params),
-    qs.result_alias,
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    Nothing,
+    Nothing,
+    False,
+    Selector([], [], Decode.succeed(make)),
+    Nothing,
   )
 end
 
 
-def field_as(qs: Query(Selector(a -> b)), e: Expr(a), name: String) -> Select(b)
+def field(qs: Query(Selector(a -> b)), e: Expr(a)) -> Select(b)
+  position = List.length(qs.result.columns_sql)
+
   Query(
     qs.tables,
     qs.joins,
@@ -290,8 +286,9 @@ def field_as(qs: Query(Selector(a -> b)), e: Expr(a), name: String) -> Select(b)
     qs.offset_,
     qs.distinct_,
     Selector(
-      qs.result.columns_sql ++ [e.sql ++ " AS " ++ name],
+      qs.result.columns_sql ++ [e.sql],
       qs.result.params ++ e.params,
+      qs.result.decoder |> Decode.and_map(Decode.index(position, Decode.decoder)),
     ),
     qs.result_alias,
   )
@@ -446,15 +443,17 @@ end
 # `NotFound` on none and `TooManyRows` on more than one, so "exactly one" is
 # checked rather than assumed.
 def fetch_one(q: Select(a)) -> Task(a, e)
-  to_sql(q) |> Sql.fetch_one_raw |> Task.map_error(from_sql_error)
+  Sql.fetch_decoded(to_sql(q), q.result.decoder)
+    |> Task.and_then(Sql.exactly_one)
+    |> Task.map_error(from_sql_error)
 end
 
 
 # `fetch_one` where no row is an answer rather than an error. More than one
 # is still `TooManyRows`: nothing is dropped to make the type fit.
 def fetch_at_most_one(q: Select(a)) -> Task(Maybe(a), e)
-  to_sql(q)
-    |> Sql.fetch_one_raw
+  Sql.fetch_decoded(to_sql(q), q.result.decoder)
+    |> Task.and_then(Sql.exactly_one)
     |> Task.map(Just)
     |> Task.on_error(nothing_if_missing)
     |> Task.map_error(from_sql_error)
@@ -474,35 +473,14 @@ end
 # Runs the query and decodes every row it selected. No rows is an empty list,
 # not an error.
 def fetch_many(q: Select(a)) -> Task(List(a), e)
-  to_sql(q) |> Sql.fetch_many_raw |> Task.map_error(from_sql_error)
+  Sql.fetch_decoded(to_sql(q), q.result.decoder) |> Task.map_error(from_sql_error)
 end
-
-
-# A read with nothing to decode renders its own select list over the query's
-# clauses, so it needs no projection and carries no `Selectable`. The port
-# hands back a record either way, which is what these one-field shapes are
-# for.
-
-
-struct CountRow = { tally: Int }
-
-
-struct PresentRow = { present: Bool }
-
-
-struct ValueRow(a) = { value: a }
 
 
 def fetch_count(q: Query(a)) -> Task(Int, e)
-  render(q, ["COUNT(*) AS tally"], [])
-    |> Sql.fetch_one_raw
-    |> Task.map(count_of)
+  Sql.fetch_decoded(render(q, ["COUNT(*)"], []), Decode.index(0, Decode.int))
+    |> Task.and_then(Sql.exactly_one)
     |> Task.map_error(from_sql_error)
-end
-
-
-def count_of(r: CountRow) -> Int
-  r.tally
 end
 
 
@@ -512,15 +490,12 @@ end
 def fetch_exists(q: Query(a)) -> Task(Bool, e)
   present = exists(q)
 
-  Tuple.Tuple2("SELECT " ++ present.sql ++ " AS present", present.params)
-    |> Sql.fetch_one_raw
-    |> Task.map(present_of)
+  Sql.fetch_decoded(
+    ("SELECT " ++ present.sql, present.params),
+    Decode.index(0, Decode.bool),
+  )
+    |> Task.and_then(Sql.exactly_one)
     |> Task.map_error(from_sql_error)
-end
-
-
-def present_of(r: PresentRow) -> Bool
-  r.present
 end
 
 
@@ -529,19 +504,11 @@ end
 #
 #   from(patients) |> where(p.archived |> eq(False)) |> fetch_values(p.id)
 #
-# Worth it only for a single column. Two would come back as a tuple, and a
-# tuple of two columns of the same type is the projection bug with no field
-# names to catch it — that is what `select |> field` is for.
+# Worth it only for a single column; more than one is what `select |> field`
+# is for.
 def fetch_values(q: Query(c), e: Expr(b)) -> Task(List(b), err)
-  render(q, [e.sql ++ " AS value"], e.params)
-    |> Sql.fetch_many_raw
-    |> Task.map((rows) -> { List.map(rows, value_of) })
+  Sql.fetch_decoded(render(q, [e.sql], e.params), Decode.index(0, Decode.decoder))
     |> Task.map_error(from_sql_error)
-end
-
-
-def value_of(r: ValueRow(a)) -> a
-  r.value
 end
 
 

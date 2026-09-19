@@ -981,7 +981,8 @@ import Sql exposing (
   table,
 )
 import Encode
-import Sql.Query exposing (Query, Select, field, from, select, where)
+import Decode exposing (Value)
+import Sql.Query exposing (Query, Select, field, from, select, to_sql, where)
 
 
 #{jade_table('persons', { id: 'Int', name: 'String', age: 'Int' }, alias_: 'p', pk: 'persons_pk')}
@@ -999,12 +1000,17 @@ def persons_pk -> Pk(PersonsCols, Int)
 end
 
 
-def adults_query -> Select(Person)
+def adults_query_q -> Select(Person)
   p <- from(persons)
   select(Person(_, _, _))
     |> field(p.id)
     |> field(p.name)
     |> field(p.age)
+end
+
+
+def adults_query -> (String, List(Value))
+  adults_query_q |> to_sql
 end
         JADE
       end
@@ -1012,9 +1018,7 @@ end
       it 'projects the selected columns in declared order' do
         test_compiler.require('app', adults_source)
 
-        App.adults_query.then do |q|
-          expect(q['result']['columns_sql']).to eql ['p.id', 'p.name', 'p.age']
-        end
+        expect(App.adults_query[0]).to eql 'SELECT p.id, p.name, p.age FROM persons p'
       end
     end
 
@@ -1106,64 +1110,6 @@ end
           'WHERE p.age IS NOT NULL AND o.total = ?'
         )
         expect(params).to eql [100]
-      end
-    end
-
-    describe 'field_as renders an AS alias in the projection' do
-      let(:source) do
-        <<~JADE
-module App exposing (rendered)
-
-import Sql exposing (
-  Col(..),
-  Expr,
-  NoJoins,
-  Pk,
-  Selector,
-  Table,
-  column,
-  no_joins,
-  pk,
-  table,
-)
-import Encode
-import Sql.Query exposing (Query, Select, field_as, from, select, to_sql)
-import Decode exposing (Value)
-
-
-#{jade_table('entries', { id: 'Int', type_: 'String' }, alias_: 'e', pk: 'entries_pk')}
-
-
-struct Row = {
-  id: Int,
-  type_: String
-}
-
-
-def entries_pk -> Pk(EntriesCols, Int)
-  pk("pkey", ["id"], (v) -> { [Encode.encode(v)] })
-end
-
-
-def query -> Select(Row)
-  c <- from(entries)
-  select(Row(_, _))
-    |> field_as(c.id, "id")
-    |> field_as(c.type_, "type_")
-end
-
-
-def rendered -> (String, List(Value))
-  query |> to_sql
-end
-        JADE
-      end
-
-      it 'aliases the projected column to the given name' do
-        test_compiler.require('app', source)
-
-        expect(App.rendered[0])
-          .to eql('SELECT e.id AS id, e.type AS type_ FROM entries e')
       end
     end
 
@@ -1362,7 +1308,8 @@ end
             pk,
             table,
           )
-          import Sql.Query exposing (Query, Select, field, from, select)
+          import Decode exposing (Value)
+          import Sql.Query exposing (Query, Select, field, from, select, to_sql)
 
 
           #{jade_table('patients', { id: 'Int' }, alias_: 'p')}
@@ -1377,7 +1324,7 @@ end
           }
 
 
-          def pairs -> Select(Pair)
+          def pairs_q -> Select(Pair)
             p <- from(patients)
             v <- from(visits)
 
@@ -1385,9 +1332,14 @@ end
               |> field(p.id)
               |> field(v.id)
           end
+
+
+          def pairs -> (String, List(Value))
+            pairs_q |> to_sql
+          end
         JADE
 
-        expect(Sql::Query.to_sql(Crossed.pairs)[0])
+        expect(Crossed.pairs[0])
           .to eql 'SELECT p.id, v.id FROM patients p, visits v'
       end
     end
@@ -1413,6 +1365,7 @@ import Sql exposing (
   table,
 )
 import Sql.Expr as Expr
+import Decode exposing (Value)
 import Sql.Query exposing (
   Query,
   Select,
@@ -1421,6 +1374,7 @@ import Sql.Query exposing (
   filter,
   from,
   select,
+  to_sql,
   where,
 )
 
@@ -1434,7 +1388,7 @@ import Sql.Query exposing (
 struct Name = { name: String }
 
 
-def with_visits -> Select(Name)
+def with_visits_q -> Select(Name)
   p <- from(patients)
 
   select(Name(_))
@@ -1443,7 +1397,12 @@ def with_visits -> Select(Name)
 end
 
 
-def without_visits -> Select(Name)
+def with_visits -> (String, List(Value))
+  with_visits_q |> to_sql
+end
+
+
+def without_visits_q -> Select(Name)
   p <- from(patients)
 
   select(Name(_))
@@ -1451,6 +1410,11 @@ def without_visits -> Select(Name)
     |> where(
       not(exists(from(visits) |> filter((v) -> { v.patient_id |> Expr.eq(p.id) }))),
     )
+end
+
+
+def without_visits -> (String, List(Value))
+  without_visits_q |> to_sql
 end
         JADE
       end
@@ -1468,7 +1432,7 @@ end
         expect(sql_of(App.without_visits)).to include('WHERE NOT (EXISTS (SELECT 1')
       end
 
-      def sql_of(q) = Sql::Query.to_sql(q)[0]
+      def sql_of(q) = q[0]
     end
 
 
@@ -1492,6 +1456,7 @@ end
             table,
           )
           import Sql.Expr as Expr
+          import Decode exposing (Value)
           import Sql.Query exposing (
             Query,
             Select,
@@ -1502,6 +1467,7 @@ end
             order_desc,
             select,
             subquery,
+            to_sql,
             where,
           )
 
@@ -1533,7 +1499,7 @@ end
 
           # `rows` names the table, so the subquery stands on its own even
           # where the outer query never bound it.
-          def unbound_last_seen -> Select(Row)
+          def unbound_last_seen_q -> Select(Row)
             p <- from(patients)
 
             select(Row(_, _))
@@ -1549,7 +1515,12 @@ end
           end
 
 
-          def last_seen -> Select(Row)
+          def unbound_last_seen -> (String, List(Value))
+            unbound_last_seen_q |> to_sql
+          end
+
+
+          def last_seen_q -> Select(Row)
             p <- from(patients)
 
             select(Row(_, _))
@@ -1558,12 +1529,22 @@ end
           end
 
 
-          def seen_patients -> Select(Id)
+          def last_seen -> (String, List(Value))
+            last_seen_q |> to_sql
+          end
+
+
+          def seen_patients_q -> Select(Id)
             p <- from(patients)
 
             select(Id(_))
               |> field(p.id)
               |> where(p.id |> in_subquery(from(visits), .patient_id))
+          end
+
+
+          def seen_patients -> (String, List(Value))
+            seen_patients_q |> to_sql
           end
         JADE
       end
@@ -1571,20 +1552,20 @@ end
       before { test_compiler.require('app', source) }
 
       it 'roots a subquery in its own table, not the outer query\'s' do
-        Sql::Query.to_sql(App.unbound_last_seen).then do |built|
+        App.unbound_last_seen.then do |built|
           expect(built[0]).to eql 'SELECT p.id, (SELECT v.seen_on FROM visits v ' \
             'WHERE v.patient_id = p.id LIMIT 1) FROM patients p'
         end
       end
 
       it 'lists a table once however many times the chain names it' do
-        Sql::Query.to_sql(App.last_seen).then do |built|
+        App.last_seen.then do |built|
           expect(built[0]).not_to include 'visits v, visits v'
         end
       end
 
       it 'renders the picked column as a correlated subquery' do
-        Sql::Query.to_sql(App.last_seen).then do |built|
+        App.last_seen.then do |built|
           expect(built[0]).to eql 'SELECT p.id, (SELECT v.seen_on FROM visits v ' \
             'WHERE v.patient_id = p.id ORDER BY v.seen_on DESC LIMIT 1) ' \
             'FROM patients p'
@@ -1593,7 +1574,7 @@ end
       end
 
       it 'renders IN over the picked column' do
-        Sql::Query.to_sql(App.seen_patients).then do |built|
+        App.seen_patients.then do |built|
           expect(built[0]).to eql 'SELECT p.id FROM patients p ' \
             'WHERE p.id IN (SELECT v.patient_id FROM visits v)'
         end
@@ -1761,6 +1742,7 @@ import Sql exposing (
   table,
 )
 import Sql.Expr as Expr
+import Decode exposing (Value)
 import Sql.Query exposing (
   Query,
   Select,
@@ -1780,7 +1762,7 @@ import Sql.Query exposing (
 struct Busy = { patient_id: Int }
 
 
-def busy -> Select(Busy)
+def busy_q -> Select(Busy)
   v <- from(visits)
 
   select(Busy(_))
@@ -1790,12 +1772,22 @@ def busy -> Select(Busy)
 end
 
 
-def distinct_names -> Select(Busy)
+def busy -> (String, List(Value))
+  busy_q |> to_sql
+end
+
+
+def distinct_names_q -> Select(Busy)
   v <- from(visits)
 
   select(Busy(_))
     |> field(v.patient_id)
     |> distinct
+end
+
+
+def distinct_names -> (String, List(Value))
+  distinct_names_q |> to_sql
 end
         JADE
       end
@@ -1816,9 +1808,9 @@ end
           .to eql 'SELECT DISTINCT v.patient_id FROM visits v'
       end
 
-      def to_sql_of(q) = Sql::Query.to_sql(q)[0]
+      def to_sql_of(q) = q[0]
 
-      def params_of(q) = Sql::Query.to_sql(q)[1]
+      def params_of(q) = q[1]
     end
 
     describe 'limit and offset for pagination' do

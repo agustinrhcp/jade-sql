@@ -514,12 +514,12 @@ describe JadeSql::SchemaGenerator do
       expect(generated).to include('column(a, "type")')
     end
 
-    it 'emits a row projector that aliases each column to its field name' do
+    it 'emits a row projector over every column' do
       expect(generated).to include(
         'def journal_entries_row(c: JournalEntriesCols) -> Select(JournalEntriesRow)',
       )
-      expect(generated).to include('field_as(c.type_, "type_")')
-      expect(generated).to include('import Sql.Query exposing (Select, field_as, select)')
+      expect(generated).to include('field(c.type_)')
+      expect(generated).to include('import Sql.Query exposing (Select, field, select)')
     end
 
     it 'produces a schema that compiles' do
@@ -1092,10 +1092,11 @@ describe JadeSql::SchemaGenerator do
       test_compiler.write('schema', generated)
       test_compiler.compiler.require('schema')
       test_compiler.write('app', <<~JADE)
-        module App exposing (go)
+        module App exposing (rendered)
 
         import Sql exposing (Table)
-        import Sql.Query exposing (Select, field, from, join, select)
+        import Decode exposing (Value)
+        import Sql.Query exposing (Select, field, from, join, select, to_sql)
         import Schema exposing (PatientsOn(..), patients, visits)
 
 
@@ -1113,10 +1114,15 @@ describe JadeSql::SchemaGenerator do
             |> field(p.id)
             |> field(v.id)
         end
+
+
+        def rendered -> (String, List(Value))
+          go |> to_sql
+        end
       JADE
       test_compiler.compiler.require('app')
 
-      expect(Sql::Query.to_sql(App.go)[0]).to eql(
+      expect(App.rendered[0]).to eql(
         'SELECT patients.id, visits.id FROM patients patients ' \
         'INNER JOIN visits visits ON patients.id = visits.patient_id',
       )

@@ -128,12 +128,11 @@ def text(d: Doc(a)) -> String
 end
 
 
-# The row comes back as a hash keyed by column name, so the projection needs
-# an alias matching Doc's field. `cast` is the escape hatch that erases
-# Json(a) to the String the column actually holds — it stays inside this
-# module, and the signature ties the result's tag back to the projection's.
+# `unsafe_cast` erases Json(a) to the String the column actually holds — it
+# stays inside this module, and the signature ties the result's tag back to
+# the projection's.
 def select(e: Expr(Json(a))) -> Query(Selector(Doc(a)))
-  Query.select(Doc(_)) |> Query.field_as(unsafe_cast(e), "text")
+  Query.select(Doc(_)) |> Query.field(unsafe_cast(e))
 end
 
 

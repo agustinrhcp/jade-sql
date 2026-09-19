@@ -37,7 +37,7 @@ import Sql exposing (
   to_assigns,
 )
 import Sql.Query exposing (Query)
-import Decode exposing (Value)
+import Decode exposing (Decoder, Value)
 import Encode
 
 
@@ -87,6 +87,11 @@ def do_update(build: s -> List(Assignment)) -> Action(s)
 end
 
 
+def no_returning -> Selector(Int)
+  Selector([], [], Decode.fail("a write without RETURNING has no rows"))
+end
+
+
 def insert(value: a, t: Table(c, m, k, o, r, s)) -> Write(Int, c, s)
   Write(
     InsertK,
@@ -95,7 +100,7 @@ def insert(value: a, t: Table(c, m, k, o, r, s)) -> Write(Int, c, s)
     t.set_cols,
     [to_assigns(value)],
     [],
-    Selector([], []),
+    no_returning,
     Nothing,
     Nothing,
   )
@@ -110,7 +115,7 @@ def insert_all(values: List(a), t: Table(c, m, k, o, r, s)) -> Write(Int, c, s)
     t.set_cols,
     List.map(values, (v) -> { to_assigns(v) }),
     [],
-    Selector([], []),
+    no_returning,
     Nothing,
     Nothing,
   )
@@ -125,7 +130,7 @@ def update(value: a, t: Table(c, m, k, o, r, s), key: k) -> Write(Int, c, s)
     t.set_cols,
     [without_created_at(without_key(t.pk, to_assigns(value)))],
     [key_predicate(t.pk, key)],
-    Selector([], []),
+    no_returning,
     Nothing,
     Nothing,
   )
@@ -140,7 +145,7 @@ def delete(t: Table(c, m, k, o, r, s), key: k) -> Write(Int, c, s)
     t.set_cols,
     [],
     [key_predicate(t.pk, key)],
-    Selector([], []),
+    no_returning,
     Nothing,
     Nothing,
   )
@@ -177,7 +182,7 @@ def update_all(
     t.set_cols,
     [build(cols_, t.set_cols)],
     [pred],
-    Selector([], []),
+    no_returning,
     Nothing,
     Nothing,
   )
@@ -194,7 +199,7 @@ def update_many(rows_: List((k, a)), t: Table(c, m, k, o, r, s)) -> Write(Int, c
     t.set_cols,
     [source_assigns(t.pk, rows)],
     [pk_join(t.alias_, t.pk.columns)],
-    Selector([], []),
+    no_returning,
     Just(source_of(t.name, rows)),
     Nothing,
   )
@@ -280,7 +285,7 @@ def delete_all(t: Table(c, m, k, o, r, s), pred_fn: c -> Expr(Bool)) -> Write(In
     t.set_cols,
     [],
     [pred],
-    Selector([], []),
+    no_returning,
     Nothing,
     Nothing,
   )
@@ -607,12 +612,15 @@ end
 # insert, the new state of an update. A write with no `returning` selects
 # nothing, so this errors with `NotFound`.
 def fetch_one(m: Write(ret, c, s)) -> Task(ret, e)
-  to_sql(m) |> Sql.fetch_one_raw |> Task.map_error(from_sql_error)
+  Sql.fetch_decoded(to_sql(m), m.returning_selector.decoder)
+    |> Task.and_then(Sql.exactly_one)
+    |> Task.map_error(from_sql_error)
 end
 
 
 # The same for a write that returns many rows, as `insert_all` and
 # `update_all` do.
 def fetch_many(m: Write(ret, c, s)) -> Task(List(ret), e)
-  to_sql(m) |> Sql.fetch_many_raw |> Task.map_error(from_sql_error)
+  Sql.fetch_decoded(to_sql(m), m.returning_selector.decoder)
+    |> Task.map_error(from_sql_error)
 end

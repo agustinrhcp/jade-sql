@@ -400,8 +400,30 @@ builder — params stitch in declaration order automatically.
 | `sum(Expr(Int)) -> Expr(Maybe(Int))`           | `SUM(e)`           | `NULL` on empty group → `Maybe`.       |
 | `count(Expr(a)) -> Expr(Int)`                  | `COUNT(e)`         | Counts non-null rows for the column.   |
 | `count_all -> Expr(Int)`                       | `COUNT(*)`         | Total row count.                       |
+| `count_distinct(Expr(a)) -> Expr(Int)`         | `COUNT(DISTINCT e)` | Distinct non-null values.             |
+| `max`, `min(Expr(a)) -> Expr(Maybe(a))`        | `MAX(e)`, `MIN(e)` | `NULL` on empty group.                 |
+| `avg(Expr(Int)) -> Expr(Maybe(Decimal))`       | `AVG(e)`           | Postgres averages integers exactly.    |
 | `coalesce(Expr(Maybe(a)), a) -> Expr(a)`       | `COALESCE(e, ?)`   | Drops the `Maybe` with a fallback.     |
 | `neg(Expr(Int)) -> Expr(Int)`                  | `-(e)`             | Unary minus.                           |
+| `lower`, `upper(Expr(String)) -> Expr(String)` | `LOWER(e)`         |                                        |
+| `trunc_date(DateUnit, Expr(Date)) -> Expr(Date)` | `date_trunc('month', e)` | First day of the unit.         |
+| `json_text(Expr(Value), String) -> Expr(Maybe(String))` | `e ->> ?` | `NULL` where the key is absent.      |
+
+`Sql.Expr` holds the ones that take a second expression rather than a value:
+
+| Function                                        | SQL                         |
+|-------------------------------------------------|-----------------------------|
+| `plus`, `minus`, `times`, `div` on `Expr(Int)`  | `(a + b)`; `div` truncates  |
+| `concat(Expr(String), Expr(String))`            | `(a \|\| b)`                |
+| `plus_days(Expr(Date), Expr(Int))`              | `(a + b)`                   |
+| `coalesce(Expr(Maybe(a)), Expr(a))`             | `COALESCE(a, b)`            |
+| `greatest`, `least(Expr(a), Expr(a))`           | `GREATEST(a, b)`            |
+| `filter_where(Expr(a), Expr(Bool))`             | `agg FILTER (WHERE cond)`   |
+| `case_when` / `when` / `otherwise`              | `CASE WHEN … ELSE … END`    |
+| `match(Expr(a), a -> Expr(b))`                  | `CASE e WHEN … END`         |
+
+A value you hold goes in through `val`, so each operation has one function:
+`p.balance |> Expr.times(val(12))`.
 
 Worked example — count visits and the most recent visit number,
 coalesced to 0 when a patient has none:
@@ -419,8 +441,18 @@ end
 # SELECT COUNT(*), COALESCE(SUM(a.visit_no), ?) FROM appointments a
 ```
 
-For `CASE WHEN` and arithmetic, fall back to the raw-`Expr`
-escape hatch until they get a typed builder.
+`case_when` is for conditions, where nothing can list every case, so the
+`ELSE` is required: a `Case` is not an expression until `otherwise` gives it
+one.
+
+```jade
+case_when(p.balance |> Expr.lt(val(0)), val("owes"))
+  |> Expr.when(p.balance |> Expr.gt(val(100)), val("credit"))
+  |> Expr.otherwise(val("even"))
+```
+
+Over an enum, `Expr.match` has an arm per variant instead, and the compiler
+checks them (see [enums](#generate-schemajd-from-dbstructuresql)).
 
 ### Subqueries
 

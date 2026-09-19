@@ -1,18 +1,36 @@
 module Sql.Expr exposing (
+  Case,
   Finite,
+  Matching,
+  Searched,
+  case_of,
+  case_when,
+  coalesce,
+  concat,
+  div,
   eq,
+  filtered_to,
+  greatest,
   gt,
   gte,
   ilike,
+  least,
   like,
   lt,
   lte,
-  per_variant,
+  minus,
   neq,
+  otherwise,
+  per_variant,
+  plus,
+  times,
+  when,
+  when_eq,
 )
 
 import Sql exposing (Expr(..))
 import Encode exposing (Encodable, encode)
+import Decode exposing (Value)
 
 
 # The same comparisons `Sql` exposes, against another expression rather than a
@@ -70,6 +88,10 @@ end
 
 # A type whose every value is known: a database enum, whose instance the schema
 # generator writes next to its codec, and `Bool`.
+# A type with finitely many values, all of them listed. The schema generator
+# writes an instance beside each database enum's codec, so the list is
+# regenerated with the type. Writing one by hand is the one way to make
+# `per_variant` render a CASE that misses a value.
 interface Finite(a) with
   variants: List(a)
 end
@@ -87,7 +109,7 @@ end
 
 # A `CASE` with one arm per value of `e`, each arm what `branch` makes of it.
 # `branch` is an ordinary function, so the `case` inside it is checked for
-# every variant, and the SQL needs no `ELSE`:
+# every value, and the SQL needs no `ELSE`:
 #
 #   t.kind |> Expr.per_variant((k) -> {
 #     case k
@@ -96,6 +118,13 @@ end
 #     end
 #   })
 #   # (CASE t.kind WHEN ? THEN tl.amount_cents WHEN ? THEN -(tl.amount_cents) END)
+#
+# `per_variant` is finished the moment you call it — the arms are the
+# type's, so there is no `otherwise` to mark the end.
+#
+# `branch` runs once per value while the query is built, not once per row. A
+# NULL scrutinee matches no arm and the CASE is NULL, so a nullable column
+# belongs in `case_when` with `is_null` rather than here.
 def per_variant(e: Expr(a), branch: a -> Expr(b)) -> Expr(b)
   arms = variants |> List.map((v) -> { (encode(v), branch(v)) })
   whens = arms
@@ -105,4 +134,138 @@ def per_variant(e: Expr(a), branch: a -> Expr(b)) -> Expr(b)
     |> List.and_then((arm) -> { [Tuple.first(arm)] ++ Tuple.second(arm).params })
 
   Expr("(CASE " ++ e.sql ++ whens ++ " END)", e.params ++ params)
+end
+
+
+# Arithmetic on integers. Postgres divides integers by truncating toward
+# zero, and raises on a zero divisor.
+def plus(left: Expr(Int), right: Expr(Int)) -> Expr(Int)
+  operator(left, " + ", right)
+end
+
+
+def minus(left: Expr(Int), right: Expr(Int)) -> Expr(Int)
+  operator(left, " - ", right)
+end
+
+
+def times(left: Expr(Int), right: Expr(Int)) -> Expr(Int)
+  operator(left, " * ", right)
+end
+
+
+def div(left: Expr(Int), right: Expr(Int)) -> Expr(Int)
+  operator(left, " / ", right)
+end
+
+
+def concat(left: Expr(String), right: Expr(String)) -> Expr(String)
+  operator(left, " || ", right)
+end
+
+
+def operator(left: Expr(a), op: String, right: Expr(b)) -> Expr(c)
+  Expr("(" ++ left.sql ++ op ++ right.sql ++ ")", left.params ++ right.params)
+end
+
+
+# `COALESCE` against an expression: another column, a subquery. `Sql.coalesce`
+# takes a value you hold.
+def coalesce(e: Expr(Maybe(a)), fallback: Expr(a)) -> Expr(a)
+  Expr("COALESCE(" ++ e.sql ++ ", " ++ fallback.sql ++ ")", e.params ++ fallback.params)
+end
+
+
+def greatest(left: Expr(a), right: Expr(a)) -> Expr(a)
+  Expr("GREATEST(" ++ left.sql ++ ", " ++ right.sql ++ ")", left.params ++ right.params)
+end
+
+
+def least(left: Expr(a), right: Expr(a)) -> Expr(a)
+  Expr("LEAST(" ++ left.sql ++ ", " ++ right.sql ++ ")", left.params ++ right.params)
+end
+
+
+# An aggregate over only the rows `condition` keeps:
+#
+#   sum(tl.amount_cents) |> Expr.filtered_to(eq(t.kind, Income))
+#   # SUM(tl.amount_cents) FILTER (WHERE t.kind = ?)
+def filtered_to(aggregate: Expr(a), condition: Expr(Bool)) -> Expr(a)
+  Expr(
+    aggregate.sql ++ " FILTER (WHERE " ++ condition.sql ++ ")",
+    aggregate.params ++ condition.params,
+  )
+end
+
+
+# A `CASE` you close yourself, in the two shapes Postgres writes. `t` says
+# which shape — `Searched` for `case_when`, `Matching(a)` for a `case_of` over
+# an `Expr(a)` — so an arm can only be added by the builder it belongs to, and
+# `b` is what the arms produce. A `Case` is not an expression
+# until `otherwise` gives it an `ELSE`, and each builder takes its first arm,
+# so a `CASE` with no arms cannot be written:
+#
+#   case_when(p.age |> Expr.lt(val(18)), val("minor"))
+#     |> Expr.when(p.age |> Expr.gte(val(65)), val("senior"))
+#     |> Expr.otherwise(val("adult"))
+#   # (CASE WHEN p.age < ? THEN ? WHEN p.age >= ? THEN ? ELSE ? END)
+#
+#   case_of(p.tier, val(1), val("gold"))
+#     |> Expr.when_eq(val(2), val("silver"))
+#     |> Expr.otherwise(val("basic"))
+#   # (CASE p.tier WHEN ? THEN ? WHEN ? THEN ? ELSE ? END)
+#
+# Over a type whose values are all known, `per_variant` covers them without
+# an `ELSE`, and the compiler checks the arms. Reach for `case_of` when the
+# values are not, and read the arms carefully: both sides of `when_eq` are
+# expressions of the same shape, so a mapping written the wrong way round is
+# still a mapping.
+type Searched = SearchedOnly
+
+
+type Matching(a) = MatchingOnly
+
+
+struct Case(t, b) = {
+  sql: String,
+  params: List(Value)
+}
+
+
+def case_when(condition: Expr(Bool), result: Expr(b)) -> Case(Searched, b)
+  Case(
+    "CASE WHEN " ++ condition.sql ++ " THEN " ++ result.sql,
+    condition.params ++ result.params,
+  )
+end
+
+
+def when(c: Case(Searched, b), condition: Expr(Bool), result: Expr(b)) -> Case(Searched, b)
+  with_arm(c, condition, result)
+end
+
+
+def case_of(e: Expr(a), value: Expr(a), result: Expr(b)) -> Case(Matching(a), b)
+  Case(
+    "CASE " ++ e.sql ++ " WHEN " ++ value.sql ++ " THEN " ++ result.sql,
+    e.params ++ value.params ++ result.params,
+  )
+end
+
+
+def when_eq(c: Case(Matching(a), b), value: Expr(a), result: Expr(b)) -> Case(Matching(a), b)
+  with_arm(c, value, result)
+end
+
+
+def with_arm(c: Case(t, b), matched: Expr(a), result: Expr(b)) -> Case(t, b)
+  Case(
+    c.sql ++ " WHEN " ++ matched.sql ++ " THEN " ++ result.sql,
+    c.params ++ matched.params ++ result.params,
+  )
+end
+
+
+def otherwise(c: Case(t, b), fallback: Expr(b)) -> Expr(b)
+  Expr("(" ++ c.sql ++ " ELSE " ++ fallback.sql ++ " END)", c.params ++ fallback.params)
 end

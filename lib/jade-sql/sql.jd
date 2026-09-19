@@ -1,6 +1,7 @@
 module Sql exposing (
   Assignable,
   Assignment(..),
+  DateUnit(..),
   Col(..),
   Expr(..),
   NoJoins,
@@ -28,11 +29,13 @@ module Sql exposing (
   array_overlaps,
   array_remove,
   assign,
+  avg,
   coalesce,
   column,
   columns,
   count,
   count_all,
+  count_distinct,
   db_now,
   eq,
   exactly_one,
@@ -47,12 +50,16 @@ module Sql exposing (
   ilike,
   is_not_null,
   is_null,
+  json_text,
   jsonb_contains,
   jsonb_path_exists,
   left_columns,
   like,
+  lower,
   lt,
   lte,
+  max,
+  min,
   neg,
   neq,
   no_joins,
@@ -67,16 +74,20 @@ module Sql exposing (
   table,
   to_assigns,
   transaction,
+  trunc_date,
   unique,
   unkeyed,
   unsafe_cast,
+  upper,
   val,
   within,
 )
 
 import Encode exposing (Encodable, encode)
 import Decode exposing (Decodable, Decoder, Value)
+import Calendar exposing (Date)
 import Clock exposing (Instant)
+import Decimal exposing (Decimal)
 import Show exposing (show)
 
 
@@ -438,6 +449,74 @@ end
 
 def neg(e: Expr(Int)) -> Expr(Int)
   Expr("-(" ++ e.sql ++ ")", e.params)
+end
+
+
+# Aggregates over no rows are NULL, so all but the counts come back in `Maybe`.
+def max(e: Expr(a)) -> Expr(Maybe(a))
+  Expr("MAX(" ++ e.sql ++ ")", e.params)
+end
+
+
+def min(e: Expr(a)) -> Expr(Maybe(a))
+  Expr("MIN(" ++ e.sql ++ ")", e.params)
+end
+
+
+# Postgres averages integers as `numeric`, which is exact.
+def avg(e: Expr(Int)) -> Expr(Maybe(Decimal))
+  Expr("AVG(" ++ e.sql ++ ")", e.params)
+end
+
+
+def count_distinct(e: Expr(a)) -> Expr(Int)
+  Expr("COUNT(DISTINCT " ++ e.sql ++ ")", e.params)
+end
+
+
+def lower(e: Expr(String)) -> Expr(String)
+  Expr("LOWER(" ++ e.sql ++ ")", e.params)
+end
+
+
+def upper(e: Expr(String)) -> Expr(String)
+  Expr("UPPER(" ++ e.sql ++ ")", e.params)
+end
+
+
+type DateUnit
+  = Year
+  | Quarter
+  | Month
+  | Week
+  | Day
+
+
+# The first day of the unit `d` falls in. `date_trunc` has no date form: the
+# date goes in as a timestamp, which a bound one would not name on its own, and
+# the result comes back to a date.
+def trunc_date(unit: DateUnit, d: Expr(Date)) -> Expr(Date)
+  Expr(
+    "date_trunc('" ++ unit_name(unit) ++ "', (" ++ d.sql ++ ")::timestamp)::date",
+    d.params,
+  )
+end
+
+
+def unit_name(unit: DateUnit) -> String
+  case unit
+  in Year then "year"
+  in Quarter then "quarter"
+  in Month then "month"
+  in Week then "week"
+  in Day then "day"
+  end
+end
+
+
+# A key's text out of a JSON object, `NULL` where the key is absent.
+def json_text(col: Expr(Value), key: String) -> Expr(Maybe(String))
+  Expr("(" ++ col.sql ++ " ->> ?)", col.params ++ [encode(key)])
 end
 
 

@@ -17,6 +17,13 @@
   stub `port_execute_rows` with arrays instead. The `*_raw` runners still
   decode by name.
 
+### Added
+
+- **`Expr.match` cases over an enum column with an arm per variant.** Each arm
+  is what a jade function makes of that variant, so the `case` inside it is
+  checked for exhaustiveness and the SQL needs no `ELSE`. Generated enum
+  modules carry the `Enum` instance listing their variants; `Bool` has one.
+
 ## [0.9.1] - 2026-09-18
 
 ### Fixed

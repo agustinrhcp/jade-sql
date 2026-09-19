@@ -763,6 +763,19 @@ describe JadeSql::SchemaGenerator do
       TYPE
     end
 
+    it 'lists every constructor, so a CASE over the column can have an arm for each' do
+      expect(schema_for('scheduled', 'done')).to include(<<~ENUM.strip)
+        implements Enum(VisitStatus) with
+          variants: visit_status_variants
+        end
+
+
+        def visit_status_variants -> List(VisitStatus)
+          [Scheduled, Done]
+        end
+      ENUM
+    end
+
     it 'refuses a label no constructor can be named after' do
       expect { schema_for('2fa') }
         .to raise_error(/cannot be a Jade constructor: "2fa"/)

@@ -1,4 +1,5 @@
 module Sql.Expr exposing (
+  Enum,
   eq,
   gt,
   gte,
@@ -6,10 +7,12 @@ module Sql.Expr exposing (
   like,
   lt,
   lte,
+  match,
   neq,
 )
 
 import Sql exposing (Expr(..))
+import Encode exposing (Encodable, encode)
 
 
 # The same comparisons `Sql` exposes, against another expression rather than a
@@ -62,4 +65,44 @@ end
 
 def binary(left: Expr(a), op: String, right: Expr(b)) -> Expr(Bool)
   Expr(left.sql ++ op ++ right.sql, left.params ++ right.params)
+end
+
+
+# A type whose every value is known: a database enum, whose instance the schema
+# generator writes next to its codec, and `Bool`.
+interface Enum(a) with
+  variants: List(a)
+end
+
+
+implements Enum(Bool) with
+  variants: bool_variants
+end
+
+
+def bool_variants -> List(Bool)
+  [True, False]
+end
+
+
+# A `CASE` with one arm per value of `e`, each arm what `branch` makes of it.
+# `branch` is an ordinary function, so the `case` inside it is checked for
+# every variant, and the SQL needs no `ELSE`:
+#
+#   t.kind |> Expr.match((k) -> {
+#     case k
+#     in Income then tl.amount_cents
+#     in Expense then neg(tl.amount_cents)
+#     end
+#   })
+#   # (CASE t.kind WHEN ? THEN tl.amount_cents WHEN ? THEN -(tl.amount_cents) END)
+def match(e: Expr(a), branch: a -> Expr(b)) -> Expr(b)
+  arms = variants |> List.map((v) -> { (encode(v), branch(v)) })
+  whens = arms
+    |> List.map((arm) -> { " WHEN ? THEN " ++ Tuple.second(arm).sql })
+    |> String.concat
+  params = arms
+    |> List.and_then((arm) -> { [Tuple.first(arm)] ++ Tuple.second(arm).params })
+
+  Expr("(CASE " ++ e.sql ++ whens ++ " END)", e.params ++ params)
 end

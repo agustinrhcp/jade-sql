@@ -23,6 +23,12 @@
   is what a jade function makes of that variant, so the `case` inside it is
   checked for exhaustiveness and the SQL needs no `ELSE`. Generated enum
   modules carry the `Enum` instance listing their variants; `Bool` has one.
+- **Computed columns without SQL strings.** `case_when |> when |> otherwise`
+  for conditions, with the `ELSE` required; `plus` / `minus` / `times` / `div`,
+  `concat`, `plus_days`, `greatest` / `least` and an expression-taking
+  `coalesce` in `Sql.Expr`; `max`, `min`, `avg`, `count_distinct` and
+  `filter_where` for aggregates; `lower`, `upper`, `trunc_date` and
+  `json_text` in `Sql`.
 
 ## [0.9.1] - 2026-09-18
 

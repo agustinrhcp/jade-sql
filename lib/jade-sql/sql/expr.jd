@@ -1,18 +1,34 @@
 module Sql.Expr exposing (
+  Case,
   Enum,
+  case_when,
+  coalesce,
+  concat,
+  div,
   eq,
+  filter_where,
+  greatest,
   gt,
   gte,
   ilike,
+  least,
   like,
   lt,
   lte,
   match,
+  minus,
   neq,
+  otherwise,
+  plus,
+  plus_days,
+  times,
+  when,
 )
 
 import Sql exposing (Expr(..))
 import Encode exposing (Encodable, encode)
+import Decode exposing (Value)
+import Calendar exposing (Date)
 
 
 # The same comparisons `Sql` exposes, against another expression rather than a
@@ -105,4 +121,109 @@ def match(e: Expr(a), branch: a -> Expr(b)) -> Expr(b)
     |> List.and_then((arm) -> { [Tuple.first(arm)] ++ Tuple.second(arm).params })
 
   Expr("(CASE " ++ e.sql ++ whens ++ " END)", e.params ++ params)
+end
+
+
+# Arithmetic on integers. Postgres divides integers by truncating toward
+# zero, and raises on a zero divisor.
+def plus(left: Expr(Int), right: Expr(Int)) -> Expr(Int)
+  operator(left, " + ", right)
+end
+
+
+def minus(left: Expr(Int), right: Expr(Int)) -> Expr(Int)
+  operator(left, " - ", right)
+end
+
+
+def times(left: Expr(Int), right: Expr(Int)) -> Expr(Int)
+  operator(left, " * ", right)
+end
+
+
+def div(left: Expr(Int), right: Expr(Int)) -> Expr(Int)
+  operator(left, " / ", right)
+end
+
+
+def concat(left: Expr(String), right: Expr(String)) -> Expr(String)
+  operator(left, " || ", right)
+end
+
+
+# Typed on both sides, since `date + integer` is one of several `+`s and a
+# bound value names neither.
+def plus_days(d: Expr(Date), days: Expr(Int)) -> Expr(Date)
+  Expr(
+    "((" ++ d.sql ++ ")::date + (" ++ days.sql ++ ")::integer)",
+    d.params ++ days.params,
+  )
+end
+
+
+def operator(left: Expr(a), op: String, right: Expr(b)) -> Expr(c)
+  Expr("(" ++ left.sql ++ op ++ right.sql ++ ")", left.params ++ right.params)
+end
+
+
+# `COALESCE` against an expression: another column, a subquery. `Sql.coalesce`
+# takes a value you hold.
+def coalesce(e: Expr(Maybe(a)), fallback: Expr(a)) -> Expr(a)
+  Expr("COALESCE(" ++ e.sql ++ ", " ++ fallback.sql ++ ")", e.params ++ fallback.params)
+end
+
+
+def greatest(left: Expr(a), right: Expr(a)) -> Expr(a)
+  Expr("GREATEST(" ++ left.sql ++ ", " ++ right.sql ++ ")", left.params ++ right.params)
+end
+
+
+def least(left: Expr(a), right: Expr(a)) -> Expr(a)
+  Expr("LEAST(" ++ left.sql ++ ", " ++ right.sql ++ ")", left.params ++ right.params)
+end
+
+
+# An aggregate over only the rows `condition` keeps:
+#
+#   sum(tl.amount_cents) |> Expr.filter_where(eq(t.kind, Income))
+#   # SUM(tl.amount_cents) FILTER (WHERE t.kind = ?)
+def filter_where(aggregate: Expr(a), condition: Expr(Bool)) -> Expr(a)
+  Expr(
+    aggregate.sql ++ " FILTER (WHERE " ++ condition.sql ++ ")",
+    aggregate.params ++ condition.params,
+  )
+end
+
+
+# A `CASE` over conditions rather than an enum's values. Nothing can list
+# every condition, so the `ELSE` is what covers the rest, and a `Case` is not
+# an expression until `otherwise` gives it one:
+#
+#   case_when(p.age |> Expr.lt(val(18)), val("minor"))
+#     |> Expr.when(p.age |> Expr.gte(val(65)), val("senior"))
+#     |> Expr.otherwise(val("adult"))
+struct Case(a) = {
+  sql: String,
+  params: List(Value)
+}
+
+
+def case_when(condition: Expr(Bool), result: Expr(a)) -> Case(a)
+  Case(
+    "CASE WHEN " ++ condition.sql ++ " THEN " ++ result.sql,
+    condition.params ++ result.params,
+  )
+end
+
+
+def when(c: Case(a), condition: Expr(Bool), result: Expr(a)) -> Case(a)
+  Case(
+    c.sql ++ " WHEN " ++ condition.sql ++ " THEN " ++ result.sql,
+    c.params ++ condition.params ++ result.params,
+  )
+end
+
+
+def otherwise(c: Case(a), fallback: Expr(a)) -> Expr(a)
+  Expr("(" ++ c.sql ++ " ELSE " ++ fallback.sql ++ " END)", c.params ++ fallback.params)
 end

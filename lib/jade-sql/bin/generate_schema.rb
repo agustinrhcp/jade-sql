@@ -848,6 +848,7 @@ module JadeSql
 
           import Decode exposing (Decodable, Decoder, Value)
           import Encode exposing (Encodable)
+          import Sql.Expr exposing (Finite)
 
 
           type #{type_name}
@@ -891,6 +892,16 @@ module JadeSql
         *pairs.map { |v, l| "  in #{l.inspect} then Decode.succeed(#{v})" },
         %(  else Decode.fail("not a #{enum.name}: " ++ s)),
         '  end',
+        'end',
+        '',
+        '',
+        "implements Finite(#{type_name}) with",
+        "  variants: #{snake}_variants",
+        'end',
+        '',
+        '',
+        "def #{snake}_variants -> List(#{type_name})",
+        "  [#{variants_of(enum).join(', ')}]",
         'end',
       ].join("\n")
     end

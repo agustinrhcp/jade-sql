@@ -19,10 +19,22 @@
 
 ### Added
 
-- **`Expr.per_variant` cases over an enum column with an arm per variant.** Each arm
-  is what a jade function makes of that variant, so the `case` inside it is
-  checked for exhaustiveness and the SQL needs no `ELSE`. Generated enum
-  modules carry the `Finite` instance listing their variants; `Bool` has one.
+- **`Expr.per_variant` cases over a column with an arm per value.** Each arm
+  is what a jade function makes of that value, so the `case` inside it is
+  checked for exhaustiveness and the SQL needs no `ELSE`. The values come from
+  a `Finite` instance, which the schema generator writes beside each database
+  enum's codec; `Bool` has one.
+- **`case_of` cases over a value whose set isn't known**, closed by
+  `otherwise` like `case_when`. Both builders take their first arm, so a CASE
+  with no arms can't be written, and `Case(a, b)` now says what its arms match
+  as well as what they produce — a condition arm can't be added to a CASE over
+  an integer.
+- **Computed columns without SQL strings.** `case_when |> when |> otherwise`
+  for conditions, with the `ELSE` required; `plus` / `minus` / `times` / `div`,
+  `concat`, `plus_days`, `greatest` / `least` and an expression-taking
+  `coalesce` in `Sql.Expr`; `max`, `min`, `avg`, `count_distinct` and
+  `filtered_to` for aggregates; `lower`, `upper`, `trunc_date` and
+  `json_text` in `Sql`.
 
 ## [0.9.1] - 2026-09-18
 
@@ -197,7 +209,7 @@ rather than changing behaviour.
   `exec_update` counts exactly as it counts an UPDATE — so it reported a row
   updated, took no lock, and a `returning` read handed back the row as it
   stood before. `insert_all([])` and `update_many([])` rendered invalid SQL.
-  All three per_variant nothing now and carry no parameters, so `execute` reports 0.
+  All three match nothing now and carry no parameters, so `execute` reports 0.
   A single row naming no columns is a row of defaults, `DEFAULT VALUES`.
 
 - **A generated join predicate compiles.** `Sql.eq` takes a value; a join
@@ -372,7 +384,7 @@ rather than changing behaviour.
   value, so nothing needed to wrap one by hand.
 
 - `columns` and `left_columns` take only the table. The alias was a second,
-  unchecked argument that had to per_variant the one the table already carries, so
+  unchecked argument that had to match the one the table already carries, so
   the only thing it could add was a way to get it wrong. Use `aliased` to read
   a table under another name; it changes both halves at once.
 
@@ -530,7 +542,7 @@ nor the new imports.
   table with one join predicate per relation, and `Table(c, m, k)` becomes
   `Table(c, m, k, o)` to hold it. A join is written by naming the relation
   rather than by pairing two columns, so it cannot pair the wrong two, and
-  nullable sides are lifted to per_variant:
+  nullable sides are lifted to match:
 
       p <- from(patients)
       a <- join(appointments, p |> patients.on.appointments)

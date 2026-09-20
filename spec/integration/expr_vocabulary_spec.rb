@@ -122,7 +122,7 @@ def aggregates_q -> Select(Totals)
     |> field(count_distinct(p.name))
     |> field(
       sum(p.balance)
-        |> Expr.filter_where(p.balance |> Expr.gt(val(100)))
+        |> Expr.filtered_to(p.balance |> Expr.gt(val(100)))
         |> Expr.coalesce(val(0)),
     )
     |> field(trunc_date(Month, val(september_18)))

@@ -57,12 +57,12 @@ type VisitStatus
 ```
 
 The module carries a codec written from the labels, so `eq(v.status,
-"schedulled")` stops compiling, and an `Enum` instance listing every variant.
-That list is what lets `Expr.match` give a `CASE` one arm per value:
+"schedulled")` stops compiling, and a `Finite` instance listing every variant.
+That list is what lets `Expr.per_variant` give a `CASE` one arm per value:
 
 ```jade
 v.status
-  |> Expr.match((s) -> {
+  |> Expr.per_variant((s) -> {
     case s
     in Scheduled then val("upcoming")
     in InProgress then val("now")
@@ -73,10 +73,15 @@ v.status
 ```
 
 The arms come from a jade `case`, so a missing one is a compile error, and a
-label added to the enum stops every `match` that doesn't cover it until it
-does. `Bool` has an instance too. Casing on anything else — a number, a
-string, a nullable column — has no list of values to exhaust, and the
-compiler says so: `No implementation of Sql.Expr.Enum for Int`.
+label added to the enum stops every `per_variant` that doesn't cover it
+until it does. The branch runs once per value while the query is built, not
+once per row. `Bool` has an instance too; anything else — a number, a string,
+a nullable column — has no list of values to exhaust, so the compiler asks
+for `case_of` instead: `No implementation of Sql.Expr.Finite for Int`.
+
+A NULL scrutinee matches no arm and makes the whole `CASE` NULL. A nullable
+column belongs in `case_when` with `is_null`, where that case is written
+down.
 
 `bytea` isn't mapped yet, though jade's `Bytes` is the natural target. See
 jade-lang's `Decimal` for the full API (`of`/`scaled`/`parse`, arithmetic,
@@ -418,9 +423,10 @@ builder — params stitch in declaration order automatically.
 | `plus_days(Expr(Date), Expr(Int))`              | `(a + b)`                   |
 | `coalesce(Expr(Maybe(a)), Expr(a))`             | `COALESCE(a, b)`            |
 | `greatest`, `least(Expr(a), Expr(a))`           | `GREATEST(a, b)`            |
-| `filter_where(Expr(a), Expr(Bool))`             | `agg FILTER (WHERE cond)`   |
+| `filtered_to(Expr(a), Expr(Bool))`             | `agg FILTER (WHERE cond)`   |
 | `case_when` / `when` / `otherwise`              | `CASE WHEN … ELSE … END`    |
-| `match(Expr(a), a -> Expr(b))`                  | `CASE e WHEN … END`         |
+| `per_variant(Expr(a), a -> Expr(b))`           | `CASE e WHEN … END`         |
+| `case_of` / `when_eq` / `otherwise`             | `CASE e WHEN … ELSE … END`  |
 
 A value you hold goes in through `val`, so each operation has one function:
 `p.balance |> Expr.times(val(12))`.
@@ -441,9 +447,11 @@ end
 # SELECT COUNT(*), COALESCE(SUM(a.visit_no), ?) FROM appointments a
 ```
 
-`case_when` is for conditions, where nothing can list every case, so the
-`ELSE` is required: a `Case` is not an expression until `otherwise` gives it
-one.
+Three CASE spellings, by what the arms match on. Each builder takes its first
+arm, and a `Case` is not an expression until `otherwise` closes it, so neither
+a CASE without arms nor one without an `ELSE` can be written.
+
+Conditions, where nothing can list every case:
 
 ```jade
 case_when(p.balance |> Expr.lt(val(0)), val("owes"))
@@ -451,8 +459,30 @@ case_when(p.balance |> Expr.lt(val(0)), val("owes"))
   |> Expr.otherwise(val("even"))
 ```
 
-Over an enum, `Expr.match` has an arm per variant instead, and the compiler
-checks them (see [enums](#generate-schemajd-from-dbstructuresql)).
+A value, where you care about some of what it can be:
+
+```jade
+case_of(p.tier, val(1), val("gold"))
+  |> Expr.when_eq(val(2), val("silver"))
+  |> Expr.otherwise(val("basic"))
+```
+
+Both sides of `when_eq` are expressions of the same shape, so a mapping
+written the wrong way round is still a mapping — read those arms.
+
+A value whose every case you want, which is `per_variant` and needs no
+`ELSE` (see [enums](#generate-schemajd-from-dbstructuresql)). Adding an
+`otherwise` to a CASE over an enum is legal and loses that check: a label
+added to the enum lands quietly in the fallback, where `per_variant` would
+have stopped compiling.
+
+One total per condition is not a CASE. `SUM(CASE WHEN kind = 'income' THEN
+amount ELSE 0 END)` is `filtered_to`, which says the same thing to Postgres
+without the arms:
+
+```jade
+sum(tl.amount_cents) |> Expr.filtered_to(eq(t.kind, Income))
+```
 
 ### Subqueries
 

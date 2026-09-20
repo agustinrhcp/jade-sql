@@ -6,13 +6,13 @@ require 'jade-sql'
 require 'jade-sql/runtime'
 
 module Jade
-  describe 'a CASE with an arm per variant, against Postgres', :integration do
+  describe 'CASE, against Postgres', :integration do
     include_context 'with test compiler'
     include_context 'with database'
 
     let(:source) do
       <<~JADE
-module App exposing (net, signs)
+module App exposing (net, signs, tiers)
 
 import Sql exposing (
   Col(..),
@@ -29,7 +29,7 @@ import Sql exposing (
   table,
   val,
 )
-import Sql.Expr as Expr exposing (Enum)
+import Sql.Expr as Expr exposing (Finite, case_of)
 import Sql.Query exposing (Select, fetch_many, fetch_one, field, from, order, select)
 import Encode
 
@@ -39,7 +39,7 @@ type Kind
   | Expense
 
 
-implements Enum(Kind) with
+implements Finite(Kind) with
   variants: kind_variants
 end
 
@@ -63,9 +63,12 @@ struct Net = { cents: Maybe(Int) }
 struct Sign = { word: String }
 
 
+struct Tier = { name: String }
+
+
 def signed(e: EntriesCols) -> Expr(Int)
   e.kind
-    |> Expr.match((k) -> {
+    |> Expr.per_variant((k) -> {
       case k
       in Income then e.amount
       in Expense then neg(e.amount)
@@ -89,7 +92,7 @@ end
 def size(e: EntriesCols) -> Expr(String)
   e.amount
     |> Expr.gt(val(100))
-    |> Expr.match((big) -> {
+    |> Expr.per_variant((big) -> {
       big ? val("big") : val("small")
     })
 end
@@ -106,6 +109,27 @@ end
 
 def signs -> Task(List(Sign), SqlError)
   signs_q |> fetch_many
+end
+
+
+def tier(e: EntriesCols) -> Expr(String)
+  case_of(e.id, val(1), val("first"))
+    |> Expr.when_eq(val(2), val("second"))
+    |> Expr.otherwise(val("later"))
+end
+
+
+def tiers_q -> Select(Tier)
+  e <- from(entries)
+
+  select(Tier(_))
+    |> field(tier(e))
+    |> order(e.id)
+end
+
+
+def tiers -> Task(List(Tier), SqlError)
+  tiers_q |> fetch_many
 end
       JADE
     end
@@ -127,6 +151,12 @@ end
 
     it 'gives every variant its arm, bound against the enum column' do
       expect(App.net).to eql ['ok', { 'cents' => 300 }]
+    end
+
+    it 'cases on values that are not a type\'s whole set, with the ELSE required' do
+      expect(App.tiers).to eql ['ok', [
+        { 'name' => 'first' }, { 'name' => 'second' }, { 'name' => 'later' },
+      ]]
     end
 
     it 'cases on a Bool the same way' do

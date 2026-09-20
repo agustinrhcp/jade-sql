@@ -23,15 +23,21 @@
 
 ### Added
 
-- **`Expr.match` cases over an enum column with an arm per variant.** Each arm
-  is what a jade function makes of that variant, so the `case` inside it is
-  checked for exhaustiveness and the SQL needs no `ELSE`. Generated enum
-  modules carry the `Enum` instance listing their variants; `Bool` has one.
+- **`Expr.per_variant` cases over a column with an arm per value.** Each arm
+  is what a jade function makes of that value, so the `case` inside it is
+  checked for exhaustiveness and the SQL needs no `ELSE`. The values come from
+  a `Finite` instance, which the schema generator writes beside each database
+  enum's codec; `Bool` has one.
+- **`case_of` cases over a value whose set isn't known**, closed by
+  `otherwise` like `case_when`. Both builders take their first arm, so a CASE
+  with no arms can't be written, and `Case(a, b)` now says what its arms match
+  as well as what they produce — a condition arm can't be added to a CASE over
+  an integer.
 - **Computed columns without SQL strings.** `case_when |> when |> otherwise`
   for conditions, with the `ELSE` required; `plus` / `minus` / `times` / `div`,
   `concat`, `plus_days`, `greatest` / `least` and an expression-taking
   `coalesce` in `Sql.Expr`; `max`, `min`, `avg`, `count_distinct` and
-  `filter_where` for aggregates; `lower`, `upper`, `trunc_date` and
+  `filtered_to` for aggregates; `lower`, `upper`, `trunc_date` and
   `json_text` in `Sql`.
 
 ## [0.9.1] - 2026-09-18

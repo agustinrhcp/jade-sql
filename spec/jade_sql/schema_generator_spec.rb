@@ -765,7 +765,7 @@ describe JadeSql::SchemaGenerator do
 
     it 'lists every constructor, so a CASE over the column can have an arm for each' do
       expect(schema_for('scheduled', 'done')).to include(<<~ENUM.strip)
-        implements Enum(VisitStatus) with
+        implements Finite(VisitStatus) with
           variants: visit_status_variants
         end
 

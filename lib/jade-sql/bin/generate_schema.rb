@@ -848,7 +848,7 @@ module JadeSql
 
           import Decode exposing (Decodable, Decoder, Value)
           import Encode exposing (Encodable)
-          import Sql.Expr exposing (Enum)
+          import Sql.Expr exposing (Finite)
 
 
           type #{type_name}
@@ -895,7 +895,7 @@ module JadeSql
         'end',
         '',
         '',
-        "implements Enum(#{type_name}) with",
+        "implements Finite(#{type_name}) with",
         "  variants: #{snake}_variants",
         'end',
         '',

@@ -159,7 +159,7 @@ module Jade
 
 
     describe 'select' do
-      it 'aliases the projection to Doc\'s field so the row decodes' do
+      it 'projects the document as the only column' do
         test_compiler.require('app', <<~JADE)
           module App exposing (q)
 
@@ -187,7 +187,7 @@ module Jade
         sql = rendered._1
         params = rendered._2
         expect(sql).to eql(
-          "SELECT json_build_object('id', t.id) AS text",
+          "SELECT json_build_object('id', t.id)",
         )
         expect(params).to eql []
       end
@@ -222,7 +222,7 @@ module Jade
         sql = rendered._1
         params = rendered._2
         expect(sql).to eql(
-          "SELECT json_build_object('id', t.id) AS text " \
+          "SELECT json_build_object('id', t.id) " \
           'WHERE t.book_id = ? LIMIT 100',
         )
         expect(params).to eql ['b1']

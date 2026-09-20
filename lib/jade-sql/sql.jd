@@ -35,9 +35,11 @@ module Sql exposing (
   count_all,
   db_now,
   eq,
+  exactly_one,
   excluded,
   execute,
   execute_raw,
+  fetch_decoded,
   fetch_many_raw,
   fetch_one_raw,
   gt,
@@ -75,6 +77,7 @@ module Sql exposing (
 import Encode exposing (Encodable, encode)
 import Decode exposing (Decodable, Decoder, Value)
 import Clock exposing (Instant)
+import Show exposing (show)
 
 
 struct Expr(a) = {
@@ -85,7 +88,8 @@ struct Expr(a) = {
 
 struct Selector(a) = {
   columns_sql: List(String),
-  params: List(Value)
+  params: List(Value),
+  decoder: Decoder(a)
 }
 
 
@@ -289,7 +293,7 @@ end
 # so this is for the positions that cannot: a constant field in a projection
 # or a JSON document.
 #
-#   select(Row(_, _)) |> field(c.id) |> field_as(val("patient"), "kind")
+#   select(Row(_, _)) |> field(c.id) |> field(val("patient"))
 #   Json.object(Row(_)) |> Json.prop("kind", val("patient"))
 #
 # Every library that has this calls it `val`, and none of them has a word for
@@ -701,6 +705,7 @@ uses JadeSql::Runtime with
   port_execute_count : String, List(Value) -> Task(Int, SqlError),
   port_execute_one : String, List(Value) -> Task(a, SqlError),
   port_execute_many : String, List(Value) -> Task(List(a), SqlError),
+  port_execute_rows : String, List(Value) -> Task(Value, SqlError),
   port_begin : Task(Bool, SqlError),
   port_commit : Task(Bool, SqlError),
   port_rollback : Task(Bool, SqlError)
@@ -722,6 +727,32 @@ end
 def fetch_many_raw(p: (String, List(Value))) -> Task(List(a), SqlError)
   (sql, params) = p
   port_execute_many(sql, params)
+end
+
+
+# The rows as arrays, each through `decoder`: a projection decodes by
+# position, so a column's name never has to match the field it lands in.
+def fetch_decoded(p: (String, List(Value)), decoder: Decoder(a)) -> Task(List(a), SqlError)
+  (sql, params) = p
+
+  port_execute_rows(sql, params)
+    |> Task.and_then((rows) -> { decode_rows(rows, decoder) })
+end
+
+
+def decode_rows(rows: Value, decoder: Decoder(a)) -> Task(List(a), SqlError)
+  Decode.decode(Decode.list(decoder), rows)
+    |> Result.map_error((e) -> { DbError("row did not decode: " ++ show(e)) })
+    |> Task.from_result
+end
+
+
+def exactly_one(rows: List(a)) -> Task(a, SqlError)
+  case rows
+  in [row] then Task.succeed(row)
+  in [] then Task.fail(NotFound)
+  else Task.fail(TooManyRows)
+  end
 end
 
 

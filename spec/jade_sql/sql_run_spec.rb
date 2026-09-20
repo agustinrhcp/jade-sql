@@ -182,13 +182,12 @@ end
 
     describe 'fetch_one via ToSql (Query)' do
       it 'renders the Query via to_sql and decodes the row' do
-        all_calls_to(JadeSql::Runtime.port_execute_one) do |t, sql, _params|
-          # Verify Query.to_sql rendered the query the way we expect.
+        all_calls_to(JadeSql::Runtime.port_execute_rows) do |t, sql, _params|
           expect(sql).to include('SELECT patients.id, patients.name, patients.balance')
           expect(sql).to include('FROM patients patients')
           expect(sql).to include('WHERE patients.name = ?')
 
-          t.ok({ "id" => 1, "name" => "Paul", "balance" => 100 })
+          t.ok([[1, "Paul", 100]])
         end
 
         expect(App.paul_via_run).to eql ["ok", { 'id' => 1, 'name' => "Paul", 'balance' => 100 }]

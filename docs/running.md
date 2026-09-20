@@ -55,19 +55,18 @@ fetch_values : Query(c), Expr(b)  -> Task(List(b), e)  # one column, every row
 
 `fetch_exists` stops at the first row Postgres finds rather than counting
 every one of them. `exists` is the `Expr(Bool)` a `WHERE` takes, which is
-where the keyword appears in SQL. `fetch_values` reads one column; two would
-come back as a tuple, and a tuple of two columns of the same type is the
-projection bug with no field names to catch it.
+where the keyword appears in SQL. `fetch_values` reads one column; for more
+than one, `select |> field` names the shape they land in.
 
 For raw SQL, skip the builders: `fetch_one_raw` / `fetch_many_raw` /
 `execute_raw` take a `(String, List(Value))` pair. Their result type is
 unconstrained, which is honest — nothing about a hand-written string says
 what it returns.
 
-Row decoding is automatic — the caller's type (`Patient`, `List(Patient)`)
-threads its `Decodable` instance into the polymorphic port. The runtime
-returns plain Ruby hashes from AR, and they're decoded into typed structs
-at the boundary.
+A projection's rows come back as arrays, and each column goes through its
+field type's `Decodable` in the position `field` put it. The `*_raw` runners
+have no projection, so they decode by column name into the result type
+instead.
 
 `SqlError` variants:
 - `NotFound` — `fetch_one` with zero rows
@@ -174,10 +173,8 @@ describe MyApp do
   include Jade::Tasks::RSpec
 
   it 'queries patients' do
-    all_calls_to(JadeSql::Runtime.port_execute_many) do |t, _sql, _params|
-      t.ok([
-        { "id" => 1, "name" => "Paul", "mrn" => "MRN-001" }
-      ])
+    all_calls_to(JadeSql::Runtime.port_execute_rows) do |t, _sql, _params|
+      t.ok([[1, "Paul", "MRN-001"]])
     end
 
     expect(MyApp.list.run).to be_ok
@@ -185,7 +182,9 @@ describe MyApp do
 end
 ```
 
-The three ports are `port_execute_count`, `port_execute_one`,
-`port_execute_many` — `Sql.execute*` / `Sql.fetch_*` and their `*_raw`
-siblings ultimately dispatch through these. Stub them with
+Everything dispatches through four ports. `port_execute_rows` runs the
+builders' reads and RETURNING writes and answers with one array per row, in
+`field` order. `port_execute_count` runs `execute`, and `port_execute_one` /
+`port_execute_many` run the `*_raw` reads, answering with hashes keyed by
+column name. Stub them with
 `all_calls_to(JadeSql::Runtime.port_execute_*) { |t, sql, params| ... }`.

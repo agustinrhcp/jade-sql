@@ -503,7 +503,7 @@ module JadeSql
       ].sort
       sql_import = "import Sql exposing(#{(types + fns).join(', ')})"
       enum_imports = enum_imports_for(tables, module_name)
-      query_import = ["import Sql.Query exposing(Select, field_as, select)"]
+      query_import = ["import Sql.Query exposing(Select, field, select)"]
       # A join predicate compares two columns, which is `Sql.Expr`'s side of
       # the operator split rather than `Sql`'s value-taking one.
       expr_import = joined.any? ? ["import Sql.Expr as Expr"] : []
@@ -793,17 +793,14 @@ module JadeSql
       JADE
     end
 
-    # A row projector that aliases every column to its (possibly renamed)
-    # field name, so a reserved-word column like `type` round-trips through
-    # decode: `SELECT alias.type AS type_`. Emitted only for tables that have
-    # a renamed column. Composes in a bind-chain:
+    # Every column of the table into its Row struct. Composes in a bind-chain:
     #   c <- from(t)
     #   t_row(c) |> where(...)
     def emit_row_projector(t)
       klass = camel(t.name)
       holes = t.columns.map { "_" }.join(", ")
       projections = t.columns
-        .map { |c| "    |> field_as(c.#{field_name(c.name)}, #{field_name(c.name).inspect})" }
+        .map { |c| "    |> field(c.#{field_name(c.name)})" }
         .join("\n")
 
       <<~JADE.strip

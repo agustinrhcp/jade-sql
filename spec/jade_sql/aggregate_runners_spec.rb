@@ -68,32 +68,31 @@ module Jade
     before { test_compiler.require('app', source) }
 
     it 'counts over the query clauses rather than a projection' do
-      all_calls_to(JadeSql::Runtime.port_execute_one) do |t, sql, _params|
-        expect(sql).to include('SELECT COUNT(*) AS tally')
-        expect(sql).to include('FROM patients p')
+      all_calls_to(JadeSql::Runtime.port_execute_rows) do |t, sql, _params|
+        expect(sql).to include('SELECT COUNT(*) FROM patients p')
 
-        t.ok({ 'tally' => 7 })
+        t.ok([[7]])
       end
 
       expect(App.how_many).to eql ['ok', 7]
     end
 
     it 'asks Postgres to stop at the first row rather than count them' do
-      all_calls_to(JadeSql::Runtime.port_execute_one) do |t, sql, _params|
+      all_calls_to(JadeSql::Runtime.port_execute_rows) do |t, sql, _params|
         expect(sql).to include('SELECT EXISTS (SELECT 1 FROM patients p')
         expect(sql).to include('WHERE p.name = ?')
 
-        t.ok({ 'present' => true })
+        t.ok([[true]])
       end
 
       expect(App.has_named).to eql ['ok', true]
     end
 
     it 'reads one column without a shape to put it in' do
-      all_calls_to(JadeSql::Runtime.port_execute_many) do |t, sql, _params|
-        expect(sql).to include('SELECT p.id AS value')
+      all_calls_to(JadeSql::Runtime.port_execute_rows) do |t, sql, _params|
+        expect(sql).to include('SELECT p.id FROM patients p')
 
-        t.ok([{ 'value' => 1 }, { 'value' => 2 }])
+        t.ok([[1], [2]])
       end
 
       expect(App.all_ids).to eql ['ok', [1, 2]]

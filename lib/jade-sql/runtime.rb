@@ -36,6 +36,14 @@ module JadeSql
       t.err(translate(e))
     end
 
+    task :port_execute_rows do |t, sql, params|
+      conn = ::ActiveRecord::Base.connection
+      rows = conn.exec_query(statement(sql, params, conn), "Jade", typed_params(params, conn)).rows
+      t.ok(rows.map { |row| row.map { coerce_value(it) } })
+    rescue ::ActiveRecord::StatementInvalid => e
+      t.err(translate(e))
+    end
+
     # Transaction control on the shared connection. The execute/fetch ports
     # above use the same `ActiveRecord::Base.connection`, so anything they
     # run between begin and commit/rollback is part of this transaction.

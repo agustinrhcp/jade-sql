@@ -1,0 +1,5 @@
+# Linguist has no jade grammar. Ruby's is the closest fit for how jade reads
+# on GitHub — `#` comments, `def … end`, `case … in … then` — so a diff is
+# highlighted rather than flat. It is a review aid, not a claim about the
+# language, hence the files stay out of the repo's language stats.
+*.jd linguist-language=Ruby linguist-detectable=false

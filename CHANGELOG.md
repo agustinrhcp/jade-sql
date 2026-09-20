@@ -17,6 +17,13 @@
   stub `port_execute_rows` with arrays instead. The `*_raw` runners still
   decode by name.
 
+### Added
+
+- **`Expr.per_variant` cases over an enum column with an arm per variant.** Each arm
+  is what a jade function makes of that variant, so the `case` inside it is
+  checked for exhaustiveness and the SQL needs no `ELSE`. Generated enum
+  modules carry the `Finite` instance listing their variants; `Bool` has one.
+
 ## [0.9.1] - 2026-09-18
 
 ### Fixed
@@ -190,7 +197,7 @@ rather than changing behaviour.
   `exec_update` counts exactly as it counts an UPDATE — so it reported a row
   updated, took no lock, and a `returning` read handed back the row as it
   stood before. `insert_all([])` and `update_many([])` rendered invalid SQL.
-  All three match nothing now and carry no parameters, so `execute` reports 0.
+  All three per_variant nothing now and carry no parameters, so `execute` reports 0.
   A single row naming no columns is a row of defaults, `DEFAULT VALUES`.
 
 - **A generated join predicate compiles.** `Sql.eq` takes a value; a join
@@ -365,7 +372,7 @@ rather than changing behaviour.
   value, so nothing needed to wrap one by hand.
 
 - `columns` and `left_columns` take only the table. The alias was a second,
-  unchecked argument that had to match the one the table already carries, so
+  unchecked argument that had to per_variant the one the table already carries, so
   the only thing it could add was a way to get it wrong. Use `aliased` to read
   a table under another name; it changes both halves at once.
 
@@ -523,7 +530,7 @@ nor the new imports.
   table with one join predicate per relation, and `Table(c, m, k)` becomes
   `Table(c, m, k, o)` to hold it. A join is written by naming the relation
   rather than by pairing two columns, so it cannot pair the wrong two, and
-  nullable sides are lifted to match:
+  nullable sides are lifted to per_variant:
 
       p <- from(patients)
       a <- join(appointments, p |> patients.on.appointments)

@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-09-20
+
+Requires `jade-lang ~> 0.12.0`.
+
 ### Breaking
 
 - **A projection is read back by position, not by column name.** The
@@ -27,18 +31,19 @@
   is what a jade function makes of that value, so the `case` inside it is
   checked for exhaustiveness and the SQL needs no `ELSE`. The values come from
   a `Finite` instance, which the schema generator writes beside each database
-  enum's codec; `Bool` has one.
-- **`case_of` cases over a value whose set isn't known**, closed by
-  `otherwise` like `case_when`. Both builders take their first arm, so a CASE
-  with no arms can't be written, and `Case(a, b)` now says what its arms match
-  as well as what they produce — a condition arm can't be added to a CASE over
-  an integer.
-- **Computed columns without SQL strings.** `case_when |> when |> otherwise`
-  for conditions, with the `ELSE` required; `plus` / `minus` / `times` / `div`,
-  `concat`, `plus_days`, `greatest` / `least` and an expression-taking
-  `coalesce` in `Sql.Expr`; `max`, `min`, `avg`, `count_distinct` and
-  `filtered_to` for aggregates; `lower`, `upper`, `trunc_date` and
-  `json_text` in `Sql`.
+  enum's codec; `Bool` has one. A NULL scrutinee matches no arm, so a nullable
+  column belongs in `case_when` with `is_null`.
+- **CASE without SQL strings**, in Postgres's two shapes: `case_when |> when`
+  over conditions, `case_of |> when_eq` over a value. Both take their first
+  arm, so a `CASE` with no arms can't be written, and both are closed by
+  `otherwise`, so one without an `ELSE` can't either. `Case(t, b)` carries a
+  phantom tag — `Searched` or `Matching(a)` — so a condition arm can't land on
+  a CASE over an integer, which any `Expr(Bool)` scrutinee would otherwise
+  have allowed.
+- **The rest of the expression vocabulary.** `plus` / `minus` / `times` /
+  `div`, `concat`, `greatest` / `least`, an expression-taking `coalesce` and
+  `filtered_to` (`agg FILTER (WHERE …)`) in `Sql.Expr`; `max`, `min`, `avg`,
+  `count_distinct`, `lower`, `upper`, `trunc_date` and `json_text` in `Sql`.
 
 ## [0.9.1] - 2026-09-18
 

@@ -10,12 +10,16 @@
   column happened to be called what its field is. A column read into a field
   of another name, a computed column like `count_all`, and two `id`s from a
   join all compiled and then failed to decode — the last one with one of the
-  ids already lost, since a row keyed by name has room for only one `id`. Each `field` now carries its type's
-  decoder, and the rows come back as arrays through a new
-  `port_execute_rows`. `field_as` is gone: there is no name left to set.
-  Tests that stub `port_execute_one` / `port_execute_many` for a builder read
-  stub `port_execute_rows` with arrays instead. The `*_raw` runners still
-  decode by name.
+  ids already lost, since a row keyed by name has room for only one `id`.
+  Each `field` now carries its type's decoder, and the rows come back as
+  arrays through a new `port_execute_rows`. `field_as` is gone: there is no
+  name left to set. Tests that stub `port_execute_one` / `port_execute_many`
+  for a builder read stub `port_execute_rows` with arrays instead. The
+  `*_raw` runners still decode by name.
+- **`returning_with` is `returning` again.** 0.9 renamed it to tell it apart
+  from a `returning` that derived its columns from the result type, and then
+  removed that one in the same release, leaving the suffix distinguishing it
+  from nothing. From 0.8 there is no change at all; from 0.9, a rename back.
 
 ### Added
 

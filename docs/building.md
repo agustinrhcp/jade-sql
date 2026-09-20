@@ -762,7 +762,7 @@ a `SET` takes no alias.
 
 ### RETURNING
 
-`returning_with` names the columns coming back, from the table's accessors.
+`returning` names the columns coming back, from the table's accessors.
 It is a step of its own rather than something `fetch_one` does for you: a
 write has one type whether you run it for a count or for a row, so folding the
 projection into the runner would mean `execute` and `fetch_one` producing
@@ -771,13 +771,13 @@ different SQL from the same `Write`.
 ```jade
 import Sql exposing(Selector)
 import Sql.Query exposing(select, field)
-import Sql.Write exposing(insert, returning_with, to_sql)
+import Sql.Write exposing(insert, returning, to_sql)
 
 # INSERT INTO patients (name, mrn) VALUES (?, ?)
 #   RETURNING patients.id, patients.name, patients.mrn
 np
 |> insert(patients)
-|> returning_with((p) -> {
+|> returning((p) -> {
   select(Patient(_, _, _))
   |> field(p.id)
   |> field(p.name)
@@ -796,7 +796,7 @@ def patient_row(p: PatientsCols) -> Select(Patient)
 end
 ```
 
-`from(patients) |> patient_row` for the read, `returning_with(patient_row)`
+`from(patients) |> patient_row` for the read, `returning(patient_row)`
 for the write. With row polymorphism a projection can span tables — one
 `def just_id(c: { a | id: Expr(Int) })` serves every table with an `id`.
 

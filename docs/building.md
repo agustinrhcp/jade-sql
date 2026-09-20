@@ -57,7 +57,7 @@ type VisitStatus
 ```
 
 The module carries a codec written from the labels, so `eq(v.status,
-"schedulled")` stops compiling, and an `Finite` instance listing every variant.
+"schedulled")` stops compiling, and a `Finite` instance listing every variant.
 That list is what lets `Expr.per_variant` give a `CASE` one arm per value:
 
 ```jade
@@ -73,10 +73,15 @@ v.status
 ```
 
 The arms come from a jade `case`, so a missing one is a compile error, and a
-label added to the enum stops every `per_variant` that doesn't cover it until it
-does. `Bool` has an instance too. Casing on anything else — a number, a
-string, a nullable column — has no list of values to exhaust, and the
-compiler says so: `No implementation of Sql.Expr.Finite for Int`.
+label added to the enum stops every `per_variant` that doesn't cover it
+until it does. The branch runs once per value while the query is built, not
+once per row. `Bool` has an instance too; anything else — a number, a string,
+a nullable column — has no list of values to exhaust, so the compiler asks
+for `case_of` instead: `No implementation of Sql.Expr.Finite for Int`.
+
+A NULL scrutinee matches no arm and makes the whole `CASE` NULL. A nullable
+column belongs in `case_when` with `is_null`, where that case is written
+down.
 
 `bytea` isn't mapped yet, though jade's `Bytes` is the natural target. See
 jade-lang's `Decimal` for the full API (`of`/`scaled`/`parse`, arithmetic,
@@ -197,7 +202,7 @@ end
 
 A projection is read back by position: each `field` fills the constructor
 argument in the same place, which is the order the type-checker matched
-them in. A column's name never has to per_variant its field, so a renamed column,
+them in. A column's name never has to match its field, so a renamed column,
 a computed one and two `id`s from a join all read the same way:
 
 ```jade
@@ -400,8 +405,31 @@ builder — params stitch in declaration order automatically.
 | `sum(Expr(Int)) -> Expr(Maybe(Int))`           | `SUM(e)`           | `NULL` on empty group → `Maybe`.       |
 | `count(Expr(a)) -> Expr(Int)`                  | `COUNT(e)`         | Counts non-null rows for the column.   |
 | `count_all -> Expr(Int)`                       | `COUNT(*)`         | Total row count.                       |
+| `count_distinct(Expr(a)) -> Expr(Int)`         | `COUNT(DISTINCT e)` | Distinct non-null values.             |
+| `max`, `min(Expr(a)) -> Expr(Maybe(a))`        | `MAX(e)`, `MIN(e)` | `NULL` on empty group.                 |
+| `avg(Expr(Int)) -> Expr(Maybe(Decimal))`       | `AVG(e)`           | Postgres averages integers exactly.    |
 | `coalesce(Expr(Maybe(a)), a) -> Expr(a)`       | `COALESCE(e, ?)`   | Drops the `Maybe` with a fallback.     |
 | `neg(Expr(Int)) -> Expr(Int)`                  | `-(e)`             | Unary minus.                           |
+| `lower`, `upper(Expr(String)) -> Expr(String)` | `LOWER(e)`         |                                        |
+| `trunc_date(DateUnit, Expr(Date)) -> Expr(Date)` | `date_trunc('month', e)` | First day of the unit.         |
+| `json_text(Expr(Value), String) -> Expr(Maybe(String))` | `e ->> ?` | `NULL` where the key is absent.      |
+
+`Sql.Expr` holds the ones that take a second expression rather than a value:
+
+| Function                                        | SQL                         |
+|-------------------------------------------------|-----------------------------|
+| `plus`, `minus`, `times`, `div` on `Expr(Int)`  | `(a + b)`; `div` truncates  |
+| `concat(Expr(String), Expr(String))`            | `(a \|\| b)`                |
+| `plus_days(Expr(Date), Expr(Int))`              | `(a + b)`                   |
+| `coalesce(Expr(Maybe(a)), Expr(a))`             | `COALESCE(a, b)`            |
+| `greatest`, `least(Expr(a), Expr(a))`           | `GREATEST(a, b)`            |
+| `filtered_to(Expr(a), Expr(Bool))`             | `agg FILTER (WHERE cond)`   |
+| `case_when` / `when` / `otherwise`              | `CASE WHEN … ELSE … END`    |
+| `per_variant(Expr(a), a -> Expr(b))`           | `CASE e WHEN … END`         |
+| `case_of` / `when_eq` / `otherwise`             | `CASE e WHEN … ELSE … END`  |
+
+A value you hold goes in through `val`, so each operation has one function:
+`p.balance |> Expr.times(val(12))`.
 
 Worked example — count visits and the most recent visit number,
 coalesced to 0 when a patient has none:
@@ -419,8 +447,42 @@ end
 # SELECT COUNT(*), COALESCE(SUM(a.visit_no), ?) FROM appointments a
 ```
 
-For `CASE WHEN` and arithmetic, fall back to the raw-`Expr`
-escape hatch until they get a typed builder.
+Three CASE spellings, by what the arms match on. Each builder takes its first
+arm, and a `Case` is not an expression until `otherwise` closes it, so neither
+a CASE without arms nor one without an `ELSE` can be written.
+
+Conditions, where nothing can list every case:
+
+```jade
+case_when(p.balance |> Expr.lt(val(0)), val("owes"))
+  |> Expr.when(p.balance |> Expr.gt(val(100)), val("credit"))
+  |> Expr.otherwise(val("even"))
+```
+
+A value, where you care about some of what it can be:
+
+```jade
+case_of(p.tier, val(1), val("gold"))
+  |> Expr.when_eq(val(2), val("silver"))
+  |> Expr.otherwise(val("basic"))
+```
+
+Both sides of `when_eq` are expressions of the same shape, so a mapping
+written the wrong way round is still a mapping — read those arms.
+
+A value whose every case you want, which is `per_variant` and needs no
+`ELSE` (see [enums](#generate-schemajd-from-dbstructuresql)). Adding an
+`otherwise` to a CASE over an enum is legal and loses that check: a label
+added to the enum lands quietly in the fallback, where `per_variant` would
+have stopped compiling.
+
+One total per condition is not a CASE. `SUM(CASE WHEN kind = 'income' THEN
+amount ELSE 0 END)` is `filtered_to`, which says the same thing to Postgres
+without the arms:
+
+```jade
+sum(tl.amount_cents) |> Expr.filtered_to(eq(t.kind, Income))
+```
 
 ### Subqueries
 
@@ -700,7 +762,7 @@ a `SET` takes no alias.
 
 ### RETURNING
 
-`returning_with` names the columns coming back, from the table's accessors.
+`returning` names the columns coming back, from the table's accessors.
 It is a step of its own rather than something `fetch_one` does for you: a
 write has one type whether you run it for a count or for a row, so folding the
 projection into the runner would mean `execute` and `fetch_one` producing
@@ -709,13 +771,13 @@ different SQL from the same `Write`.
 ```jade
 import Sql exposing(Selector)
 import Sql.Query exposing(select, field)
-import Sql.Write exposing(insert, returning_with, to_sql)
+import Sql.Write exposing(insert, returning, to_sql)
 
 # INSERT INTO patients (name, mrn) VALUES (?, ?)
 #   RETURNING patients.id, patients.name, patients.mrn
 np
 |> insert(patients)
-|> returning_with((p) -> {
+|> returning((p) -> {
   select(Patient(_, _, _))
   |> field(p.id)
   |> field(p.name)
@@ -734,7 +796,7 @@ def patient_row(p: PatientsCols) -> Select(Patient)
 end
 ```
 
-`from(patients) |> patient_row` for the read, `returning_with(patient_row)`
+`from(patients) |> patient_row` for the read, `returning(patient_row)`
 for the write. With row polymorphism a projection can span tables — one
 `def just_id(c: { a | id: Expr(Int) })` serves every table with an `id`.
 

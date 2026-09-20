@@ -1966,7 +1966,7 @@ import Sql.Write exposing (
   insert,
   insert_all,
   on_conflict,
-  returning_with,
+  returning,
   to_sql,
   update,
   update_all,
@@ -2109,7 +2109,7 @@ def update_all_nothing_returning -> (String, List(Value))
       (p) -> { p.balance |> eq(0) },
       (p, a) -> { [] },
     )
-    |> returning_with(
+    |> returning(
       (p) -> {
         select(Patient(_, _, _))
           |> field(p.id)
@@ -2180,7 +2180,7 @@ end
 def insert_paul_renamed -> (String, List(Value))
   NewPatient("Paul", 0)
     |> insert(patients)
-    |> returning_with((p) -> { select(Renamed(_)) |> field(p.id) })
+    |> returning((p) -> { select(Renamed(_)) |> field(p.id) })
     |> to_sql
 end
 
@@ -2188,7 +2188,7 @@ end
 def insert_paul_returning -> (String, List(Value))
   NewPatient("Paul", 100)
     |> insert(patients)
-    |> returning_with(
+    |> returning(
       (p) -> {
         select(Patient(_, _, _))
           |> field(p.id)
@@ -2203,7 +2203,7 @@ end
 def update_paul_returning -> (String, List(Value))
   Patient(42, "Paul", 100)
     |> update(patients, 42)
-    |> returning_with(
+    |> returning(
       (p) -> {
         select(Patient(_, _, _))
           |> field(p.id)
@@ -2217,7 +2217,7 @@ end
 
 def delete_paul_returning -> (String, List(Value))
   delete(patients, 42)
-    |> returning_with(
+    |> returning(
       (p) -> {
         select(Patient(_, _, _))
           |> field(p.id)
@@ -2335,24 +2335,24 @@ end
         expect(params).to eql [true]
       end
 
-      it 'returning_with projects the columns the closure names' do
+      it 'returning projects the columns the closure names' do
         sql, _ = App.insert_paul_returning
         expect(sql).to eql 'INSERT INTO patients AS p (name, balance) VALUES (?, ?) RETURNING p.id, p.name, p.balance'
       end
 
-      it 'returning_with appends RETURNING to an update' do
+      it 'returning appends RETURNING to an update' do
         sql, _ = App.update_paul_returning
         expect(sql).to eql 'UPDATE patients AS p SET name = ?, balance = ? WHERE id = ? RETURNING p.id, p.name, p.balance'
       end
 
-      it 'returning_with appends RETURNING to a delete' do
+      it 'returning appends RETURNING to a delete' do
         sql, _ = App.delete_paul_returning
         expect(sql).to eql 'DELETE FROM patients AS p WHERE id = ? RETURNING p.id, p.name, p.balance'
       end
 
       # What `returning` cannot do: the shape's field is `patient_id` and the
       # column is `id`, so nothing derived from the type names it.
-      it 'returning_with reads a column the result type does not name' do
+      it 'returning reads a column the result type does not name' do
         sql, _ = App.insert_paul_renamed
         expect(sql).to eql 'INSERT INTO patients AS p (name, balance) VALUES (?, ?) RETURNING p.id'
       end

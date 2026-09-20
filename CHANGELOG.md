@@ -28,6 +28,10 @@
   checked for exhaustiveness and the SQL needs no `ELSE`. The values come from
   a `Finite` instance, which the schema generator writes beside each database
   enum's codec; `Bool` has one.
+- **`where_not_null(e)` requires a nullable column and narrows it.** It adds
+  `WHERE e IS NOT NULL` and yields the same expression as `Expr(a)`, so the
+  only way to spend a nullable column as a non-null one is the call that
+  filters the NULLs out. `unsafe_cast` was the alternative.
 - **`case_of` cases over a value whose set isn't known**, closed by
   `otherwise` like `case_when`. Both builders take their first arm, so a CASE
   with no arms can't be written, and `Case(a, b)` now says what its arms match

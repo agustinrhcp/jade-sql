@@ -24,6 +24,7 @@ module Sql.Query exposing (
   to_sql,
   subquery,
   where,
+  where_not_null,
   filter,
 )
 
@@ -33,6 +34,7 @@ import Sql exposing (
   SqlError(..),
   Table,
   TableRef(..),
+  is_not_null,
   ToSql,
   from_sql_error,
 )
@@ -210,6 +212,36 @@ end
 
 def filter(q: Query(a), build: a -> Expr(Bool)) -> Query(a)
   where(q, build(q.result))
+end
+
+
+# `WHERE e IS NOT NULL`, handing back the same expression without its `Maybe`.
+# The predicate and the narrowed expression cannot come apart: this call is
+# the only way to get the one, and it adds the other.
+#
+#   tl <- from(transaction_lines)
+#   amount <- where_not_null(tl.amount_cents)
+#
+#   select(Total(_)) |> field(sum(amount))
+#
+# It narrows the expression, not the column: `tl.amount_cents` still reads
+# `Expr(Maybe(Int))` afterwards. A left-joined table's columns narrow the same
+# way, which is what makes "I forgot this row might be missing" a compile
+# error rather than a NULL in the answer.
+def where_not_null(e: Expr(Maybe(a))) -> Query(Expr(a))
+  Query(
+    [],
+    [],
+    [is_not_null(e)],
+    [],
+    [],
+    [],
+    Nothing,
+    Nothing,
+    False,
+    Expr(e.sql, e.params),
+    Nothing,
+  )
 end
 
 

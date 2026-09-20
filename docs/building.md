@@ -371,6 +371,21 @@ For predicates that lift a non-null column into the nullable side,
 p.id |> nullable |> Expr.eq(a.patient_id)  # Expr(Int) → Expr(Maybe(Int))
 ```
 
+To go the other way, `where_not_null` requires the column and hands it back
+without its `Maybe`:
+
+```jade
+p <- from(patients)
+a <- left_join(appointments, (a) -> { p.id |> Expr.eq(a.patient_id) })
+seen_on <- where_not_null(a.seen_on)       # Expr(Date), and WHERE … IS NOT NULL
+
+select(Day(_)) |> field(seen_on)
+```
+
+The predicate and the narrowed expression come from one call, so the type
+cannot claim a value the query has not required. It narrows the expression,
+not the column: `a.seen_on` still reads `Expr(Maybe(Date))` afterwards.
+
 ### Phantom-type rewrap with `unsafe_cast`
 
 `unsafe_cast(e: Expr(a)) -> Expr(b)` widens a column's phantom type — useful
